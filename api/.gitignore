@@ -1,0 +1,17 @@
+# Azure Functions
+bin
+obj
+dist
+node_modules
+
+# Local settings hold SECRETS — never commit
+local.settings.json
+
+# Azurite local storage emulator
+__azurite_db*__.json
+__blobstorage__
+__queuestorage__
+
+# Logs
+*.log
+.vscode/

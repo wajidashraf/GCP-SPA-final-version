@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- a479817d-fa2b-43f4-9838-3a5a8d2a2b07
+append: true
+appendto: true
+create: true
+delete: false
+entitylogicalname: gcp_caarequest
+entityname: CAA Request - Global Access
+id: 355ade15-7d5b-445f-ab6d-305abcb03f00
+read: true
+scope: 756150000
+write: true

@@ -1,0 +1,4 @@
+description: Enable Web API access for gcp_suggestions table
+id: 7a3c12d4-8e5f-4b21-a9c3-1d2e6f7b8c9a
+name: Webapi/gcp_suggestion/enabled
+value: true

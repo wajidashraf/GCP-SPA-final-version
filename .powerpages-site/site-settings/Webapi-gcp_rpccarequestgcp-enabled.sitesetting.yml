@@ -1,0 +1,4 @@
+description: Enable Web API access for gcp_rpccarequestgcp table
+id: 24696c61-8586-4583-8fef-a1f4c2806006
+name: Webapi/gcp_rpccarequestgcp/enabled
+value: true

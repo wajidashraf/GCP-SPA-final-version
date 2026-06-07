@@ -1,0 +1,4 @@
+description: Enable Web API access for gcp_signatorymember1 table
+id: 3d1e45f6-8a2b-4c93-b7d4-5e6f0a1b2c3d
+name: Webapi/gcp_signatorymember1/enabled
+value: true

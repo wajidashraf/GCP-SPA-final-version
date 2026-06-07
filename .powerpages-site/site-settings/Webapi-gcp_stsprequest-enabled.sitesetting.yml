@@ -1,0 +1,4 @@
+description: Enable Web API access for gcp_stsprequest table
+id: 3c801c36-33d8-4eea-aa1c-77ec3c79bdc6
+name: Webapi/gcp_stsprequest/enabled
+value: true

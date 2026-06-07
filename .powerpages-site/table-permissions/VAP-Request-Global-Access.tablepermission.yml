@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- a479817d-fa2b-43f4-9838-3a5a8d2a2b07
+append: true
+appendto: true
+create: true
+delete: false
+entitylogicalname: gcp_vaprequest
+entityname: VAP Request - Global Access
+id: f3281d51-e224-4100-a97f-fd63bb61f6b2
+read: true
+scope: 756150000
+write: true

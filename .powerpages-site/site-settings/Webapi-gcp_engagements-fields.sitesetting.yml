@@ -1,0 +1,4 @@
+description: Allowed fields for gcp_engagements Web API access
+id: 46607cd4-fcf8-4900-a21d-3194ce641a27
+name: Webapi/gcp_engagements/fields
+value: '*'

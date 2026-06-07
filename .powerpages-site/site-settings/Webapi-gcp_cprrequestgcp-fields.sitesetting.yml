@@ -1,0 +1,4 @@
+description: Allowed fields for gcp_cprrequestgcp Web API access
+id: 035c9966-d724-45c2-b290-306853b026df
+name: Webapi/gcp_cprrequestgcp/fields
+value: '*'

@@ -1,0 +1,4 @@
+description: Enable Web API access for gcp_vaprequest table
+id: 0377410d-9088-4bf9-bf1e-b22e08647ea6
+name: Webapi/gcp_vaprequest/enabled
+value: true

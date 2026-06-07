@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- a479817d-fa2b-43f4-9838-3a5a8d2a2b07
+append: true
+appendto: true
+create: false
+delete: false
+entitylogicalname: contact
+entityname: Contact - Self Read
+id: ead493ef-6d74-475f-abc9-be31f13023a0
+read: true
+scope: 756150004
+write: false

@@ -1,0 +1,4 @@
+description: Allowed fields for gcp_signatures Web API access
+id: 9c5a34b2-7d8e-4f03-b2c6-3a4d0e1f2b5c
+name: Webapi/gcp_signature/fields
+value: "*"

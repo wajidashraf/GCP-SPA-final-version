@@ -1,0 +1,14 @@
+adx_entitypermission_webrole:
+- f48675b4-13bf-459d-8a1d-f9a42f468dba
+- b079a542-bca0-43b7-a964-642298845ba1
+- f196430f-16b6-4fe0-b0f6-582c30532184
+append: true
+appendto: true
+create: true
+delete: false
+entitylogicalname: gcp_suggestion
+entityname: Suggestion - Global Access
+id: 3c8e21f5-7d4b-4a92-b6e3-8f1a2c9d0b7e
+read: true
+scope: 756150000
+write: true

@@ -1,0 +1,4 @@
+description: Allowed fields for gcp_rpccarequestgcp Web API access
+id: 32ee7006-e3a7-47ba-ae9a-a045ac176b03
+name: Webapi/gcp_rpccarequestgcp/fields
+value: '*'

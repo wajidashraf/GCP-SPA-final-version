@@ -1,0 +1,4 @@
+description: Enable Web API access for gcp_rtprequest table
+id: 157cbf37-707e-4760-b26e-4e982b4cee42
+name: Webapi/gcp_rtprequest/enabled
+value: true

@@ -1,0 +1,4 @@
+description: Enable Web API access for gcp_pccarequest table
+id: e1fc9940-2869-4bbc-8c0b-3827338bf6bd
+name: Webapi/gcp_pccarequest/enabled
+value: true

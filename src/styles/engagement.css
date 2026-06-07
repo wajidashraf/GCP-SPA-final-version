@@ -1,0 +1,298 @@
+/* ============================================================
+   engagement.css
+   Schedule / manage engagements page (Engagement.tsx). Reuses the request-detail
+   page shell (.rd-page / .rd-back / .rd-verify-btn) and the verify card buttons.
+   ============================================================ */
+
+.eng-card {
+  max-width: 760px;
+  margin: 0 auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+/* ---------- Header ---------- */
+.eng-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.eng-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.eng-sub {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.eng-ref {
+  display: inline-block;
+  padding: 2px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+/* ---------- Body ---------- */
+.eng-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 24px;
+}
+
+/* ---------- Empty states ---------- */
+.eng-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 20px;
+  color: var(--muted);
+  text-align: center;
+}
+.eng-empty svg {
+  opacity: 0.4;
+}
+.eng-empty p {
+  margin: 0;
+  font-size: 0.92rem;
+}
+.eng-empty--sm {
+  padding: 24px 16px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+/* ---------- Engagement list ---------- */
+.eng-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.eng-item {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  transition: box-shadow 0.15s ease;
+}
+.eng-item:hover {
+  box-shadow: var(--shadow);
+}
+.eng-item-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.eng-item-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.eng-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.eng-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 12px;
+}
+.eng-item-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+.eng-item-meta svg {
+  color: var(--accent-ink);
+  flex-shrink: 0;
+}
+
+/* ---------- Badges ---------- */
+.eng-type-badge,
+.eng-status-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: 999px;
+}
+.eng-type-virtual {
+  background: rgba(79, 70, 229, 0.12);
+  color: #4f46e5;
+}
+.eng-type-inperson {
+  background: rgba(13, 148, 136, 0.12);
+  color: #0d9488;
+}
+.eng-status-scheduled {
+  background: rgba(37, 99, 235, 0.12);
+  color: #2563eb;
+}
+.eng-status-completed {
+  background: rgba(16, 185, 129, 0.14);
+  color: #059669;
+}
+.eng-status-cancelled {
+  background: rgba(220, 38, 38, 0.12);
+  color: #dc2626;
+}
+
+/* ---------- Cancel button ---------- */
+.eng-cancel-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #dc2626;
+  background: transparent;
+  border: 1px solid rgba(220, 38, 38, 0.4);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.eng-cancel-btn:hover:not(:disabled) {
+  background: rgba(220, 38, 38, 0.08);
+}
+.eng-cancel-btn--solid {
+  color: #fff;
+  background: #dc2626;
+  border-color: #dc2626;
+  padding: 9px 18px;
+  font-size: 0.9rem;
+}
+.eng-cancel-btn--solid:hover:not(:disabled) {
+  background: #b91c1c;
+}
+.eng-cancel-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Admin engagement card actions (Manage / Cancel row) */
+.eng-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 12px;
+}
+.eng-card-actions .slot-btn {
+  flex: 1;
+  justify-content: center;
+}
+
+/* ---------- Slot picker ---------- */
+.eng-slots {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.eng-slot-count {
+  color: var(--muted);
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.eng-slot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+.eng-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.eng-slot:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.eng-slot.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.eng-slot:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.eng-slot-date {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.eng-slot-dur {
+  font-size: 0.72rem;
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.eng-slot-time {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+/* ---------- Form actions ---------- */
+.eng-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 4px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+/* ---------- Success toast ---------- */
+.eng-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #fff;
+  background: #059669;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  z-index: 1080;
+}

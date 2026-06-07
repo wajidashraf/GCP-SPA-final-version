@@ -1,0 +1,26 @@
+{
+  "name": "gcp-nexus-upload-api",
+  "version": "0.1.0",
+  "description": "Azure Functions backend that uploads Power Pages form files to SharePoint via Microsoft Graph.",
+  "private": true,
+  "main": "dist/src/functions/*.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "clean": "rimraf dist",
+    "prestart": "npm run clean && npm run build",
+    "start": "func start",
+    "test": "echo \"no tests yet\" && exit 0"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.5.0",
+    "@azure/identity": "^4.4.1",
+    "@microsoft/microsoft-graph-client": "^3.0.7",
+    "jose": "^5.9.6"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "rimraf": "^5.0.7",
+    "typescript": "^5.5.3"
+  }
+}

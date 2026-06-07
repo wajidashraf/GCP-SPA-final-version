@@ -1,0 +1,14 @@
+adx_entitypermission_webrole:
+- a479817d-fa2b-43f4-9838-3a5a8d2a2b07
+- f48675b4-13bf-459d-8a1d-f9a42f468dba
+- b079a542-bca0-43b7-a964-642298845ba1
+append: false
+appendto: false
+create: false
+delete: false
+entitylogicalname: gcp_signature
+entityname: Signature - Global Read
+id: 1a7c9e3b-2d54-4f86-9b1c-7e8f0a2d3c4b
+read: true
+scope: 756150000
+write: false

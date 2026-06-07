@@ -1,0 +1,4 @@
+description: Enable Web API access for account table
+id: e216f18f-dd80-4edf-980b-ede53e8fd523
+name: Webapi/account/enabled
+value: true

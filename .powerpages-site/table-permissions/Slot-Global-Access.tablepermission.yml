@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- a479817d-fa2b-43f4-9838-3a5a8d2a2b07
+append: true
+appendto: true
+create: true
+delete: false
+entitylogicalname: gcp_slot
+entityname: Slot - Global Access
+id: 798e3411-caf8-4ab7-be23-2256eeb2661e
+read: true
+scope: 756150000
+write: true

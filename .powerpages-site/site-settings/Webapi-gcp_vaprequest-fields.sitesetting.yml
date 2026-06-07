@@ -1,0 +1,4 @@
+description: Allowed fields for gcp_vaprequest Web API access
+id: f07000b8-3c1f-4060-a84e-0fad6b17a434
+name: Webapi/gcp_vaprequest/fields
+value: '*'

@@ -1,0 +1,4 @@
+description: Enable Web API access for gcp_requestcigcp table
+id: c6f13f8d-deb3-45b0-a1c6-be2dcb7f3475
+name: Webapi/gcp_requestcigcp/enabled
+value: true

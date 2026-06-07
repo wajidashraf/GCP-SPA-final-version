@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- a479817d-fa2b-43f4-9838-3a5a8d2a2b07
+append: true
+appendto: true
+create: true
+delete: false
+entitylogicalname: gcp_pccarequest
+entityname: PCCA Request - Global Access
+id: 9532092b-86cb-4fcf-b2a9-238ea591edf7
+read: true
+scope: 756150000
+write: true

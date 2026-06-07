@@ -1,0 +1,4 @@
+description: Allowed fields for account Web API access
+id: 22176585-230a-441e-8fd6-37651a1e3256
+name: Webapi/account/fields
+value: '*'

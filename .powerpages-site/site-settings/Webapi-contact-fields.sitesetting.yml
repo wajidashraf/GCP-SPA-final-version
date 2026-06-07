@@ -1,0 +1,4 @@
+description: Allowed fields for contact Web API access
+id: 8d1f5026-8b1a-4716-aabb-f4189b7b71c4
+name: Webapi/contact/fields
+value: _parentcustomerid_value,contactid,emailaddress1,firstname,fullname,lastname,parentcustomerid,telephone1

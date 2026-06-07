@@ -1,0 +1,4 @@
+description: Allowed fields for gcp_jvmrequest Web API access
+id: 99af8b19-d1c0-4312-9439-528946119423
+name: Webapi/gcp_jvmrequest/fields
+value: '*'

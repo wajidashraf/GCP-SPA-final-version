@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- a479817d-fa2b-43f4-9838-3a5a8d2a2b07
+append: true
+appendto: true
+create: true
+delete: false
+entitylogicalname: gcp_stsprequest
+entityname: STSP Request - Global Access
+id: 18325a20-facb-4db8-83c5-fa860d9ae890
+read: true
+scope: 756150000
+write: true

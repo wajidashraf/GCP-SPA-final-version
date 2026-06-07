@@ -1,0 +1,4 @@
+description: Allowed fields for gcp_rtprequest Web API access
+id: e80dd8ab-34f5-401c-9e99-238fd2c354da
+name: Webapi/gcp_rtprequest/fields
+value: "*"

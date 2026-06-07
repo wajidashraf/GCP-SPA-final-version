@@ -1,0 +1,197 @@
+/* ============================================================
+   requestReview.css
+   Reviewer "Review Request" screen (RequestReview.tsx). Reuses the
+   request-detail / verify shell (.rd-page, .vd-card*, .rd-verify-btn,
+   .vd-btn-secondary) — this file only adds the decision-code radio group
+   and the block-based reviewer-comment editor.
+   ============================================================ */
+
+/* ---------- Decision-code radio group ---------- */
+.fx-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.fx-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.fx-choice:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+/* Visually-hidden native input — the .fx-box renders the control. */
+.fx-choice input[type='radio'] {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.fx-box {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  border: 2px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--surface);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.fx-choice:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.fx-choice:has(input:checked) .fx-box {
+  border-color: var(--accent-ink);
+  box-shadow: inset 0 0 0 4px var(--accent);
+}
+.fx-choice:has(input:focus-visible) .fx-box {
+  outline: 2px solid var(--navy);
+  outline-offset: 2px;
+}
+.fx-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.fx-label-title {
+  font-weight: 600;
+  color: var(--text);
+}
+.fx-label-desc {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* ---------- Reviewer-comment block editor ---------- */
+.rc-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.rc-empty {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+.rc-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.rc-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.rc-block-kind {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.rc-block-tools {
+  display: inline-flex;
+  gap: 4px;
+}
+.rc-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.rc-icon-btn:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.rc-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.rc-icon-danger:hover:not(:disabled) {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+/* List blocks */
+.rc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rc-list-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rc-list-marker {
+  min-width: 1.5rem;
+  text-align: right;
+  font-weight: 600;
+  color: var(--muted);
+}
+.rc-add-item {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--navy);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+.rc-add-item:hover {
+  text-decoration: underline;
+}
+
+/* Add-block toolbar */
+.rc-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.rc-add-block {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.rc-add-block:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}

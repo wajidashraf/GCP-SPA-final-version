@@ -1,0 +1,4 @@
+description: Allowed fields for gcp_request Web API access
+id: da4ec45c-45de-4141-b49a-0efcdf18bf2f
+name: Webapi/gcp_request/fields
+value: '*'

@@ -1,0 +1,4 @@
+description: Allowed fields for gcp_pprequest Web API access
+id: 6125729f-8df3-40aa-a066-80af111545eb
+name: Webapi/gcp_pprequest/fields
+value: '*'

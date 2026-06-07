@@ -1,0 +1,4 @@
+description: Enable detailed error messages for debugging (disable before production)
+id: e954e083-d3a9-46cd-a118-070d7bda7004
+name: Webapi/error/innererror
+value: true

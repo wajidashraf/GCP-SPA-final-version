@@ -1,0 +1,4 @@
+description: Enable Web API access for gcp_otherrequests table
+id: 20cbfefc-adcc-49ef-816d-a69d7daf78d0
+name: Webapi/gcp_otherrequests/enabled
+value: true

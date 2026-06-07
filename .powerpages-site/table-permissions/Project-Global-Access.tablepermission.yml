@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- a479817d-fa2b-43f4-9838-3a5a8d2a2b07
+append: true
+appendto: true
+create: true
+delete: false
+entitylogicalname: gcp_projects
+entityname: Project - Global Access
+id: 3079904f-3d2f-4e63-bac8-582dbf82f885
+read: true
+scope: 756150000
+write: true

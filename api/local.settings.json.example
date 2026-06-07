@@ -1,0 +1,57 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "FUNCTIONS_EXTENSION_VERSION": "~4",
+
+    "_comment_portalauth": "── Incoming portal-token validation (FE → Function) ──",
+    "_comment_portalauth2": "The SPA sends a Power Pages portal token from /_services/auth/token. PORTAL_BASE_URLS is a comma-separated allow-list of portal origins whose tokens are accepted (one Function serves dev + prod). PORTAL_CLIENT_ID is the client id registered via the ImplicitGrantFlow/RegisteredClientId site setting; it must equal the token's aud/appid.",
+    "PORTAL_BASE_URLS": "https://gcp-nexus.powerappsportals.com,https://gcp-nexus-prod.powerappsportals.com",
+    "PORTAL_CLIENT_ID": "<registered-implicit-grant-client-id>",
+    "_comment_portalauth3": "PORTAL_PUBLIC_KEYS: optional, comma-separated, INDEX-ALIGNED with PORTAL_BASE_URLS. Each value is that portal's implicit-grant signing certificate (the public half) as a bare base64 X.509/SPKI body or full PEM. REQUIRED for portals that require sign-in on every path: the Function's anonymous server-side fetch of /_services/auth/publickey is redirected to the IdP, so the key cannot be fetched and must be supplied here. Leave a slot empty to fall back to fetching that portal's publickey endpoint. Dev cert = thumbprint 99350A6E6D38C03D8A4131EC75FB2B419E7E2413 (CN=gcp-nexus-implicit-grant). Get base64: [Convert]::ToBase64String((Get-ChildItem Cert:\\CurrentUser\\My | ? Thumbprint -eq <tp>).RawData)",
+    "PORTAL_PUBLIC_KEYS": "<dev-cert-base64>,<prod-cert-base64-or-empty>",
+
+    "_comment_auth": "── Outgoing Graph auth (Function → SharePoint), app-only ──",
+    "TENANT_ID": "<your-entra-tenant-guid>",
+    "GRAPH_CLIENT_ID": "<gcp-nexus-app-client-id>",
+    "GRAPH_CLIENT_SECRET": "<client-secret-VALUE-store-in-Key-Vault-in-prod>",
+
+    "_comment_sharepoint": "── SharePoint target (prefer pre-resolved ids) ──",
+    "SHAREPOINT_SITE_ID": "<site-id-from-Graph>",
+    "SHAREPOINT_DRIVE_ID": "<drive-id-from-Graph>",
+    "_comment_sharepoint_fallback": "Used only if SITE_ID/DRIVE_ID are blank:",
+    "SHAREPOINT_HOSTNAME": "<tenant>.sharepoint.com",
+    "SHAREPOINT_SITE_PATH": "/sites/<your-site>",
+    "SHAREPOINT_LIBRARY": "Documents",
+    "SHAREPOINT_ROOT_FOLDER": "GCP-Uploads",
+
+    "_comment_limits": "── Upload limits ──",
+    "MAX_FILE_BYTES": "10485760",
+
+    "_comment_roles": "── Web-role management (Dataverse Web API, app-only) ──",
+    "_comment_roles2": "The app (GRAPH_CLIENT_ID, or DATAVERSE_CLIENT_ID below) MUST be added as an Application User in the environment with a security role that can read/write contact + the web-role table + their N:N relationship.",
+    "DATAVERSE_URL": "https://<org>.crm.dynamics.com",
+    "DATAVERSE_API_VERSION": "v9.2",
+    "DATAVERSE_CLIENT_ID": "",
+    "DATAVERSE_CLIENT_SECRET": "",
+    "_comment_roles3": "Modern Power Pages stores web roles in the unified powerpagecomponent table (type 11); the contact N:N is defined there, NOT on the mspp_webrole view. Defaults below are verified against GCP-Developer — override only if your env differs.",
+    "WEBROLE_ENTITY_SET": "powerpagecomponents",
+    "WEBROLE_ID_ATTR": "powerpagecomponentid",
+    "WEBROLE_NAME_ATTR": "name",
+    "WEBROLE_CONTACT_NAV": "powerpagecomponent_mspp_webrole_contact",
+    "WEBROLE_LIST_FILTER": "powerpagecomponenttype eq 11",
+    "ADMIN_WEBROLE_NAME": "Administrators",
+
+    "_comment_email": "── Email notifications (Function → Graph sendMail, app-only) ──",
+    "_comment_email2": "NOTIFICATION_SENDER is the shared mailbox emails are sent ON BEHALF OF (from/replyTo + the /users/{mailbox}/sendMail target). The daemon app (GRAPH_CLIENT_ID) needs Mail.Send Application permission AND, if an Exchange Application Access Policy is in place, this mailbox must be in the policy's scoped mail-enabled security group. One Function App serves dev + prod, so this single value covers both portals.",
+    "NOTIFICATION_SENDER": "noreply@O3CS.my",
+    "SPA_BASE_URL": "https://gcp-nexus-prod.powerappsportals.com",
+    "NOTIFY_WEBROLE_NAME": "Verifier",
+    "EMAIL_TEMPLATE_ENTITY_SET": "gcp_emailtemplates"
+  },
+  "Host": {
+    "CORS": "https://gcp-nexus.powerappsportals.com,http://localhost:5173",
+    "CORSCredentials": false
+  }
+}

@@ -1,0 +1,4 @@
+description: Allowed fields for gcp_otherrequests Web API access
+id: 30d9c1a6-a364-4736-bfbc-fc947c27af9f
+name: Webapi/gcp_otherrequests/fields
+value: '*'

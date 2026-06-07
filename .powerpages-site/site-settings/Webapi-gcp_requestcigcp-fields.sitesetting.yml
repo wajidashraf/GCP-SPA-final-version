@@ -1,0 +1,4 @@
+description: Allowed fields for gcp_requestcigcp Web API access
+id: 4de9dc0f-4e48-47f7-b96e-e69fda93003f
+name: Webapi/gcp_requestcigcp/fields
+value: '*'

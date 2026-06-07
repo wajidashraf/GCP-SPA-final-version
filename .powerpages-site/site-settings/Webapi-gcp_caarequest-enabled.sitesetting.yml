@@ -1,0 +1,4 @@
+description: Enable Web API access for gcp_caarequest table
+id: 08bbbfd9-de3a-41f8-a7d2-41e6f2a7329f
+name: Webapi/gcp_caarequest/enabled
+value: true

@@ -1,0 +1,4 @@
+description: Enable Web API access for gcp_signatures table
+id: 8b4f23a1-6c7d-4e92-a1b5-2f3c9d0e1a4b
+name: Webapi/gcp_signature/enabled
+value: true

@@ -1,0 +1,4 @@
+description: Allowed fields for gcp_stsprequest Web API access
+id: 6c17eec7-5ea2-46c7-b289-e1c8890f03d1
+name: Webapi/gcp_stsprequest/fields
+value: '*'

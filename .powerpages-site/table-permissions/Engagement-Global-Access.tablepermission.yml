@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- a479817d-fa2b-43f4-9838-3a5a8d2a2b07
+append: true
+appendto: true
+create: true
+delete: false
+entitylogicalname: gcp_engagements
+entityname: Engagement - Global Access
+id: b69dacec-ed79-40c0-b56f-27500543395f
+read: true
+scope: 756150000
+write: true

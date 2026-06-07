@@ -1,0 +1,4 @@
+description: Allowed fields for gcp_emailtemplate Web API access
+id: 1a2b3c4d-0002-4e80-9a3c-aaaaaaaa0002
+name: Webapi/gcp_emailtemplate/fields
+value: "*"

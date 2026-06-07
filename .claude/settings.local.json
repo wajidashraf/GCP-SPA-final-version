@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(az login *)",
+      "PowerShell(func *)",
+      "PowerShell(az functionapp list *)",
+      "PowerShell(npx tsc --noEmit -p tsconfig.json 2>&1 | Out-String; \"===== FE TSC EXIT: $LASTEXITCODE =====\")",
+      "PowerShell(Compress-Archive *)"
+    ]
+  }
+}

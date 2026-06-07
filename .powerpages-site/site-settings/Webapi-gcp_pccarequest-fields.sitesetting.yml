@@ -1,0 +1,4 @@
+description: Allowed fields for gcp_pccarequest Web API access
+id: acfb47d8-5ed5-49ff-b3e2-6cd1463166da
+name: Webapi/gcp_pccarequest/fields
+value: '*'

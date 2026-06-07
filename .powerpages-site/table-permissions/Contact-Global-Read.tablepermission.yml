@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- a479817d-fa2b-43f4-9838-3a5a8d2a2b07
+append: false
+appendto: true
+create: false
+delete: false
+entitylogicalname: contact
+entityname: Contact - Global Read
+id: cc185fb0-4712-43b2-a81c-77fba20b0c05
+read: true
+scope: 756150000
+write: false

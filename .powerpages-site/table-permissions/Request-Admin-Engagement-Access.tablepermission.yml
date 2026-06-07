@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- f48675b4-13bf-459d-8a1d-f9a42f468dba
+append: false
+appendto: true
+create: false
+delete: false
+entitylogicalname: gcp_request
+entityname: Request - Admin Engagement Access
+id: 0399bb0e-ef84-4c5b-bf2e-dc7f32ee4385
+read: true
+scope: 756150000
+write: true

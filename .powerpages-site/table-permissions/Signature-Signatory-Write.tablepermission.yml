@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- f196430f-16b6-4fe0-b0f6-582c30532184
+append: true
+appendto: true
+create: true
+delete: false
+entitylogicalname: gcp_signature
+entityname: Signature - Signatory Write
+id: 2b8d0f4c-3e65-4a97-8c2d-9f0a1b3e4d5c
+read: true
+scope: 756150000
+write: false

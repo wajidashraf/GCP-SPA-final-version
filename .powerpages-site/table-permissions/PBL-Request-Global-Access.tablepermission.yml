@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- a479817d-fa2b-43f4-9838-3a5a8d2a2b07
+append: true
+appendto: true
+create: true
+delete: false
+entitylogicalname: gcp_pblrequest
+entityname: PBL Request - Global Access
+id: c1e92514-f4fa-43fd-ac04-58122318232c
+read: true
+scope: 756150000
+write: true

@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- a479817d-fa2b-43f4-9838-3a5a8d2a2b07
+append: true
+appendto: true
+create: true
+delete: false
+entitylogicalname: gcp_pblbidders
+entityname: PBL Bidders - Global Access
+id: ec323d84-21ee-4048-a8c4-8504683878a5
+read: true
+scope: 756150000
+write: true

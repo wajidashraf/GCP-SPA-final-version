@@ -1,0 +1,4 @@
+description: Enable Web API access for gcp_slot table
+id: 4c3096b7-f228-4954-856e-4a7fab1224e3
+name: Webapi/gcp_slot/enabled
+value: true

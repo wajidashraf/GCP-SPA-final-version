@@ -1,0 +1,4 @@
+description: Enable Web API access for gcp_emailtemplate table
+id: 1a2b3c4d-0001-4e80-9a3c-aaaaaaaa0001
+name: Webapi/gcp_emailtemplate/enabled
+value: true

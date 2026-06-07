@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- a479817d-fa2b-43f4-9838-3a5a8d2a2b07
+append: true
+appendto: true
+create: true
+delete: false
+entitylogicalname: gcp_requestcigcp
+entityname: CI Request - Global Access
+id: 1f88da25-b598-4fd8-886d-583f3be17f7d
+read: true
+scope: 756150000
+write: true

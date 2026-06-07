@@ -1,0 +1,4 @@
+description: Allowed fields for gcp_pblbidders Web API access
+id: 0a1857e3-4c37-4e3f-bb90-f6998a65ffd1
+name: Webapi/gcp_pblbidders/fields
+value: '*'

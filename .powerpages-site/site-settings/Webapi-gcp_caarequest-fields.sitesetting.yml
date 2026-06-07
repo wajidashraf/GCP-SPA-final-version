@@ -1,0 +1,4 @@
+description: Allowed fields for gcp_caarequest Web API access
+id: 42ea0766-5ffe-48ec-9d7e-23fd8e7784c4
+name: Webapi/gcp_caarequest/fields
+value: '*'

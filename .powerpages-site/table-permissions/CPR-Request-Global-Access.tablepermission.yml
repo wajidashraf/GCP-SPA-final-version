@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- a479817d-fa2b-43f4-9838-3a5a8d2a2b07
+append: true
+appendto: true
+create: true
+delete: false
+entitylogicalname: gcp_cprrequestgcp
+entityname: CPR Request - Global Access
+id: cfbb1436-54db-463f-b032-0bab18b9be52
+read: true
+scope: 756150000
+write: true

@@ -1,0 +1,4 @@
+description: Enable Web API access for gcp_pblbidders table
+id: 3bf6cac9-873c-43ee-9009-036fd33c87bc
+name: Webapi/gcp_pblbidders/enabled
+value: true

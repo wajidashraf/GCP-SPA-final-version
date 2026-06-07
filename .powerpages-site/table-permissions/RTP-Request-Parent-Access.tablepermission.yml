@@ -1,0 +1,14 @@
+adx_entitypermission_webrole:
+- a479817d-fa2b-43f4-9838-3a5a8d2a2b07
+append: false
+appendto: true
+create: true
+delete: false
+entitylogicalname: gcp_rtprequest
+entityname: RTP Request - Parent Access
+id: 8ef30f9c-59f2-4301-bab9-1caa06995102
+parententitypermission: f37c1542-bf14-4324-b616-dabc58ca3c75
+parentrelationship: gcp_rtprequest_Request_gcp_request
+read: true
+scope: 756150003
+write: true

@@ -1,0 +1,16 @@
+adx_entitypermission_webrole:
+- b079a542-bca0-43b7-a964-642298845ba1
+- a9024323-2bc2-4fc9-b7cf-aafb69581168
+- 712bfc10-3359-4685-8f1f-69cd1db4f91a
+- 7a1e229c-567b-4bbf-ae02-522e59efcff2
+- f196430f-16b6-4fe0-b0f6-582c30532184
+append: false
+appendto: false
+create: false
+delete: false
+entitylogicalname: gcp_rtprequest
+entityname: RTP Request - Review Read (Global)
+id: 0fa9dc7f-85ba-49ab-a45f-9188f227e8c2
+read: true
+scope: 756150000
+write: false

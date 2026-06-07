@@ -1,0 +1,4 @@
+description: Enable Web API access for gcp_cprrequestgcp table
+id: c6aecbc8-a986-425d-99c9-3855af8d8bf5
+name: Webapi/gcp_cprrequestgcp/enabled
+value: true

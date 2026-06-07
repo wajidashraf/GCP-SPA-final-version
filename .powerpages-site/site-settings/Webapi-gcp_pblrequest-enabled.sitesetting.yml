@@ -1,0 +1,4 @@
+description: Enable Web API access for gcp_pblrequest table
+id: 48acb129-3948-4e94-aea8-4da98ffba6bc
+name: Webapi/gcp_pblrequest/enabled
+value: true

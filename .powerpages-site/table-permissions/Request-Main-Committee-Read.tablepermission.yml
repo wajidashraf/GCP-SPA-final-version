@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- c4a9f7e2-8b6d-4e1c-a3f5-2d9e7b4c6a1f
+append: false
+appendto: false
+create: false
+delete: false
+entitylogicalname: gcp_request
+entityname: Request - Main Committee Read
+id: b3f1a8d5-7c2e-4d9a-b6f0-1e3c5a8d7b2f
+read: true
+scope: 756150000
+write: false

@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- f48675b4-13bf-459d-8a1d-f9a42f468dba
+append: false
+appendto: false
+create: true
+delete: true
+entitylogicalname: gcp_emailtemplate
+entityname: Email Template - Admin Access
+id: 1a2b3c4d-0003-4e80-9a3c-aaaaaaaa0003
+read: true
+scope: 756150000
+write: true

@@ -1,0 +1,14 @@
+adx_entitypermission_webrole:
+- a9024323-2bc2-4fc9-b7cf-aafb69581168
+- 7a1e229c-567b-4bbf-ae02-522e59efcff2
+- 712bfc10-3359-4685-8f1f-69cd1db4f91a
+append: false
+appendto: false
+create: false
+delete: false
+entitylogicalname: gcp_suggestion
+entityname: Suggestion - View Read
+id: 5e3b0d2f-9c4e-4f78-b6a3-0d9e2f3a4b5c
+read: true
+scope: 756150000
+write: false

@@ -1,0 +1,4 @@
+description: Enable Web API access for gcp_project table
+id: 693f56e8-f84f-45e6-9c7f-2e10e5484a29
+name: Webapi/gcp_project/enabled
+value: true

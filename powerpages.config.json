@@ -1,0 +1,5 @@
+{
+  "siteName": "gcp-nexus",
+  "buildCommand": "npm run build",
+  "outputPath": "dist"
+}

@@ -1,0 +1,4 @@
+description: Enable Web API access for gcp_jvmrequest table
+id: 69fa5a5b-c6ae-4c25-8872-808ba2630013
+name: Webapi/gcp_jvmrequest/enabled
+value: true

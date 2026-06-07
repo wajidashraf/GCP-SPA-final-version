@@ -1,0 +1,13 @@
+adx_entitypermission_webrole:
+- a479817d-fa2b-43f4-9838-3a5a8d2a2b07
+append: true
+appendto: true
+contactrelationship: gcp_request_RequestorName_contact
+create: true
+delete: false
+entitylogicalname: gcp_request
+entityname: Request - Owner Access
+id: f37c1542-bf14-4324-b616-dabc58ca3c75
+read: true
+scope: 756150001
+write: true

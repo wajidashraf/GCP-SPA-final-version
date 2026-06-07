@@ -1,0 +1,4 @@
+description: Allowed fields for gcp_pblrequest Web API access
+id: 9b8dc8c5-8ea5-4b4d-8196-e554ff9c6903
+name: Webapi/gcp_pblrequest/fields
+value: '*'
