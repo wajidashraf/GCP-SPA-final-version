@@ -3059,3 +3059,133 @@ tr:last-child td {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* MultiSelectField (multiselect dropdown) */
+.ms-field {
+  position: relative;
+}
+.ms-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 38px;
+  padding: 6px 10px;
+  text-align: left;
+  font-size: 0.9rem;
+  color: var(--navy);
+  background: #fff;
+  border: 1px solid var(--border-strong, #ced4da);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.ms-trigger:not(:disabled):hover {
+  border-color: var(--accent);
+}
+.ms-trigger:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 0.2rem var(--accent-soft);
+}
+.ms-trigger:disabled {
+  background: #f3f4f6;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.ms-trigger.is-invalid {
+  border-color: var(--danger);
+}
+.ms-placeholder {
+  flex: 1;
+  color: var(--muted);
+}
+.ms-chips {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.ms-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+  border-radius: 10px;
+}
+.ms-chip-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--accent-ink);
+}
+.ms-chip-x:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+.ms-caret {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.ms-panel {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: #fff;
+  border: 1px solid var(--border-strong, #ced4da);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+.ms-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  text-align: left;
+  font-size: 0.88rem;
+  color: var(--navy);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.ms-option:not(:disabled):hover {
+  background: var(--accent-soft);
+}
+.ms-option:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.ms-option.is-checked {
+  font-weight: 600;
+}
+.ms-checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border: 1px solid var(--border-strong, #ced4da);
+  border-radius: 4px;
+  color: #fff;
+}
+.ms-checkbox.is-checked {
+  background: var(--accent);
+  border-color: var(--accent);
+}

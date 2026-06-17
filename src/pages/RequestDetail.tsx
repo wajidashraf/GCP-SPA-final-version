@@ -249,7 +249,41 @@ export default function RequestDetail() {
   const navigate = useNavigate();
   const { request, child, isLoading, error, childError, refetch } =
     useRequestDetail(id);
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
+
+  // ── Record-level access ──────────────────────────────────────────────────
+  // Client-side UX guard (the authoritative boundary is the gcp_request table
+  // permissions). A user may view this request if they are an Administrator, a
+  // reviewing role (Reviewer / Verifier / Working GCPC / Endorser / Main
+  // Committee), the HOC of the request's company, or the requestor themselves.
+  // Anyone else who lands here (e.g. a Requestor opening another Requestor's
+  // record) is shown a message and redirected back to the requests list.
+  const accessDenied = useMemo(() => {
+    if (!request || authLoading) return false;
+    const elevated =
+      isAdmin() ||
+      hasRole("Reviewer") ||
+      hasRole("Verifier") ||
+      hasRole("Working GCPC") ||
+      hasRole("Endorser") ||
+      hasRole("Main Committee");
+    if (elevated) return false;
+    const isOwner =
+      !!user?.contactId && request.requestorContactId === user.contactId;
+    if (isOwner) return false;
+    const isHocForCompany =
+      hasRole("HOC") &&
+      !!user?.companyAccountId &&
+      request.companyId === user.companyAccountId;
+    if (isHocForCompany) return false;
+    return true;
+  }, [request, authLoading, user]);
+
+  useEffect(() => {
+    if (!accessDenied) return;
+    const t = setTimeout(() => navigate("/requests", { replace: true }), 2500);
+    return () => clearTimeout(t);
+  }, [accessDenied, navigate]);
 
   // ── Suggestion state ─────────────────────────────────────────────────────
   const [suggestions, setSuggestions] = useState<GcpSuggestion[]>([]);
@@ -399,7 +433,14 @@ export default function RequestDetail() {
           </InlineMessage>
         ) : null}
 
-        {request && meta ? (
+        {request && accessDenied ? (
+          <InlineMessage tone="warning" title="You don’t have access to this request">
+            This request belongs to another requestor. Redirecting you back to
+            the requests list… <Link to="/requests">Go now.</Link>
+          </InlineMessage>
+        ) : null}
+
+        {request && meta && !accessDenied ? (
           <>
             {/* ── Header ─────────────────────────────────────────────── */}
             <header className="rd-hero">

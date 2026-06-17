@@ -1,0 +1,13 @@
+adx_entitypermission_webrole:
+- 7a1e229c-567b-4bbf-ae02-522e59efcff2
+accountrelationship: gcp_request_Company_account
+append: false
+appendto: false
+create: false
+delete: false
+entitylogicalname: gcp_request
+entityname: Request - HOC Company Access
+id: 1f6b2a47-3c8d-4e91-b5a0-6d2f9c7e3b14
+read: true
+scope: 756150002
+write: true

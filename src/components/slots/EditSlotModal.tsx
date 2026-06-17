@@ -1,22 +1,14 @@
 import { useMemo, useState } from 'react';
 import Modal from 'react-bootstrap/Modal';
-import {
-  Clock,
-  Edit,
-  Loader2,
-  Plus,
-  Trash2,
-  Users,
-  X,
-} from 'lucide-react';
-import { DateTimeField, SelectField, TextField } from '../../forms';
+import { Clock, Edit, Loader2, X } from 'lucide-react';
+import { DateTimeField, MultiSelectField, SelectField, TextField } from '../../forms';
 import { InlineMessage } from '../ui';
 import {
   slotDurationChoices,
   slotStatusChoices,
 } from '../../data/slotChoices';
 import { toSelectOptions } from '../../data/types';
-import { updateSlot } from '../../shared/services/slotService';
+import { updateSlot, MAX_ATTENDEES } from '../../shared/services/slotService';
 import type { Slot } from '../../types/slot';
 import type { AttendeeOption } from './CreateSlotModal';
 
@@ -27,8 +19,6 @@ type EditSlotModalProps = {
   onSaved: () => void;
   contacts: AttendeeOption[];
 };
-
-const MAX_ATTENDEES = 3;
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -69,46 +59,41 @@ const EditSlotModal = ({ show, slot, onHide, onSaved, contacts }: EditSlotModalP
   const initialDuration = slot ? inferDuration(slot.start, slot.end) : 30;
 
   // Merge existing slot attendees into the selectable options so they're always
-  // visible even if not in the contacts prop.
+  // visible even if they no longer hold the Reviewer role.
   const mergedContacts = useMemo<AttendeeOption[]>(() => {
     if (!slot) return contacts;
     const seen = new Set(contacts.map((c) => c.contactId));
     const extras = slot.attendees
       .filter((a) => !seen.has(a.contactId))
-      .map((a) => ({ contactId: a.contactId, name: a.name ?? a.contactId }));
+      .map((a) => ({
+        contactId: a.contactId,
+        name: a.name ?? a.contactId,
+        email: a.email,
+      }));
     return [...contacts, ...extras];
   }, [contacts, slot]);
+
+  const attendeeOptions = useMemo(
+    () => mergedContacts.map((c) => ({ label: c.name, value: c.contactId })),
+    [mergedContacts]
+  );
 
   const [title, setTitle] = useState(slot?.title ?? '');
   const [start, setStart] = useState(initialStart);
   const [duration, setDuration] = useState(initialDuration);
   const [status, setStatus] = useState(String(slot?.status ?? 2));
-  const [attendees, setAttendees] = useState<(string | null)[]>(() => {
-    if (!slot || slot.attendees.length === 0) return [''];
-    // Up to 3 existing attendees; pad with nulls if fewer than currently shown
-    return slot.attendees.slice(0, MAX_ATTENDEES).map((a) => a.contactId);
-  });
+  // Selected attendees, as contact GUIDs (max MAX_ATTENDEES).
+  const [attendees, setAttendees] = useState<string[]>(() =>
+    slot ? slot.attendees.slice(0, MAX_ATTENDEES).map((a) => a.contactId) : []
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
 
   const end = useMemo(() => addMinutes(start, duration), [start, duration]);
 
-  const canAddAttendee =
-    attendees.length < MAX_ATTENDEES &&
-    attendees.length < mergedContacts.length &&
-    attendees.every(Boolean);
-
   const titleError = touched && !title.trim() ? 'A title is required.' : undefined;
   const startError = touched && !start ? 'A start date and time is required.' : undefined;
-
-  const setAttendeeAt = (index: number, value: string) =>
-    setAttendees((prev) => prev.map((a, i) => (i === index ? value || null : a)));
-
-  const addAttendee = () => setAttendees((prev) => [...prev, null]);
-
-  const removeAttendee = (index: number) =>
-    setAttendees((prev) => prev.filter((_, i) => i !== index));
 
   const handleClose = () => {
     if (submitting) return;
@@ -123,13 +108,13 @@ const EditSlotModal = ({ show, slot, onHide, onSaved, contacts }: EditSlotModalP
     setSubmitting(true);
     setError(null);
     try {
-      // Build the full attendee list for all three slots.
-      // Index 0-2: pass the contactId or null to clear.
-      const attendeeIds: (string | null)[] = [
-        attendees[0] ?? null,
-        attendees[1] ?? null,
-        attendees[2] ?? null,
-      ];
+      const byId = new Map(mergedContacts.map((c) => [c.contactId, c]));
+      // Fill all three attendee slots; null explicitly clears unused slots.
+      const attendeesPayload = Array.from({ length: MAX_ATTENDEES }, (_, i) => {
+        const id = attendees[i];
+        if (!id) return null;
+        return { contactId: id, email: byId.get(id)?.email ?? null };
+      });
 
       await updateSlot(
         slot.id,
@@ -140,7 +125,7 @@ const EditSlotModal = ({ show, slot, onHide, onSaved, contacts }: EditSlotModalP
           gcp_start: localToIso(start),
           gcp_end: localToIso(end),
         },
-        { attendeeIds }
+        { attendees: attendeesPayload }
       );
       onSaved();
     } catch (err) {
@@ -256,56 +241,17 @@ const EditSlotModal = ({ show, slot, onHide, onSaved, contacts }: EditSlotModalP
           </div>
 
           <div className="slot-attendees">
-            <div className="slot-attendees-head">
-              <span className="slot-duration-label">
-                <Users size={14} aria-hidden="true" /> Attendees
-                <span className="slot-attendees-count">
-                  {attendees.filter(Boolean).length}/{MAX_ATTENDEES}
-                </span>
-              </span>
-            </div>
-
-            {attendees.map((value, index) => {
-              const takenElsewhere = new Set(
-                attendees.filter((_, i) => i !== index).filter(Boolean)
-              );
-              const options = mergedContacts
-                .filter((c) => !takenElsewhere.has(c.contactId))
-                .map((c) => ({ label: c.name, value: c.contactId }));
-
-              return (
-                <div className="slot-attendee-row" key={index}>
-                  <SelectField
-                    name={`edit-attendee-${index}`}
-                    label={index === 0 ? 'Primary attendee' : `Attendee ${index + 1}`}
-                    value={value ?? ''}
-                    onChange={(e) => setAttendeeAt(index, e.target.value)}
-                    options={options}
-                    placeholder="Select attendee"
-                  />
-                  {attendees.length > 1 && (
-                    <button
-                      type="button"
-                      className="slot-attendee-remove"
-                      onClick={() => removeAttendee(index)}
-                      aria-label={`Remove attendee ${index + 1}`}
-                    >
-                      <Trash2 size={16} aria-hidden="true" />
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-
-            <button
-              type="button"
-              className="slot-add-attendee"
-              onClick={addAttendee}
-              disabled={!canAddAttendee}
-            >
-              <Plus size={15} aria-hidden="true" />
-              Add attendee
-            </button>
+            <MultiSelectField
+              name="editAttendees"
+              label="Reviewers"
+              value={attendees}
+              onChange={setAttendees}
+              options={attendeeOptions}
+              maxSelected={MAX_ATTENDEES}
+              placeholder="Select reviewers"
+              emptyText="No reviewers available."
+              helpText={`Select up to ${MAX_ATTENDEES} reviewers (${attendees.length}/${MAX_ATTENDEES}).`}
+            />
           </div>
         </div>
 

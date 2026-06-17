@@ -16,7 +16,11 @@ import { EditSlotModal } from '../components/slots/EditSlotModal';
 import { listSlots } from '../shared/services/slotService';
 import { SLOT_STATUS_AVAILABLE } from '../data/slotChoices';
 import type { Slot } from '../types/slot';
-import { useAuth } from '../context/AuthContext';
+import { listContactsInRole } from '../shared/webRoleApi';
+import { getCurrentUser } from '../services/authService';
+
+/** Web role whose members are selectable as slot attendees. */
+const ATTENDEE_ROLE = 'Reviewer';
 
 type Tab = 'available' | 'booked';
 
@@ -56,7 +60,6 @@ const durationMins = (start: string | null, end: string | null): number | null =
 };
 
 export default function SlotManagement() {
-  const { user } = useAuth();
   const [slots, setSlots] = useState<Slot[]>([]);
   const [isLoading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -65,6 +68,8 @@ export default function SlotManagement() {
   const [createdNotice, setCreatedNotice] = useState(false);
   const [editTarget, setEditTarget] = useState<Slot | null>(null);
   const [savedNotice, setSavedNotice] = useState(false);
+  const [reviewers, setReviewers] = useState<AttendeeOption[]>([]);
+  const [reviewersError, setReviewersError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -83,6 +88,31 @@ export default function SlotManagement() {
     void load();
   }, [load]);
 
+  // Load the Reviewer-role contacts that can be assigned as slot attendees.
+  useEffect(() => {
+    let cancelled = false;
+    const loginHint = getCurrentUser()?.email ?? getCurrentUser()?.userName;
+    listContactsInRole(ATTENDEE_ROLE, loginHint)
+      .then((items) => {
+        if (cancelled) return;
+        setReviewers(
+          items.map((c) => ({
+            contactId: c.contactId,
+            name: c.name || c.email,
+            email: c.email,
+          }))
+        );
+        setReviewersError(null);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled)
+          setReviewersError(err instanceof Error ? err.message : String(err));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const { available, booked } = useMemo(() => {
     const av: Slot[] = [];
     const bk: Slot[] = [];
@@ -95,15 +125,8 @@ export default function SlotManagement() {
 
   const visible = tab === 'available' ? available : booked;
 
-  // Attendee picker source — currently just the logged-in user. Swap this for a
-  // contacts/cloud-flow query later to widen the candidate pool.
-  const contacts: AttendeeOption[] = useMemo(
-    () =>
-      user?.contactId
-        ? [{ contactId: user.contactId, name: user.name || user.email }]
-        : [],
-    [user]
-  );
+  // Attendee picker source — contacts holding the Reviewer web role.
+  const contacts = reviewers;
 
   const handleCreated = () => {
     setShowCreate(false);
@@ -163,6 +186,17 @@ export default function SlotManagement() {
         {loadError && (
           <InlineMessage tone="error" title="Couldn't load slots" className="mb-3">
             {loadError}
+          </InlineMessage>
+        )}
+
+        {reviewersError && (
+          <InlineMessage
+            tone="warning"
+            title="Couldn't load reviewers"
+            className="mb-3"
+          >
+            The list of selectable reviewers couldn't be loaded, so the attendee
+            picker may be empty. {reviewersError}
           </InlineMessage>
         )}
 

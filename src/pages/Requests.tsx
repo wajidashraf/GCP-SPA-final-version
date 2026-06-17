@@ -17,6 +17,15 @@ import { SelectField, TextField } from '../forms';
 const PAGE_SIZE = 10;
 const SERVER_FETCH_SIZE = 100;
 
+// Display-only overrides for a few status pills. The underlying Dataverse
+// labels (FR / RS / R) still drive styling and the row action; only the text
+// shown to the user is friendlier here.
+const statusDisplayLabel: Record<string, string> = {
+  FR: 'For Record',
+  RS: 'Re-Submit',
+  R: 'Booked',
+};
+
 const statusClass: Record<string, string> = {
   New: 'status-new',
   'Pending Review': 'status-review',
@@ -331,7 +340,7 @@ export default function Requests() {
                     <td>
                       <span className={`rq-status-pill ${statusCls}`}>
                         <span className="rq-status-dot" />
-                        {statusLabel}
+                        {statusDisplayLabel[statusLabel] ?? statusLabel}
                       </span>
                     </td>
                     <td>

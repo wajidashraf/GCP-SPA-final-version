@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- f48675b4-13bf-459d-8a1d-f9a42f468dba
+append: true
+appendto: true
+create: false
+delete: false
+entitylogicalname: gcp_request
+entityname: Request - Admin Global Access
+id: 2a7c3b58-4d9e-4fa2-c6b1-7e3a0d8f4c25
+read: true
+scope: 756150000
+write: true

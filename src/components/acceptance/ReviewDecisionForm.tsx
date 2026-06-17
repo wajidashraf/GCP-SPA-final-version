@@ -256,7 +256,7 @@ export default function ReviewDecisionForm() {
         ) : null}
 
         {request ? (
-          <div className="vd-card">
+          <div className="vd-card lp-card">
             <header className="vd-card-head no-print">
               <span className="vd-card-icon" aria-hidden="true">
                 <ClipboardCheck size={20} />

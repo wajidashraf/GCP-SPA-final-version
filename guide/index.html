@@ -466,18 +466,19 @@
           <li><strong>Title / type</strong> (required) — e.g. <em>"Vendor onboarding review"</em>.</li>
           <li><strong>Start date &amp; time</strong> (required) — must be in the future.</li>
           <li><strong>Duration</strong> (required) — chips: <span class="pill p-grey">15</span> <span class="pill p-grey">30</span> <span class="pill p-grey">45</span> <span class="pill p-grey">60</span> min; the end time auto-calculates (<em>"Ends at: …"</em>).</li>
-          <li><strong>Attendees</strong> (required) — Primary attendee plus up to two more (Add attendee, remove with the trash icon).</li>
+          <li><strong>Reviewers</strong> (required) — a multiselect dropdown listing users who hold the <span class="role">Reviewer</span> web role. Pick up to <strong>three</strong>; remove a selected reviewer with the × on its chip.</li>
         </ul>
         <p>Click <strong>Create slot</strong> → <em>"Slot created successfully and is now available for booking."</em> New slots start as <span class="pill p-green">Available</span>.</p>
 
         <h4>Editing</h4>
-        <p>Each slot card has an <strong>Edit</strong> button. The edit modal adds a <strong>Status</strong> dropdown (Available / Booked) so you can move a slot between tabs, plus the same time/duration/attendee fields. Save → <em>"Slot updated successfully."</em></p>
+        <p>Each slot card has an <strong>Edit</strong> button. The edit modal adds a <strong>Status</strong> dropdown (Available / Booked) so you can move a slot between tabs, plus the same time/duration/reviewer fields. The Reviewers multiselect is prefilled with the slot's current reviewers (any who no longer hold the role stay selectable so you don't lose them). Save → <em>"Slot updated successfully."</em></p>
 
         <h4>What to verify</h4>
         <ul>
           <li>A created slot appears in <strong>Available</strong> and becomes selectable in the engagement booking flow.</li>
           <li>Only <strong>future-dated</strong> slots are accepted; only slots within the next ~6 months are offered for booking.</li>
           <li>Each card shows date, status badge, time range + duration, title and attendee avatars.</li>
+          <li>The <strong>Reviewers</strong> dropdown is populated from users assigned the <span class="role">Reviewer</span> web role (under <strong>User Roles</strong>). If it's empty, assign that role first; the option list stops accepting picks once three are selected.</li>
         </ul>
       </section>
 

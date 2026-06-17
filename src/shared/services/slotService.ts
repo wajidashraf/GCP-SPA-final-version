@@ -41,24 +41,37 @@ const isGuid = (v: string | null | undefined): v is string =>
   !!v && GUID_REGEX.test(v);
 
 // The three attendee lookups, in the order users add them. Each accepts a
-// contact GUID and is written via its `@odata.bind` navigation property.
+// contact GUID and is written via its `@odata.bind` navigation property. The
+// parallel text columns store each attendee's email, paired by index.
 const ATTENDEE_BINDS = [
   'gcp_Attendee@odata.bind',
   'gcp_Attendee_1@odata.bind',
   'gcp_Attendee_2@odata.bind',
 ] as const;
 
+const ATTENDEE_EMAIL_COLS = [
+  'gcp_attendeeemail',
+  'gcp_attendeeemail_1',
+  'gcp_attendeeemail_2',
+] as const;
+
+const MAX_ATTENDEES = ATTENDEE_BINDS.length;
+
+/** A slot attendee to write: a contact GUID plus their email (for the text column). */
+type SlotAttendeeInput = { contactId: string; email?: string | null };
+
 const applyAttendeeBinds = (
   input: CreateGcpSlotInput,
-  attendeeIds: readonly (string | null | undefined)[] | undefined
+  attendees: readonly (SlotAttendeeInput | null | undefined)[] | undefined
 ): CreateGcpSlotInput => {
-  if (!attendeeIds?.length) return input;
+  if (!attendees?.length) return input;
   const out: CreateGcpSlotInput = { ...input };
-  attendeeIds
-    .filter(isGuid)
-    .slice(0, ATTENDEE_BINDS.length)
-    .forEach((id, i) => {
-      out[ATTENDEE_BINDS[i]] = odataBind('contacts', id);
+  attendees
+    .filter((a): a is SlotAttendeeInput => isGuid(a?.contactId))
+    .slice(0, MAX_ATTENDEES)
+    .forEach((a, i) => {
+      out[ATTENDEE_BINDS[i]] = odataBind('contacts', a.contactId);
+      out[ATTENDEE_EMAIL_COLS[i]] = a.email ?? null;
     });
   return out;
 };
@@ -117,8 +130,8 @@ const listSlots = async (
 
 // ── Create ──────────────────────────────────────────────────────────────────
 type CreateSlotOptions = {
-  /** Contact GUIDs for the (up to 3) attendee lookups, in order. */
-  attendeeIds?: readonly (string | null | undefined)[];
+  /** The (up to 3) attendees for the slot lookups, in order. */
+  attendees?: readonly (SlotAttendeeInput | null | undefined)[];
 };
 
 type CreateSlotResult = { id: string; record?: Slot };
@@ -127,7 +140,7 @@ const createSlot = async (
   input: CreateGcpSlotInput,
   options: CreateSlotOptions = {}
 ): Promise<CreateSlotResult> => {
-  const body = applyAttendeeBinds(input, options.attendeeIds);
+  const body = applyAttendeeBinds(input, options.attendees);
 
   const res = await powerPagesFetchResponse(BASE_URL, {
     method: 'POST',
@@ -199,24 +212,26 @@ type UpdateSlotInput = {
 
 type UpdateSlotOptions = {
   /**
-   * New attendee contact IDs for the three attendee slots (index 0-2).
+   * New attendees for the three attendee slots (index 0-2).
    * Pass `null` to explicitly clear that attendee slot, `undefined` to leave it unchanged.
    */
-  attendeeIds?: readonly (string | null | undefined)[];
+  attendees?: readonly (SlotAttendeeInput | null | undefined)[];
 };
 
 const ATTENDEE_NAV_PROPS = ['gcp_Attendee', 'gcp_Attendee_1', 'gcp_Attendee_2'] as const;
 
 const applyAttendeeUpdates = (
   body: Record<string, unknown>,
-  attendeeIds: readonly (string | null | undefined)[] | undefined
+  attendees: readonly (SlotAttendeeInput | null | undefined)[] | undefined
 ): Record<string, unknown> => {
-  if (!attendeeIds) return body;
+  if (!attendees) return body;
   const out = { ...body };
-  attendeeIds.slice(0, ATTENDEE_NAV_PROPS.length).forEach((id, i) => {
-    if (id === undefined) return;
-    const key = `${ATTENDEE_NAV_PROPS[i]}@odata.bind`;
-    out[key] = isGuid(id) ? odataBind('contacts', id) : null;
+  attendees.slice(0, ATTENDEE_NAV_PROPS.length).forEach((attendee, i) => {
+    if (attendee === undefined) return; // leave this slot unchanged
+    const bindKey = `${ATTENDEE_NAV_PROPS[i]}@odata.bind`;
+    const set = attendee && isGuid(attendee.contactId);
+    out[bindKey] = set ? odataBind('contacts', attendee.contactId) : null;
+    out[ATTENDEE_EMAIL_COLS[i]] = set ? attendee.email ?? null : null;
   });
   return out;
 };
@@ -226,7 +241,7 @@ const updateSlot = async (
   input: UpdateSlotInput,
   options: UpdateSlotOptions = {}
 ): Promise<void> => {
-  const body = applyAttendeeUpdates(input as Record<string, unknown>, options.attendeeIds);
+  const body = applyAttendeeUpdates(input as Record<string, unknown>, options.attendees);
   await powerPagesFetch<void>(`${BASE_URL}(${id})`, {
     method: 'PATCH',
     json: body,
@@ -240,6 +255,7 @@ export {
   listAvailableSlotsWithin,
   updateSlotStatus,
   updateSlot,
+  MAX_ATTENDEES,
   ENTITY_SET as SLOT_ENTITY_SET,
 };
 export type {
@@ -250,4 +266,5 @@ export type {
   CreateSlotResult,
   UpdateSlotInput,
   UpdateSlotOptions,
+  SlotAttendeeInput,
 };

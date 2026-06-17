@@ -35,6 +35,11 @@ type GcpSlotEntity = {
   '_gcp_attendee_1_value@OData.Community.Display.V1.FormattedValue'?: string;
   '_gcp_attendee_2_value@OData.Community.Display.V1.FormattedValue'?: string;
 
+  /** Denormalised attendee emails, paired with the lookups above by index. */
+  gcp_attendeeemail?: string | null;
+  gcp_attendeeemail_1?: string | null;
+  gcp_attendeeemail_2?: string | null;
+
   createdon?: string;
   modifiedon?: string;
 };
@@ -43,6 +48,7 @@ type GcpSlotEntity = {
 type SlotAttendee = {
   contactId: string;
   name: string | null;
+  email: string | null;
 };
 
 type Slot = {
@@ -68,12 +74,18 @@ type CreateGcpSlotInput = {
   'gcp_Attendee@odata.bind'?: string;
   'gcp_Attendee_1@odata.bind'?: string;
   'gcp_Attendee_2@odata.bind'?: string;
+
+  gcp_attendeeemail?: string | null;
+  gcp_attendeeemail_1?: string | null;
+  gcp_attendeeemail_2?: string | null;
 };
 
 const attendeeFrom = (
   id: string | null | undefined,
-  name: string | undefined
-): SlotAttendee | null => (id ? { contactId: id, name: name ?? null } : null);
+  name: string | undefined,
+  email: string | null | undefined
+): SlotAttendee | null =>
+  id ? { contactId: id, name: name ?? null, email: email ?? null } : null;
 
 const mapGcpSlot = (e: GcpSlotEntity): Slot => ({
   id: e.gcp_slotid ?? '',
@@ -87,15 +99,18 @@ const mapGcpSlot = (e: GcpSlotEntity): Slot => ({
   attendees: [
     attendeeFrom(
       e._gcp_attendee_value,
-      e['_gcp_attendee_value@OData.Community.Display.V1.FormattedValue']
+      e['_gcp_attendee_value@OData.Community.Display.V1.FormattedValue'],
+      e.gcp_attendeeemail
     ),
     attendeeFrom(
       e._gcp_attendee_1_value,
-      e['_gcp_attendee_1_value@OData.Community.Display.V1.FormattedValue']
+      e['_gcp_attendee_1_value@OData.Community.Display.V1.FormattedValue'],
+      e.gcp_attendeeemail_1
     ),
     attendeeFrom(
       e._gcp_attendee_2_value,
-      e['_gcp_attendee_2_value@OData.Community.Display.V1.FormattedValue']
+      e['_gcp_attendee_2_value@OData.Community.Display.V1.FormattedValue'],
+      e.gcp_attendeeemail_2
     ),
   ].filter((a): a is SlotAttendee => a !== null),
   createdOn: e.createdon ?? null,
@@ -111,6 +126,9 @@ const DEFAULT_SLOT_SELECT: readonly string[] = [
   '_gcp_attendee_value',
   '_gcp_attendee_1_value',
   '_gcp_attendee_2_value',
+  'gcp_attendeeemail',
+  'gcp_attendeeemail_1',
+  'gcp_attendeeemail_2',
 ];
 
 export { mapGcpSlot, DEFAULT_SLOT_SELECT };

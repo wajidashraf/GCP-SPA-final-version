@@ -58,14 +58,66 @@ export default function App() {
         <Route path="/requests/:id/hoc-acceptance" element={<HocAcceptance />} />
         <Route path="/requests/:id/ack-letter" element={<AckLetterPage />} />
         <Route path="/requests/:id/endorsement-letter" element={<EndorsementLetterPage />} />
-        <Route path="/admin" element={<Admin />} />
-        <Route path="/admin/user-roles" element={<UserRoleManagement />} />
-        <Route path="/admin/slots" element={<SlotManagement />} />
-        <Route path="/admin/engagements" element={<EngagementManagement />} />
-        <Route path="/admin/signatories" element={<SignatoryManagement />} />
-        <Route path="/admin/email-templates" element={<EmailTemplateManagement />} />
+        {/* Admin section — Administrators only. Reviewer/Verifier/Working GCPC
+            and every other role are redirected to the requests list, even when
+            navigating directly by URL (the nav links are hidden separately). */}
+        <Route
+          path="/admin"
+          element={
+            <RequireRole roles={['Administrators']} fallback={<Navigate to="/requests" replace />}>
+              <Admin />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/admin/user-roles"
+          element={
+            <RequireRole roles={['Administrators']} fallback={<Navigate to="/requests" replace />}>
+              <UserRoleManagement />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/admin/slots"
+          element={
+            <RequireRole roles={['Administrators']} fallback={<Navigate to="/requests" replace />}>
+              <SlotManagement />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/admin/engagements"
+          element={
+            <RequireRole roles={['Administrators']} fallback={<Navigate to="/requests" replace />}>
+              <EngagementManagement />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/admin/signatories"
+          element={
+            <RequireRole roles={['Administrators']} fallback={<Navigate to="/requests" replace />}>
+              <SignatoryManagement />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/admin/email-templates"
+          element={
+            <RequireRole roles={['Administrators']} fallback={<Navigate to="/requests" replace />}>
+              <EmailTemplateManagement />
+            </RequireRole>
+          }
+        />
         <Route path="/profile" element={<Profile />} />
-        <Route path="/dashboard" element={<Dashboard />} />
+        <Route
+          path="/dashboard"
+          element={
+            <RequireRole roles={['Administrators']} fallback={<Navigate to="/requests" replace />}>
+              <Dashboard />
+            </RequireRole>
+          }
+        />
       </Routes>
     </Layout>
   );

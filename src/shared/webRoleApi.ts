@@ -12,11 +12,19 @@ export interface WebRoleDto {
   name: string;
 }
 
+/** A contact returned by the role-membership endpoint. */
+export interface RoleContactDto {
+  contactId: string;
+  name: string;
+  email: string;
+}
+
 export type RoleAction = 'assign' | 'unassign';
 
 interface ApiOk<T> {
   ok: true;
   roles?: WebRoleDto[];
+  contacts?: RoleContactDto[];
   action?: RoleAction;
   data?: T;
 }
@@ -67,6 +75,19 @@ const call = async <T = unknown>(
 export const listWebRoles = async (loginHint?: string): Promise<WebRoleDto[]> => {
   const res = await call('webRoles', { method: 'GET' }, loginHint);
   return res.roles ?? [];
+};
+
+/** Active contacts holding the named web role (e.g. "Reviewer"). */
+export const listContactsInRole = async (
+  roleName: string,
+  loginHint?: string
+): Promise<RoleContactDto[]> => {
+  const res = await call(
+    `webRoles/${encodeURIComponent(roleName)}/contacts`,
+    { method: 'GET' },
+    loginHint
+  );
+  return res.contacts ?? [];
 };
 
 /** Web roles currently assigned to a contact. */

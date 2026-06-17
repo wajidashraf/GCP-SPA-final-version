@@ -1,6 +1,7 @@
 // HTTP triggers for admin web-role management.
 //
 //   GET  /api/webRoles                          → list every web role
+//   GET  /api/webRoles/{roleName}/contacts      → active contacts holding a role
 //   GET  /api/contacts/{contactId}/webRoles     → roles assigned to a contact
 //   POST /api/contacts/{contactId}/webRoles     → { webRoleId, action } assign|unassign
 //
@@ -25,6 +26,7 @@ import { runForPortal } from '../dataverse/dataverseEnv.js';
 import {
   listWebRoles,
   getContactWebRoles,
+  getContactsInWebRole,
   assignWebRole,
   unassignWebRole,
   isAdminByContactId,
@@ -108,6 +110,28 @@ const listWebRolesHandler = async (
   }
 };
 
+// ── GET /api/webRoles/{roleName}/contacts ─────────────────────────────────────
+// Active contacts holding the named web role (e.g. "Reviewer"), with their email.
+const roleContactsHandler = async (
+  request: HttpRequest,
+  context: InvocationContext
+): Promise<HttpResponseInit> => {
+  try {
+    const caller = await authenticate(request);
+    return await runForPortal(caller.portalBaseUrl, async () => {
+      await ensureAdmin(caller, context);
+      const roleName = decodeURIComponent(request.params.roleName ?? '').trim();
+      if (!roleName) {
+        return json(400, { ok: false, error: "Missing 'roleName'" });
+      }
+      const contacts = await getContactsInWebRole(roleName);
+      return json(200, { ok: true, contacts });
+    });
+  } catch (err) {
+    return toErrorResponse(err, context);
+  }
+};
+
 // ── /api/contacts/{contactId}/webRoles (GET + POST) ──────────────────────────
 const contactWebRolesHandler = async (
   request: HttpRequest,
@@ -165,6 +189,13 @@ app.http('listWebRoles', {
   authLevel: 'anonymous',
   route: 'webRoles',
   handler: listWebRolesHandler,
+});
+
+app.http('roleContacts', {
+  methods: ['GET'],
+  authLevel: 'anonymous',
+  route: 'webRoles/{roleName}/contacts',
+  handler: roleContactsHandler,
 });
 
 app.http('contactWebRoles', {

@@ -1,23 +1,16 @@
 import { useMemo, useState } from 'react';
 import Modal from 'react-bootstrap/Modal';
-import {
-  CalendarPlus,
-  Clock,
-  Loader2,
-  Plus,
-  Trash2,
-  Users,
-  X,
-} from 'lucide-react';
-import { DateTimeField, SelectField, TextField } from '../../forms';
+import { CalendarPlus, Clock, Loader2, X } from 'lucide-react';
+import { DateTimeField, MultiSelectField, TextField } from '../../forms';
 import { InlineMessage } from '../ui';
 import { slotDurationChoices, SLOT_STATUS_AVAILABLE } from '../../data/slotChoices';
-import { createSlot } from '../../shared/services/slotService';
+import { createSlot, MAX_ATTENDEES } from '../../shared/services/slotService';
 
-/** A contact that can be picked as a slot attendee. */
+/** A contact (Reviewer) that can be picked as a slot attendee. */
 export type AttendeeOption = {
   contactId: string;
   name: string;
+  email?: string | null;
 };
 
 type CreateSlotModalProps = {
@@ -25,11 +18,10 @@ type CreateSlotModalProps = {
   onHide: () => void;
   /** Called after a slot is created successfully (so the list can refresh). */
   onCreated: () => void;
-  /** Contacts selectable as attendees. Currently just the logged-in user. */
+  /** Reviewer-role contacts selectable as attendees. */
   contacts: AttendeeOption[];
 };
 
-const MAX_ATTENDEES = 3;
 const DEFAULT_DURATION = 30;
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -65,30 +57,29 @@ const CreateSlotModal = ({
   const [title, setTitle] = useState('');
   const [start, setStart] = useState('');
   const [duration, setDuration] = useState<number>(DEFAULT_DURATION);
-  const [attendees, setAttendees] = useState<string[]>(() =>
-    contacts[0] ? [contacts[0].contactId] : ['']
-  );
+  // Selected attendees, as contact GUIDs (max MAX_ATTENDEES).
+  const [attendees, setAttendees] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
 
   const end = useMemo(() => addMinutes(start, duration), [start, duration]);
 
-  const canAddAttendee =
-    attendees.length < MAX_ATTENDEES &&
-    attendees.length < contacts.length &&
-    attendees.every(Boolean);
+  const attendeeOptions = useMemo(
+    () => contacts.map((c) => ({ label: c.name, value: c.contactId })),
+    [contacts]
+  );
 
   const titleError = touched && !title.trim() ? 'A title is required.' : undefined;
   const startError = touched && !start ? 'A start date and time is required.' : undefined;
   const attendeeError =
-    touched && !attendees.some(Boolean) ? 'Select at least one attendee.' : undefined;
+    touched && attendees.length === 0 ? 'Select at least one reviewer.' : undefined;
 
   const reset = () => {
     setTitle('');
     setStart('');
     setDuration(DEFAULT_DURATION);
-    setAttendees(contacts[0] ? [contacts[0].contactId] : ['']);
+    setAttendees([]);
     setError(null);
     setTouched(false);
   };
@@ -99,18 +90,15 @@ const CreateSlotModal = ({
     onHide();
   };
 
-  const setAttendeeAt = (index: number, value: string) =>
-    setAttendees((prev) => prev.map((a, i) => (i === index ? value : a)));
-
-  const addAttendee = () => setAttendees((prev) => [...prev, '']);
-
-  const removeAttendee = (index: number) =>
-    setAttendees((prev) => prev.filter((_, i) => i !== index));
-
   const handleSubmit = async () => {
     setTouched(true);
-    const selected = attendees.filter(Boolean);
-    if (!title.trim() || !start || selected.length === 0) return;
+    if (!title.trim() || !start || attendees.length === 0) return;
+
+    const byId = new Map(contacts.map((c) => [c.contactId, c]));
+    const selected = attendees.map((id) => ({
+      contactId: id,
+      email: byId.get(id)?.email ?? null,
+    }));
 
     setSubmitting(true);
     setError(null);
@@ -123,7 +111,7 @@ const CreateSlotModal = ({
           gcp_start: localToIso(start),
           gcp_end: localToIso(end),
         },
-        { attendeeIds: selected }
+        { attendees: selected }
       );
       reset();
       onCreated();
@@ -240,63 +228,21 @@ const CreateSlotModal = ({
             </span>
           </div>
 
-          {/* Attendees */}
+          {/* Attendees — Reviewer-role contacts (up to MAX_ATTENDEES) */}
           <div className="slot-attendees">
-            <div className="slot-attendees-head">
-              <span className="slot-duration-label">
-                <Users size={14} aria-hidden="true" /> Attendees
-                <span className="slot-attendees-count">
-                  {attendees.filter(Boolean).length}/{MAX_ATTENDEES}
-                </span>
-              </span>
-            </div>
-
-            {attendeeError && (
-              <div className="slot-attendees-error">{attendeeError}</div>
-            )}
-
-            {attendees.map((value, index) => {
-              // Options = contacts not chosen in other rows (+ this row's pick).
-              const takenElsewhere = new Set(
-                attendees.filter((_, i) => i !== index).filter(Boolean)
-              );
-              const options = contacts
-                .filter((c) => !takenElsewhere.has(c.contactId))
-                .map((c) => ({ label: c.name, value: c.contactId }));
-
-              return (
-                <div className="slot-attendee-row" key={index}>
-                  <SelectField
-                    name={`attendee-${index}`}
-                    label={index === 0 ? 'Primary attendee' : `Attendee ${index + 1}`}
-                    value={value}
-                    onChange={(e) => setAttendeeAt(index, e.target.value)}
-                    options={options}
-                    placeholder="Select attendee"
-                  />
-                  {attendees.length > 1 && (
-                    <button
-                      type="button"
-                      className="slot-attendee-remove"
-                      onClick={() => removeAttendee(index)}
-                      aria-label={`Remove attendee ${index + 1}`}
-                    >
-                      <Trash2 size={16} aria-hidden="true" />
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-
-            <button
-              type="button"
-              className="slot-add-attendee"
-              onClick={addAttendee}
-              disabled={!canAddAttendee}
-            >
-              <Plus size={15} aria-hidden="true" />
-              Add attendee
-            </button>
+            <MultiSelectField
+              name="attendees"
+              label="Reviewers"
+              value={attendees}
+              onChange={setAttendees}
+              options={attendeeOptions}
+              maxSelected={MAX_ATTENDEES}
+              placeholder="Select reviewers"
+              emptyText="No reviewers available."
+              isRequired
+              error={attendeeError}
+              helpText={`Select up to ${MAX_ATTENDEES} reviewers (${attendees.length}/${MAX_ATTENDEES}).`}
+            />
           </div>
         </div>
 

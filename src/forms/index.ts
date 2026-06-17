@@ -7,6 +7,7 @@ export { default as DynamicWorkItemFiled } from './DynamicWorkItemFiled';
 export { default as EmailTemplateBlockEditor } from './EmailTemplateBlockEditor';
 export { default as FileUpload } from './FileUpload';
 export { default as FormField } from './FormField';
+export { default as MultiSelectField } from './MultiSelectField';
 export { default as NumberField } from './NumberField';
 export { default as RadioGroupField } from './RadioGroupField';
 export { default as RepeatableTextField } from './RepeatableTextField';
@@ -24,6 +25,7 @@ export type { DynamicWorkItemFiledProps, WorkItemRow } from './DynamicWorkItemFi
 export type { EmailTemplateBlockEditorProps } from './EmailTemplateBlockEditor';
 export type { FileUploadProps, UploadedFile } from './FileUpload';
 export type { FormFieldProps } from './FormField';
+export type { MultiSelectFieldProps } from './MultiSelectField';
 export type { NumberFieldProps } from './NumberField';
 export type { RadioGroupFieldProps, RadioOption } from './RadioGroupField';
 export type { RepeatableTextFieldProps } from './RepeatableTextField';
