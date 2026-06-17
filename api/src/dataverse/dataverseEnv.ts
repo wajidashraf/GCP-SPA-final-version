@@ -17,18 +17,38 @@
 // each handler wraps its Dataverse-touching body in `runForPortal`.
 
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { getDataverseUrlForPortal } from '../config.js';
+import { getDataverseUrlForPortal, getPowerPageSiteIdForPortal } from '../config.js';
 
-const storage = new AsyncLocalStorage<string>();
+/** Per-invocation context pinned for the issuing portal. */
+interface PortalContext {
+  /** Dataverse base URL backing the portal (no trailing slash). */
+  dataverseUrl: string;
+  /** Power Pages site id used to scope web-role queries, if configured. */
+  siteId?: string;
+}
+
+const storage = new AsyncLocalStorage<PortalContext>();
 
 /**
- * Run `fn` with the Dataverse environment pinned to the one backing `portalBaseUrl`.
- * Every Dataverse call inside `fn` (admin check, record reads, writes) then targets
- * the correct org. Resolves the URL via the per-portal map, falling back to the
- * single DATAVERSE_URL when no per-portal entry exists.
+ * Run `fn` with the Dataverse environment + site pinned to those backing
+ * `portalBaseUrl`. Every Dataverse call inside `fn` (admin check, record reads,
+ * writes) then targets the correct org, and web-role queries scope to the
+ * correct site. Resolves via the per-portal maps, falling back to the single
+ * DATAVERSE_URL when no per-portal entry exists.
  */
 export const runForPortal = <T>(portalBaseUrl: string, fn: () => Promise<T>): Promise<T> =>
-  storage.run(getDataverseUrlForPortal(portalBaseUrl).replace(/\/+$/, ''), fn);
+  storage.run(
+    {
+      dataverseUrl: getDataverseUrlForPortal(portalBaseUrl).replace(/\/+$/, ''),
+      siteId: getPowerPageSiteIdForPortal(portalBaseUrl),
+    },
+    fn
+  );
 
 /** The Dataverse base URL pinned for this invocation, or undefined if unset. */
-export const currentDataverseUrl = (): string | undefined => storage.getStore();
+export const currentDataverseUrl = (): string | undefined =>
+  storage.getStore()?.dataverseUrl;
+
+/** The Power Pages site id pinned for this invocation, or undefined if unset. */
+export const currentPowerPageSiteId = (): string | undefined =>
+  storage.getStore()?.siteId;

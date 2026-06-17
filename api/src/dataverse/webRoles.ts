@@ -6,7 +6,20 @@
 // environment on the classic adx_* schema can be supported by config alone.
 
 import { dvGet, dvPost, dvDelete, dataverseUrl, DataverseError } from './dataverseClient.js';
+import { currentPowerPageSiteId } from './dataverseEnv.js';
 import { getRoleConfig } from '../config.js';
+
+// Site-scoping: a Dataverse org can host several Power Pages sites, each with
+// its own same-named web-role rows. When a site id is pinned for the request
+// (see runForPortal), web-role queries filter by it so roles/members from OTHER
+// sites in the same org are excluded. Lookup column is on the web-role row.
+const SITE_FK = '_powerpagesiteid_value';
+
+/** ` and <fk> eq <id>` clause for the active site, or '' when unscoped. */
+const siteAndClause = (): string => {
+  const id = currentPowerPageSiteId();
+  return id ? ` and ${SITE_FK} eq ${id}` : '';
+};
 
 export interface WebRoleDto {
   id: string;
@@ -29,12 +42,14 @@ export const assertGuid = (value: string, label: string): string => {
   return value;
 };
 
-/** All web roles in the environment, ordered by name. */
+/** All web roles for the active site, ordered by name. */
 export const listWebRoles = async (): Promise<WebRoleDto[]> => {
   const cfg = getRoleConfig();
-  const filter = cfg.webRoleListFilter
-    ? `&$filter=${encodeURIComponent(cfg.webRoleListFilter)}`
-    : '';
+  const filterExpr = `${cfg.webRoleListFilter ?? ''}${siteAndClause()}`.replace(
+    /^ and /,
+    ''
+  );
+  const filter = filterExpr ? `&$filter=${encodeURIComponent(filterExpr)}` : '';
   const data = await dvGet<ODataList<Record<string, unknown>>>(
     `${cfg.webRoleEntitySet}?$select=${cfg.webRoleIdAttr},${cfg.webRoleNameAttr}` +
       `&$orderby=${cfg.webRoleNameAttr} asc${filter}`
@@ -45,12 +60,14 @@ export const listWebRoles = async (): Promise<WebRoleDto[]> => {
   }));
 };
 
-/** Web roles currently assigned to a contact. */
+/** Web roles assigned to a contact (scoped to the active site). */
 export const getContactWebRoles = async (contactId: string): Promise<WebRoleDto[]> => {
   const cfg = getRoleConfig();
   assertGuid(contactId, 'contactId');
+  const siteId = currentPowerPageSiteId();
+  const filter = siteId ? `&$filter=${SITE_FK} eq ${siteId}` : '';
   const data = await dvGet<{ value: Array<Record<string, unknown>> }>(
-    `contacts(${contactId})/${cfg.webRoleContactNav}?$select=${cfg.webRoleIdAttr},${cfg.webRoleNameAttr}`
+    `contacts(${contactId})/${cfg.webRoleContactNav}?$select=${cfg.webRoleIdAttr},${cfg.webRoleNameAttr}${filter}`
   );
   return data.value.map((r) => ({
     id: String(r[cfg.webRoleIdAttr] ?? ''),
@@ -75,10 +92,12 @@ export const getContactsInWebRole = async (
 ): Promise<ContactEmailDto[]> => {
   const cfg = getRoleConfig();
   const safe = escapeOData(roleName);
+  const siteId = currentPowerPageSiteId();
+  const lambdaSite = siteId ? ` and r/${SITE_FK} eq ${siteId}` : '';
   const data = await dvGet<ODataList<Record<string, unknown>>>(
     `contacts?$select=contactid,emailaddress1,fullname` +
       `&$filter=statecode eq 0 and ` +
-      `${cfg.webRoleContactNav}/any(r:r/${cfg.webRoleNameAttr} eq '${safe}')`
+      `${cfg.webRoleContactNav}/any(r:r/${cfg.webRoleNameAttr} eq '${safe}'${lambdaSite})`
   );
   return data.value
     .map((c) => ({
@@ -116,9 +135,11 @@ export const unassignWebRole = async (contactId: string, webRoleId: string): Pro
 export const isAdminByContactId = async (contactId: string): Promise<boolean> => {
   const cfg = getRoleConfig();
   assertGuid(contactId, 'contactId');
+  const siteId = currentPowerPageSiteId();
+  const filter = siteId ? `&$filter=${SITE_FK} eq ${siteId}` : '';
 
   const data = await dvGet<ODataList<{ [k: string]: unknown }>>(
-    `contacts(${contactId})/${cfg.webRoleContactNav}?$select=${cfg.webRoleNameAttr}`
+    `contacts(${contactId})/${cfg.webRoleContactNav}?$select=${cfg.webRoleNameAttr}${filter}`
   );
 
   const adminName = cfg.adminWebRoleName.toLowerCase();
@@ -137,10 +158,12 @@ export const isAdminByEmail = async (email: string): Promise<boolean> => {
   const trimmed = email.trim();
   if (!trimmed) return false;
 
+  const siteId = currentPowerPageSiteId();
+  const expandFilter = siteId ? `;$filter=${SITE_FK} eq ${siteId}` : '';
   const data = await dvGet<ODataList<{ [k: string]: unknown }>>(
     `contacts?$select=contactid` +
       `&$filter=emailaddress1 eq '${escapeOData(trimmed)}'` +
-      `&$expand=${cfg.webRoleContactNav}($select=${cfg.webRoleNameAttr})` +
+      `&$expand=${cfg.webRoleContactNav}($select=${cfg.webRoleNameAttr}${expandFilter})` +
       `&$top=1`
   );
 

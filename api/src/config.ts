@@ -216,6 +216,46 @@ export const getDataverseUrlForPortal = (portalBaseUrl: string): string => {
   return cachedPortalDataverse.get(portalHost(portalBaseUrl)) ?? getRoleConfig().dataverseUrl;
 };
 
+// ── Per-portal Power Pages site id (web-role scoping) ───────────────────────
+// A single Dataverse environment can host MULTIPLE Power Pages sites, each with
+// its OWN copy of the standard web roles (Administrators, Reviewer, …) as
+// separate `powerpagecomponent` rows sharing the same name. Querying web roles
+// by name alone therefore matches roles from OTHER sites in the same org. To
+// keep role reads/writes scoped to THIS site, every role query is filtered by
+// the site's `powerpagesiteid` when one is configured.
+//
+// POWERPAGE_SITE_IDS is a comma-separated list index-aligned with
+// PORTAL_BASE_URLS (leave a slot empty to skip scoping for that portal).
+// POWERPAGE_SITE_ID is a single fallback for single-portal deployments. When
+// neither yields a value the query is left unscoped (prior behaviour), so
+// environments without duplicate sites keep working unchanged.
+const portalSiteList = (): string[] =>
+  optional('POWERPAGE_SITE_IDS', '').split(',').map((s) => s.trim());
+
+let cachedPortalSite: Map<string, string> | null = null;
+
+export const getPowerPageSiteIdForPortal = (
+  portalBaseUrl: string
+): string | undefined => {
+  if (!cachedPortalSite) {
+    cachedPortalSite = new Map();
+    const portals = optional('PORTAL_BASE_URLS', '')
+      .split(',')
+      .map((u) => u.trim())
+      .filter(Boolean);
+    const siteIds = portalSiteList();
+    portals.forEach((p, i) => {
+      const sid = siteIds[i] ?? '';
+      if (sid) cachedPortalSite!.set(portalHost(p), sid);
+    });
+  }
+  return (
+    cachedPortalSite.get(portalHost(portalBaseUrl)) ||
+    optional('POWERPAGE_SITE_ID', '') ||
+    undefined
+  );
+};
+
 // ── Email notifications (Function → Graph sendMail) ─────────────────────────
 // Sent app-only via the daemon app registration's Mail.Send application
 // permission (reuses the same Graph client as the SharePoint uploader). Lock
