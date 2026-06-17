@@ -1,0 +1,913 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GCP Nexus — Tester's Guide</title>
+<meta name="description" content="Step-by-step testing guide for the GCP Nexus contract procurement portal: submission, verification, engagements, review, signatures, letters and admin." />
+<style>
+  :root{
+    --navy:#0b2545; --navy-2:#13315c; --navy-rgb:11,37,69;
+    --accent:#c9a84c; --accent-2:#e8c96b; --accent-ink:#8a6f1f; --accent-soft:rgba(201,168,76,.14);
+    --bg:#f5f6f8; --surface:#fff; --surface-2:#f9fafb; --surface-3:#f3f4f6;
+    --text:#0d1a2b; --muted:#6b7280; --border:#e5e7eb; --border-strong:#d1d5db;
+    --success:#16a34a; --success-soft:#ecfdf5; --warning:#d97706; --warning-soft:#fffbeb;
+    --danger:#dc2626; --danger-soft:#fef2f2; --info:#2563eb; --info-soft:#eff6ff;
+    --radius:10px; --radius-sm:8px; --radius-lg:14px;
+    --shadow:0 1px 2px rgba(13,26,43,.04),0 4px 12px rgba(13,26,43,.06);
+    --shadow-lg:0 8px 30px rgba(13,26,43,.12);
+    --sidebar:288px;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;font-family:var(--font);color:var(--text);background:var(--bg);line-height:1.6;font-size:15.5px;-webkit-font-smoothing:antialiased}
+  a{color:var(--navy);text-decoration:none}
+  a:hover{text-decoration:underline}
+  h1,h2,h3,h4{line-height:1.25;color:var(--navy);font-weight:700;letter-spacing:-.01em}
+
+  /* ---------- Layout ---------- */
+  .shell{display:flex;min-height:100vh}
+  .sidebar{
+    width:var(--sidebar);flex:0 0 var(--sidebar);position:fixed;top:0;left:0;bottom:0;
+    background:var(--navy);color:#dce4f0;overflow-y:auto;z-index:40;
+    border-right:1px solid rgba(255,255,255,.06);
+  }
+  .sidebar::-webkit-scrollbar{width:8px}
+  .sidebar::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:8px}
+  .brand{padding:22px 22px 16px;border-bottom:1px solid rgba(255,255,255,.08);position:sticky;top:0;background:var(--navy);z-index:2}
+  .brand .logo{font-size:20px;font-weight:800;color:#fff;letter-spacing:-.02em}
+  .brand .logo span{color:var(--accent-2)}
+  .brand .tag{font-size:12px;color:#9fb0c9;margin-top:2px;text-transform:uppercase;letter-spacing:.08em}
+  nav.toc{padding:14px 12px 40px}
+  nav.toc .grp{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:#7d90ad;margin:18px 12px 6px;font-weight:700}
+  nav.toc a{display:block;color:#c4d0e2;padding:7px 12px;border-radius:8px;font-size:14px;border-left:2px solid transparent}
+  nav.toc a:hover{background:rgba(255,255,255,.06);text-decoration:none;color:#fff}
+  nav.toc a.active{background:rgba(201,168,76,.16);color:#fff;border-left-color:var(--accent);font-weight:600}
+
+  main{margin-left:var(--sidebar);flex:1;min-width:0}
+  .wrap{max-width:920px;margin:0 auto;padding:0 32px 96px}
+
+  /* ---------- Hero ---------- */
+  .hero{
+    background:linear-gradient(135deg,var(--navy) 0%,var(--navy-2) 100%);
+    color:#fff;padding:54px 32px 46px;position:relative;overflow:hidden;
+    border-bottom:3px solid var(--accent);
+  }
+  .hero::before{content:"";position:absolute;inset:0;background:
+    radial-gradient(900px 320px at 90% -10%,rgba(201,168,76,.18),transparent 60%);pointer-events:none}
+  .hero-in{max-width:920px;margin:0 auto;position:relative}
+  .hero .kicker{display:inline-block;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent-2);
+    border:1px solid rgba(201,168,76,.4);padding:4px 12px;border-radius:999px;margin-bottom:16px}
+  .hero h1{color:#fff;font-size:36px;margin:0 0 12px}
+  .hero p{color:#cdd8ea;font-size:17px;margin:0;max-width:680px}
+  .hero .meta{margin-top:22px;display:flex;gap:10px;flex-wrap:wrap}
+  .hero .meta span{font-size:13px;color:#aebbd1;background:rgba(255,255,255,.07);padding:6px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.08)}
+
+  /* ---------- Sections ---------- */
+  section{padding-top:34px;margin-top:6px;scroll-margin-top:18px}
+  section>h2{font-size:26px;margin:0 0 6px;padding-bottom:10px;border-bottom:2px solid var(--border)}
+  section>h2 .num{color:var(--accent-ink);font-size:18px;font-weight:800;margin-right:10px}
+  h3{font-size:19px;margin:28px 0 8px}
+  h4{font-size:15.5px;margin:20px 0 6px;color:var(--navy-2)}
+  p{margin:10px 0}
+  ul,ol{margin:10px 0;padding-left:22px}
+  li{margin:5px 0}
+  code{background:var(--surface-3);padding:2px 6px;border-radius:6px;font-size:13px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#324b6e}
+
+  .lead{font-size:16.5px;color:#3a4759}
+
+  /* ---------- Cards & callouts ---------- */
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px 22px;box-shadow:var(--shadow);margin:18px 0}
+  .card.pad-lg{padding:24px 26px}
+  .note{border-left:4px solid var(--info);background:var(--info-soft);padding:12px 16px;border-radius:0 var(--radius) var(--radius) 0;margin:16px 0}
+  .note.warn{border-color:var(--warning);background:var(--warning-soft)}
+  .note.tip{border-color:var(--success);background:var(--success-soft)}
+  .note.danger{border-color:var(--danger);background:var(--danger-soft)}
+  .note .lbl{font-weight:700;display:block;margin-bottom:2px;font-size:13px;text-transform:uppercase;letter-spacing:.04em}
+  .note.warn .lbl{color:var(--warning)} .note.tip .lbl{color:var(--success)}
+  .note.danger .lbl{color:var(--danger)} .note .lbl{color:var(--info)}
+
+  /* ---------- Steps ---------- */
+  ol.steps{counter-reset:s;list-style:none;padding:0;margin:18px 0}
+  ol.steps>li{counter-increment:s;position:relative;padding:14px 16px 14px 56px;background:var(--surface);
+    border:1px solid var(--border);border-radius:var(--radius);margin:10px 0;box-shadow:var(--shadow)}
+  ol.steps>li::before{content:counter(s);position:absolute;left:14px;top:14px;width:28px;height:28px;
+    background:var(--navy);color:var(--accent-2);border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-weight:700;font-size:14px}
+  ol.steps>li strong{color:var(--navy)}
+
+  /* ---------- Tables ---------- */
+  .tbl{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px;background:var(--surface);
+    border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+  .tbl th{background:var(--navy);color:#fff;text-align:left;padding:10px 13px;font-weight:600;font-size:13px}
+  .tbl td{padding:9px 13px;border-top:1px solid var(--border);vertical-align:top}
+  .tbl tr:nth-child(even) td{background:var(--surface-2)}
+  .tbl.sm{font-size:13px}
+
+  /* ---------- Pills / badges ---------- */
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+  .p-blue{background:var(--info-soft);color:var(--info)}
+  .p-gold{background:var(--accent-soft);color:var(--accent-ink)}
+  .p-amber{background:var(--warning-soft);color:var(--warning)}
+  .p-purple{background:#f3e8ff;color:#7e22ce}
+  .p-green{background:var(--success-soft);color:var(--success)}
+  .p-red{background:var(--danger-soft);color:var(--danger)}
+  .p-grey{background:var(--surface-3);color:var(--muted)}
+  .p-navy{background:var(--navy);color:#fff}
+
+  .role{display:inline-block;background:var(--navy);color:#fff;font-size:12px;font-weight:600;padding:3px 10px;border-radius:6px;margin:0 4px 4px 0}
+  .role.gold{background:var(--accent-soft);color:var(--accent-ink);border:1px solid rgba(201,168,76,.4)}
+
+  /* ---------- Grid of cards ---------- */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin:18px 0}
+  .feat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow)}
+  .feat h4{margin:0 0 4px;color:var(--navy)}
+  .feat p{margin:0;font-size:13.5px;color:var(--muted)}
+  .feat .tagline{display:inline-block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--accent-ink);margin-bottom:6px}
+
+  /* ---------- Flow diagram ---------- */
+  .flow{background:var(--navy);border-radius:var(--radius-lg);padding:26px;margin:20px 0;overflow-x:auto}
+  .flow pre{margin:0;color:#cdd8ea;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.7;white-space:pre}
+  .flow pre b{color:var(--accent-2)}
+
+  /* ---------- Path chip ---------- */
+  .path{display:inline-flex;align-items:center;gap:6px;background:var(--surface-3);border:1px solid var(--border-strong);
+    border-radius:8px;padding:3px 10px;font-family:ui-monospace,monospace;font-size:13px;color:#324b6e;margin:2px 0}
+
+  /* ---------- Checklist ---------- */
+  .chk{list-style:none;padding:0;margin:14px 0}
+  .chk li{padding:9px 14px 9px 40px;position:relative;background:var(--surface);border:1px solid var(--border);
+    border-radius:var(--radius-sm);margin:7px 0;font-size:14px}
+  .chk li::before{content:"";position:absolute;left:13px;top:12px;width:16px;height:16px;border:2px solid var(--accent);border-radius:4px}
+
+  .hr{height:1px;background:var(--border);border:0;margin:30px 0}
+  .anchor-top{display:block;text-align:right;font-size:12px;color:var(--muted);margin-top:8px}
+
+  /* ---------- Mobile ---------- */
+  .menu-btn{display:none;position:fixed;top:14px;left:14px;z-index:60;background:var(--navy);color:#fff;border:0;
+    border-radius:8px;padding:9px 13px;font-size:14px;cursor:pointer;box-shadow:var(--shadow-lg)}
+  .backdrop{display:none;position:fixed;inset:0;background:rgba(11,37,69,.5);z-index:35}
+  @media(max-width:1000px){
+    .sidebar{transform:translateX(-100%);transition:transform .25s ease;width:282px}
+    .sidebar.open{transform:none}
+    main{margin-left:0}
+    .menu-btn{display:block}
+    .backdrop.show{display:block}
+    .hero{padding-top:64px}
+    .wrap{padding:0 18px 80px}
+    .hero h1{font-size:28px}
+  }
+  @media print{.sidebar,.menu-btn,.backdrop,.anchor-top{display:none}main{margin:0}.card,ol.steps>li{box-shadow:none}}
+</style>
+</head>
+<body>
+
+<button class="menu-btn" id="menuBtn" aria-label="Open navigation">☰ Menu</button>
+<div class="backdrop" id="backdrop"></div>
+
+<div class="shell">
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="logo">GCP <span>Nexus</span></div>
+      <div class="tag">Tester's Guide</div>
+    </div>
+    <nav class="toc" id="toc">
+      <div class="grp">Start here</div>
+      <a href="#overview">Overview</a>
+      <a href="#roles">Roles &amp; access</a>
+      <a href="#login">Signing in</a>
+      <a href="#nav">Navigation</a>
+
+      <div class="grp">The request lifecycle</div>
+      <a href="#submit">1 · Submit a request</a>
+      <a href="#list">2 · Requests list</a>
+      <a href="#detail">3 · Request detail</a>
+      <a href="#verify">4 · Verify data</a>
+      <a href="#slots">5 · Slots</a>
+      <a href="#engage">6 · Book engagement</a>
+      <a href="#engmgmt">7 · Engagement mgmt</a>
+      <a href="#review">8 · Review request</a>
+      <a href="#sign">9 · Signatures</a>
+      <a href="#hoc">10 · Accept / Endorse</a>
+      <a href="#letters">11 · Letters</a>
+
+      <div class="grp">Admin &amp; insight</div>
+      <a href="#signatories">Signatory groups</a>
+      <a href="#templates">Email templates</a>
+      <a href="#roles-admin">User roles</a>
+      <a href="#dashboard">Dashboard</a>
+
+      <div class="grp">Reference</div>
+      <a href="#ref-matters">Matter types</a>
+      <a href="#ref-status">Status reference</a>
+      <a href="#ref-codes">Decision codes</a>
+      <a href="#ref-lifecycle">Full lifecycle map</a>
+      <a href="#checklist">Test checklist</a>
+    </nav>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main>
+    <header class="hero">
+      <div class="hero-in">
+        <span class="kicker">Contract Procurement Portal</span>
+        <h1>GCP Nexus — Tester's Guide</h1>
+        <p>A walkthrough of every screen and action in the GCP / GCPC request portal — from submitting a request to engagements, review decisions, signatures and letters. Use it to plan and run your test passes.</p>
+        <div class="meta">
+          <span>Audience: UAT / QA testers</span>
+          <span>Covers: GCP &amp; GCPC channels</span>
+          <span>Read-time: ~25 min</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="wrap">
+
+      <!-- ============ OVERVIEW ============ -->
+      <section id="overview">
+        <h2><span class="num">00</span>Overview</h2>
+        <p class="lead">GCP Nexus digitises the end-to-end handling of contract-procurement requests for the Group Contract Procurement (<strong>GCP</strong>) and the Group Contract Procurement Committee (<strong>GCPC</strong>). It replaces Word-based forms with guided web forms and routes every request through a structured review lifecycle.</p>
+
+        <p>A request travels through clear stages, each handled by a different role:</p>
+        <div class="flow">
+<pre><b>Submit</b>  →  <b>Verify</b>  →  <b>Book engagement</b>  →  <b>Review decision</b>  →  <b>Sign-off</b>  →  <b>Accept / Endorse</b>  →  <b>Letter</b>
+(Requestor)  (Verifier)   (Requestor/Reviewer)   (Reviewer)      (Signatories)     (HOC)          (Reviewer)</pre>
+        </div>
+
+        <div class="note tip">
+          <span class="lbl">How to use this guide</span>
+          Work top-to-bottom — the sections follow the order a request actually moves through the system. For each screen you'll find <strong>where to go</strong>, <strong>what you'll see</strong>, <strong>what to do</strong>, and <strong>what to verify</strong>. The <a href="#checklist">test checklist</a> at the end bundles it into a runnable pass.
+        </div>
+
+        <h3>Two channels</h3>
+        <div class="grid">
+          <div class="feat">
+            <span class="tagline">GCPC</span>
+            <h4>Committee requests</h4>
+            <p>9 matter types (RTP, PBL, JVP, ST/SP, CAA, PCCA, PP, VAP, Others). Conclude with an <strong>Endorsement</strong> letter.</p>
+          </div>
+          <div class="feat">
+            <span class="tagline">GCP</span>
+            <h4>Group requests</h4>
+            <p>5 matter types (R-PCCA, R-PP, CI, CPR, Others). Conclude with an <strong>Acknowledgement</strong> letter.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ ROLES ============ -->
+      <section id="roles">
+        <h2><span class="num">01</span>Roles &amp; access</h2>
+        <p>What you can see and do depends on the <strong>web role(s)</strong> assigned to your account. To test the full lifecycle you'll need accounts (or one account holding several roles) covering each stage.</p>
+
+        <table class="tbl">
+          <tr><th>Role</th><th>What they do in the portal</th></tr>
+          <tr><td><span class="role">Requestor</span></td><td>Submits new requests. <em>Only</em> role that can create a request. Books engagements.</td></tr>
+          <tr><td><span class="role">Verifier</span></td><td>Checks a submitted request's data &amp; documents, then advances or returns it.</td></tr>
+          <tr><td><span class="role">Reviewer</span></td><td>Runs the engagement review and records the decision (conclusion code).</td></tr>
+          <tr><td><span class="role">HOC</span></td><td>Head of Company — signs the Acceptance (GCP) or Endorsement (GCPC).</td></tr>
+          <tr><td><span class="role">Endorser</span> / <span class="role">Working GCPC</span></td><td>GCPC-side handling and endorsement steps.</td></tr>
+          <tr><td><span class="role">Main Committee</span></td><td>Read-only view of all requests and the dashboard.</td></tr>
+          <tr><td><span class="role">Administrators</span></td><td>Manage slots, engagements, signatory groups, email templates and user roles. Sees the Dashboard and Admin hub.</td></tr>
+        </table>
+
+        <div class="note">
+          <span class="lbl">Tester note</span>
+          The portal hides links and buttons by role, but real data access is enforced by Dataverse permissions on the server. If a link is hidden, the role isn't assigned — fix it under <a href="#roles-admin">User Role Management</a>. After a role change the user may need to <strong>sign out and back in</strong> for it to take effect.
+        </div>
+      </section>
+
+      <!-- ============ LOGIN ============ -->
+      <section id="login">
+        <h2><span class="num">02</span>Signing in</h2>
+        <span class="path">/login</span>
+        <h4>What you'll see</h4>
+        <p>A sign-in panel (it can't be dismissed) reading <em>"Sign in — Use your organisation account to access GCP Central."</em> with a <strong>Sign in with Microsoft</strong> button.</p>
+        <h4>What to do</h4>
+        <ol class="steps">
+          <li>Click <strong>Sign in with Microsoft</strong>. You're redirected to Microsoft to authenticate.</li>
+          <li>After signing in, you're returned to the page you originally tried to open (or Home).</li>
+        </ol>
+        <h4>Verify</h4>
+        <ul>
+          <li>If you visit a protected page while signed out, you land on <code>/login</code> and after signing in return to that same page.</li>
+          <li>If you're already signed in and open <code>/login</code>, it bounces you straight to Home.</li>
+          <li>Your name, company and roles appear correctly on <a href="#login">your Profile</a> (<span class="path">/profile</span>).</li>
+        </ul>
+      </section>
+
+      <!-- ============ NAV ============ -->
+      <section id="nav">
+        <h2><span class="num">03</span>Navigation</h2>
+        <p>The header shows the <strong>GCP Nexus</strong> logo and a set of links that change with your role, plus a sign-in/out button on the right.</p>
+        <table class="tbl">
+          <tr><th>Link</th><th>Who sees it</th><th>Goes to</th></tr>
+          <tr><td>Home</td><td>Everyone signed in</td><td><span class="path">/</span></td></tr>
+          <tr><td>Requests</td><td>Everyone signed in</td><td><span class="path">/requests</span></td></tr>
+          <tr><td>Dashboard</td><td>Administrators</td><td><span class="path">/dashboard</span></td></tr>
+          <tr><td>Manage (Admin)</td><td>Administrators</td><td><span class="path">/admin</span></td></tr>
+        </table>
+        <p>The <strong>Submit a request</strong> entry point is available to Requestors (from Home / the request area). Non-Requestors who try to open <code>/submit</code> are redirected to the requests list.</p>
+      </section>
+
+      <!-- ============ 1. SUBMIT ============ -->
+      <section id="submit">
+        <h2><span class="num">04</span>1 · Submit a request</h2>
+        <span class="role gold">Role: Requestor</span>
+        <p class="lead">The starting point of every lifecycle. A requestor picks a matter type and completes a guided multi-step form.</p>
+
+        <h3>Choosing a request type</h3>
+        <span class="path">/submit</span>
+        <p>The page is headed <strong>"Create a Request — Select the request type to begin."</strong> with two channel tabs and a search box:</p>
+        <ul>
+          <li><strong>GCPC Requests</strong> and <strong>GCP Requests</strong> tabs switch the list of cards below.</li>
+          <li>Each card shows the full matter name and its short <strong>form code</strong> (e.g. <span class="pill p-navy">PBL</span>).</li>
+          <li>The <strong>search box</strong> filters cards by name or code (case-insensitive) — try typing <code>tender</code> or <code>RTP</code>.</li>
+          <li>Clicking a card opens the form at <span class="path">/submit/&lt;channel&gt;/&lt;formCode&gt;</span> — e.g. <code>/submit/gcpc/rtp</code>.</li>
+        </ul>
+        <p>The full list of types is in the <a href="#ref-matters">Matter types reference</a>.</p>
+
+        <h3>Filling the multi-step form</h3>
+        <span class="path">/submit/:channel/:formCode</span>
+        <h4>What you'll see</h4>
+        <ul>
+          <li>A <strong>step indicator / progress bar</strong> (e.g. "Step 1 of 3") with named steps such as <em>Basic Information → Project Details → Document</em>.</li>
+          <li><strong>Back</strong> and <strong>Next</strong> buttons; <strong>Next</strong> becomes <strong>Submit Request</strong> on the last step.</li>
+          <li>The first step auto-fills read-only fields from your profile: <em>Matter / title, Category (GCP/GCPC), Requestor name, Requestor email, Company.</em></li>
+          <li>Form-specific steps follow — e.g. PBL has a <strong>Bidders</strong> step where a <em>Justification</em> field becomes required if fewer than 3 bidders are added.</li>
+          <li>An <strong>Attachments</strong> uploader (files go to SharePoint as you add them) and a required acknowledgement checkbox: <em>"I confirm the information provided is accurate."</em></li>
+        </ul>
+        <h4>What to do &amp; verify</h4>
+        <ol class="steps">
+          <li>Click <strong>Next</strong> with a required field empty → an inline error appears (e.g. <em>"Field is required."</em>) and you can't advance. Fix it and continue.</li>
+          <li>Type into the form, then <strong>refresh the page</strong> within the same session → your entries are restored (draft auto-save). <em>(Attached files are not restored — re-attach them.)</em></li>
+          <li>Add fewer than 3 bidders on PBL → the Justification field becomes required. Add an attachment and watch it upload.</li>
+          <li>Try to submit with the acknowledgement <strong>unchecked</strong> → submission is blocked (<em>"You must acknowledge before submitting."</em>). Tick it.</li>
+          <li>Click <strong>Submit Request</strong> → button shows <em>"Submitting…"</em>, then a success screen appears.</li>
+        </ol>
+        <div class="note tip">
+          <span class="lbl">Success screen</span>
+          You should see <strong>"Request submitted"</strong> with a prominent <strong>Request ID / reference number</strong> and a <strong>View my requests</strong> button. The new request appears in the list at status <span class="pill p-blue">New</span>. If the notification email can't be sent you'll see a soft warning, but the request still saves.
+        </div>
+        <div class="note">
+          <span class="lbl">Access check</span>
+          Open <code>/submit</code> as a non-Requestor → you're redirected to <code>/requests</code>. Open it signed-out → you're sent to <code>/login</code>.
+        </div>
+      </section>
+
+      <!-- ============ 2. LIST ============ -->
+      <section id="list">
+        <h2><span class="num">05</span>2 · Requests list</h2>
+        <span class="path">/requests</span>
+        <p class="lead">A filterable, paginated table of every submitted request. The home base for verifiers, reviewers and viewers.</p>
+
+        <h4>Columns</h4>
+        <table class="tbl sm">
+          <tr><th>Column</th><th>Shows</th></tr>
+          <tr><td>Request no.</td><td>Request title / short ID, with a GCP or GCPC channel badge.</td></tr>
+          <tr><td>Matter type</td><td>Form name + short-code badge (RTP, PBL, …).</td></tr>
+          <tr><td>Requester</td><td>Submitter's name &amp; email.</td></tr>
+          <tr><td>Project / Company</td><td>Linked project, and company name + code.</td></tr>
+          <tr><td>Status</td><td>Colour-coded status pill — see <a href="#ref-status">status reference</a>.</td></tr>
+          <tr><td>Action</td><td>Context button whose label changes with status (below).</td></tr>
+        </table>
+
+        <h4>Filter bar</h4>
+        <p>Five filters that combine (AND) — <strong>Project</strong> &amp; <strong>Company</strong> (text search), and <strong>Status</strong>, <strong>Matter type</strong>, <strong>SOA code</strong> (dropdowns). A <strong>brush / Clear filters</strong> button appears when any filter is active. A count badge shows total and filtered records.</p>
+
+        <h4>Row action button</h4>
+        <table class="tbl sm">
+          <tr><th>Status</th><th>Button</th></tr>
+          <tr><td><span class="pill p-blue">New</span></td><td>Verify</td></tr>
+          <tr><td><span class="pill p-purple">Draft Review</span></td><td>Engage</td></tr>
+          <tr><td>Any other</td><td>View</td></tr>
+        </table>
+        <p>Clicking the button — or anywhere on the row — opens the <a href="#detail">Request Detail</a> page.</p>
+
+        <h4>Verify</h4>
+        <ul>
+          <li>The table paginates at <strong>10 rows</strong>; ← / → move pages and the footer reads e.g. <em>"Showing 1 to 10 of 34"</em>.</li>
+          <li>A <strong>Load more</strong> button fetches the next batch from Dataverse when more records exist.</li>
+          <li>Apply each filter and confirm rows narrow correctly; Clear filters resets them all.</li>
+        </ul>
+      </section>
+
+      <!-- ============ 3. DETAIL ============ -->
+      <section id="detail">
+        <h2><span class="num">06</span>3 · Request detail</h2>
+        <span class="path">/requests/:id</span>
+        <p class="lead">A read-only summary of one request, plus the single status-driven action that moves it forward.</p>
+
+        <h4>Layout</h4>
+        <ul>
+          <li><strong>Navy hero header</strong> — matter label, channel-coloured matter code badge, request ID, category (GCP/GCPC) and the current status pill.</li>
+          <li><strong>Record bar</strong> — project, company, submission date, and an <em>Acknowledged</em> badge if the requestor ticked the acknowledgement.</li>
+          <li><strong>Section 1 — Basic Information</strong> — common fields (title, project/contract, requestor, email, company, project code, submitted-on).</li>
+          <li><strong>Section 2 — Detail Information</strong> — the matter-specific fields from the child record (tender dates, bidder lists, cost figures, …). If no detail record exists yet, an info notice shows instead.</li>
+          <li><strong>General Review section</strong> — appears once a request leaves <em>New</em>; shows the verifier's comment and name.</li>
+          <li><strong>Action area</strong> — one button, driven by status (below).</li>
+        </ul>
+
+        <h4>Action by status</h4>
+        <table class="tbl sm">
+          <tr><th>Status</th><th>Button</th><th>Opens</th></tr>
+          <tr><td><span class="pill p-blue">New</span></td><td>Verify Data</td><td><span class="path">/requests/:id/verify-data</span></td></tr>
+          <tr><td><span class="pill p-gold">Ready for Engagement</span></td><td>Book Engagement</td><td><span class="path">/requests/:id/engagement</span></td></tr>
+          <tr><td><span class="pill p-amber">R</span> (Under Review)</td><td>Review Request</td><td><span class="path">/requests/:id/review</span></td></tr>
+          <tr><td>Complete Review</td><td>Accept / Endorse</td><td><span class="path">/hoc-acceptance</span> or <span class="path">/endorse</span></td></tr>
+          <tr><td>All others</td><td><em>no button</em></td><td>—</td></tr>
+        </table>
+        <p>The signature / sign-off grid (signatories) also appears here when the request is at <em>Pending Review</em> — see <a href="#sign">Signatures</a>.</p>
+      </section>
+
+      <!-- ============ 4. VERIFY ============ -->
+      <section id="verify">
+        <h2><span class="num">07</span>4 · Verify data</h2>
+        <span class="role gold">Role: Verifier</span> &nbsp; <span class="path">/requests/:id/verify-data</span>
+        <p class="lead">The first action in the lifecycle. The verifier reviews the submission and chooses the next step.</p>
+
+        <h4>What you'll see</h4>
+        <ul>
+          <li><strong>Request Status</strong> dropdown — the outcome options depend on the matter type (below).</li>
+          <li><strong>Comment</strong> text area — an optional note saved as the verifier comment (shown later in the detail page's General Review section).</li>
+        </ul>
+
+        <h4>Status options by matter type</h4>
+        <table class="tbl sm">
+          <tr><th>Matter type</th><th>Available outcomes</th></tr>
+          <tr><td>Most types</td><td>FR, RS, Ready for Engagement</td></tr>
+          <tr><td>RTP</td><td>FR, RS, Ready for Engagement, W</td></tr>
+          <tr><td>PP, VAP, RPP, CAA, CI, R-PCCA, R-PP, GCP-Others</td><td>FR, RS, Pending Ack <em>(no Ready for Engagement)</em></td></tr>
+          <tr><td>CPR</td><td>FR only</td></tr>
+        </table>
+
+        <h4>What to do &amp; verify</h4>
+        <ol class="steps">
+          <li>Pick an outcome (e.g. <strong>Ready for Engagement</strong>), add a comment, and submit.</li>
+          <li>The page polls until Dataverse confirms the new status, then returns to the detail page.</li>
+          <li>Confirm the status pill changed and your comment + name now show in the <em>General Review</em> section.</li>
+          <li>Test the branch outcomes too — <strong>FR</strong> (returned for revision) and <strong>RS</strong> (resubmission) — and confirm the list/detail reflect them.</li>
+        </ol>
+      </section>
+
+      <!-- ============ 5. SLOTS ============ -->
+      <section id="slots">
+        <h2><span class="num">08</span>5 · Slots (admin)</h2>
+        <span class="role">Role: Administrator</span> &nbsp; <span class="path">/admin/slots</span>
+        <p class="lead">Before anyone can book an engagement, an admin must publish bookable time slots. Page: <strong>"Slot Management — Create and manage meeting and engagement slots."</strong></p>
+
+        <h4>Tabs</h4>
+        <p>Slots are split into <strong>Available</strong> and <strong>Booked</strong> tabs, with a header badge like <em>"3 available · 1 booked"</em>.</p>
+
+        <h4>Creating a slot</h4>
+        <p>Click <strong>Create new slot</strong> to open the modal:</p>
+        <ul>
+          <li><strong>Title / type</strong> (required) — e.g. <em>"Vendor onboarding review"</em>.</li>
+          <li><strong>Start date &amp; time</strong> (required) — must be in the future.</li>
+          <li><strong>Duration</strong> (required) — chips: <span class="pill p-grey">15</span> <span class="pill p-grey">30</span> <span class="pill p-grey">45</span> <span class="pill p-grey">60</span> min; the end time auto-calculates (<em>"Ends at: …"</em>).</li>
+          <li><strong>Attendees</strong> (required) — Primary attendee plus up to two more (Add attendee, remove with the trash icon).</li>
+        </ul>
+        <p>Click <strong>Create slot</strong> → <em>"Slot created successfully and is now available for booking."</em> New slots start as <span class="pill p-green">Available</span>.</p>
+
+        <h4>Editing</h4>
+        <p>Each slot card has an <strong>Edit</strong> button. The edit modal adds a <strong>Status</strong> dropdown (Available / Booked) so you can move a slot between tabs, plus the same time/duration/attendee fields. Save → <em>"Slot updated successfully."</em></p>
+
+        <h4>What to verify</h4>
+        <ul>
+          <li>A created slot appears in <strong>Available</strong> and becomes selectable in the engagement booking flow.</li>
+          <li>Only <strong>future-dated</strong> slots are accepted; only slots within the next ~6 months are offered for booking.</li>
+          <li>Each card shows date, status badge, time range + duration, title and attendee avatars.</li>
+        </ul>
+      </section>
+
+      <!-- ============ 6. ENGAGE ============ -->
+      <section id="engage">
+        <h2><span class="num">09</span>6 · Book an engagement</h2>
+        <span class="role gold">Requestor / Reviewer</span> &nbsp; <span class="path">/requests/:id/engagement</span>
+        <p class="lead">Reached from the <strong>Book Engagement</strong> action when a request is <span class="pill p-gold">Ready for Engagement</span>. Schedules the meeting where the review takes place.</p>
+
+        <h4>What you'll see</h4>
+        <p>If engagements already exist, they're listed first (name + reference like <em>R01</em>, type badge, status badge, date/time, location, and a <strong>Cancel</strong> button on any <em>Scheduled</em> one). A <strong>Create Engagement</strong> button opens the booking form — unless one is already scheduled.</p>
+
+        <h4>Booking form</h4>
+        <ol class="steps">
+          <li><strong>Engagement Name</strong> (required). The heading auto-numbers the session — e.g. <em>"Schedule Engagement R01"</em>.</li>
+          <li><strong>Select Month</strong> — months that have available slots, each showing a count (e.g. <em>"May 2026 (3 slots available)"</em>).</li>
+          <li><strong>Available Time Slots</strong> — a grid of slot buttons (date, duration, time range). Pick one; it highlights.</li>
+          <li><strong>Engagement Type</strong> — <em>Virtual</em> (default) or <em>In-Person</em>.</li>
+          <li><strong>Meeting Location</strong> (In-Person only) — O3CS / Hyrangea / Petunia meeting room, or <em>Other (enter manually)</em> which reveals a custom location field.</li>
+          <li>Click <strong>Schedule Engagement</strong>.</li>
+        </ol>
+
+        <div class="note tip">
+          <span class="lbl">On submit</span>
+          The engagement is created (<span class="pill p-blue">Scheduled</span>), the chosen slot flips to <strong>Booked</strong>, the request advances to <span class="pill p-amber">R</span> (Under Review), and you're redirected back to the detail page after a brief <em>"Engagement scheduled"</em> confirmation.
+        </div>
+
+        <div class="note warn">
+          <span class="lbl">One-at-a-time rule</span>
+          A request may have only <strong>one Scheduled engagement</strong> at a time. While one is open, the create form is hidden and you see: <em>"Engagement already scheduled. Please complete or cancel the existing scheduled engagement before creating a new one."</em>
+        </div>
+
+        <h4>Cancelling</h4>
+        <p>Cancel on a Scheduled engagement opens a confirm dialog. On <strong>Yes, cancel engagement</strong> the engagement becomes <span class="pill p-red">Cancelled</span> and its slot is freed back to Available (if the start time is more than ~2 hours away).</p>
+      </section>
+
+      <!-- ============ 7. ENG MGMT ============ -->
+      <section id="engmgmt">
+        <h2><span class="num">10</span>7 · Engagement management (admin)</h2>
+        <span class="role">Role: Administrator</span> &nbsp; <span class="path">/admin/engagements</span>
+        <p class="lead">A cross-organisation view of every engagement. Page: <strong>"Engagement Management — Track and manage engagements across the group organisation."</strong></p>
+        <ul>
+          <li>Tabs group engagements by status: <strong>Scheduled</strong> (default) · <strong>Completed</strong> · <strong>Cancelled</strong>. Header badge e.g. <em>"2 scheduled · 7 total"</em>.</li>
+          <li>Scheduled cards offer <strong>Manage</strong> (change type/location, or reschedule to another slot) and <strong>Cancel</strong>.</li>
+          <li>Cancelling frees the slot back to Available; Completed and Cancelled cards have no actions.</li>
+        </ul>
+        <h4>Engagement statuses</h4>
+        <p><span class="pill p-blue">Scheduled</span> → <span class="pill p-red">Cancelled</span> (slot freed) or <span class="pill p-green">Completed</span> (auto-set when the review is submitted — see next section).</p>
+      </section>
+
+      <!-- ============ 8. REVIEW ============ -->
+      <section id="review">
+        <h2><span class="num">11</span>8 · Review request</h2>
+        <span class="role gold">Role: Reviewer</span> &nbsp; <span class="path">/requests/:id/review</span>
+        <p class="lead">After the engagement, the reviewer records the formal decision. This is the core review screen, opened by the <strong>Review Request</strong> action while status is <span class="pill p-amber">R</span>.</p>
+
+        <h4>Fields</h4>
+        <p><strong>Decision Code</strong> (required) — pick one radio option; the description shows beside it:</p>
+        <table class="tbl sm">
+          <tr><th>Code</th><th>Label</th><th>Meaning</th></tr>
+          <tr><td>Code 1</td><td>Proceed</td><td>Proceed with acceptance of review.</td></tr>
+          <tr><td>Code 2</td><td>Resubmit</td><td>Resubmit — critical information missing.</td></tr>
+          <tr><td>Code 3</td><td>Non-compliant</td><td>No submission for review. Non-compliance.</td></tr>
+          <tr><td>Code 4</td><td>Exempted</td><td>Exempted &amp; approved by Main GCPC (signed letter attached).</td></tr>
+          <tr><td>Code W</td><td>Waived</td><td>Waived — signed Waiver Form from Group CEO. <em>(ST/SP only)</em></td></tr>
+        </table>
+        <p><strong>Reviewer Comments</strong> (optional) — a block editor: add <em>Text</em>, <em>Bulleted list</em> or <em>Numbered list</em> blocks, reorder with arrows, remove with the trash icon. For PCCA / PP / R-PCCA / R-PP, an extra <strong>Info and Criteria for Review</strong> textarea appears (prefilled, editable).</p>
+
+        <h4>What to do &amp; verify</h4>
+        <ol class="steps">
+          <li>Select a decision code and add a comment block.</li>
+          <li>Click <strong>Submit Review</strong> → a confirmation modal appears. Click <strong>Confirm</strong>.</li>
+          <li>The decision, comments, review date and reviewer name save; the request status &amp; outcome update per the code (see <a href="#ref-codes">decision codes</a>).</li>
+          <li>The linked <strong>Scheduled</strong> engagement is automatically marked <span class="pill p-green">Completed</span>.</li>
+          <li>The page polls for the new status, then returns to detail.</li>
+        </ol>
+        <p>Code 1 moves the request to <span class="pill p-purple">Draft Review</span>; Code 2 → <span class="pill p-amber">RS</span>; Code 3 → <span class="pill p-red">NC3</span>; Code 4 → <span class="pill p-red">NC4</span>; Code W → <span class="pill p-grey">W</span>.</p>
+      </section>
+
+      <!-- ============ 9. SIGNATURES ============ -->
+      <section id="sign">
+        <h2><span class="num">12</span>9 · Signatures (sign-off)</h2>
+        <span class="role gold">Roles: Signatory members</span>
+        <p class="lead">When a request reaches the <strong>Pending Review</strong> stage, a signature grid appears on the request detail page. Members of the <strong>Prepared</strong> and <strong>Confirmed</strong> signatory groups add their digital signatures.</p>
+        <ul>
+          <li>Signatories are configured by an admin under <a href="#signatories">Signatory Groups</a>.</li>
+          <li>Each group has a <strong>minimum signature threshold</strong> (default: Prepared 1, Confirmed 2). The request can only advance to <strong>Complete Review</strong> once both minimums are met.</li>
+          <li>Each signatory clicks to <strong>add their signature</strong>; counts per group are checked against the thresholds.</li>
+        </ul>
+        <div class="note">
+          <span class="lbl">Verify</span>
+          With fewer than the minimum signatures, the request cannot proceed. After enough signatures from both groups, the request can move to <strong>Complete Review</strong> and the Accept / Endorse action becomes available.
+        </div>
+      </section>
+
+      <!-- ============ 10. HOC / ENDORSE ============ -->
+      <section id="hoc">
+        <h2><span class="num">13</span>10 · Accept (GCP) &amp; Endorse (GCPC)</h2>
+        <span class="role gold">Role: HOC</span>
+        <p class="lead">The Head of Company formally accepts (GCP) or endorses (GCPC) a completed review by selecting a conclusion code and signing. Only the HOC of the <strong>requesting company</strong> may sign.</p>
+
+        <div class="grid">
+          <div class="feat">
+            <span class="tagline">GCP channel</span>
+            <h4>HOC Acceptance</h4>
+            <p><span class="path">/requests/:id/hoc-acceptance</span></p>
+            <p>Card "Review Acceptance", button <strong>Submit Acceptance</strong>. Advances to <span class="pill p-purple">Pending Ack</span>.</p>
+          </div>
+          <div class="feat">
+            <span class="tagline">GCPC channel</span>
+            <h4>Endorsement</h4>
+            <p><span class="path">/requests/:id/endorse</span></p>
+            <p>Card "Review Endorsement", button <strong>Submit Endorsement</strong>. Advances to <span class="pill p-purple">Pending Endorse</span>.</p>
+          </div>
+        </div>
+
+        <h4>Conclusion codes</h4>
+        <table class="tbl sm">
+          <tr><th>Code</th><th>Meaning</th></tr>
+          <tr><td>Code 1 (a)</td><td>Agree to incorporate <em>all</em> comments in submission / future action.</td></tr>
+          <tr><td>Code 1 (b)</td><td>Agree to incorporate all comments <em>except</em> listed exceptions (3 exception/mitigation fields appear).</td></tr>
+          <tr><td>Code 2</td><td>Acknowledge the need to resubmit and incorporate comments.</td></tr>
+          <tr><td>Code 3</td><td>Acknowledged — admit the non-compliance.</td></tr>
+        </table>
+
+        <h4>What to do &amp; verify</h4>
+        <ol class="steps">
+          <li>Select a conclusion code (if 1(b), fill the exception fields).</li>
+          <li>Click <strong>Add Signature</strong> and provide the digital signature (the box shows <em>"Awaiting signature"</em> until then).</li>
+          <li>Click <strong>Submit Acceptance / Endorsement</strong> → confirm in the modal.</li>
+          <li>Verify: once signed, the whole form locks (read-only) and shows <em>"Signed: dd/mm/yyyy"</em>; the request status advances.</li>
+          <li>Sign in as an HOC from a <em>different company</em> → you should be blocked with a company-mismatch warning.</li>
+        </ol>
+        <p>A <strong>Print</strong> button is available in the header.</p>
+      </section>
+
+      <!-- ============ 11. LETTERS ============ -->
+      <section id="letters">
+        <h2><span class="num">14</span>11 · Letters</h2>
+        <p class="lead">After acceptance/endorsement, the reviewer generates the closing letter from a matter-specific template with auto-filled and manual fields.</p>
+        <table class="tbl sm">
+          <tr><th>Letter</th><th>Channel</th><th>Path</th><th>Result status</th></tr>
+          <tr><td>Acknowledgement</td><td>GCP</td><td><span class="path">/requests/:id/ack-letter</span></td><td><span class="pill p-green">ACK</span></td></tr>
+          <tr><td>Endorsement</td><td>GCPC</td><td><span class="path">/requests/:id/endorsement-letter</span></td><td><span class="pill p-green">E</span></td></tr>
+        </table>
+
+        <h4>How it works</h4>
+        <ul>
+          <li>The template is chosen automatically from the matter type. It includes a header (with an auto-generated document number), an info table, body paragraphs, sign-off, attachments list and a CC list.</li>
+          <li><strong>Auto-filled fields</strong> (company, project, dates, matter label) are highlighted and read-only.</li>
+          <li><strong>Manual fields</strong> (e.g. Review No., contract values, package counts) are editable inputs — left blank, they appear as «placeholders».</li>
+          <li>Toggle <strong>Edit</strong> ⇄ <strong>Preview</strong>; <strong>Print</strong> opens the browser print dialog.</li>
+        </ul>
+
+        <h4>What to do &amp; verify</h4>
+        <ol class="steps">
+          <li>Fill the manual fields, switch to <strong>Preview</strong>, then click <strong>Submit Acknowledgement / Endorsement</strong>.</li>
+          <li>If any manual field is empty, a soft warning lists them — you can go back or submit anyway.</li>
+          <li>Confirm → the letter is saved, the request advances to <span class="pill p-green">ACK</span> / <span class="pill p-green">E</span>, and you're returned to the detail page.</li>
+          <li>Re-open the letter → it loads read-only with your values restored, and an <strong>Edit</strong> button lets you reopen it.</li>
+        </ol>
+      </section>
+
+      <!-- ============ SIGNATORIES ============ -->
+      <section id="signatories">
+        <h2><span class="num">15</span>Signatory groups (admin)</h2>
+        <span class="role">Role: Administrator</span> &nbsp; <span class="path">/admin/signatories</span>
+        <p class="lead">Defines who signs requests and the minimum signatures required. Members are split into <strong>Prepared</strong> and <strong>Confirmed</strong> groups.</p>
+        <h4>Adding a member</h4>
+        <ol class="steps">
+          <li>Pick a <strong>Group</strong> (Prepared / Confirmed).</li>
+          <li>Start typing a <strong>Name</strong> — matching contacts appear; pick one to auto-fill the email (or type it).</li>
+          <li>Click <strong>Add member</strong> — they appear in that group's table.</li>
+        </ol>
+        <p>Remove a member with the per-row <strong>Remove</strong> button (confirm dialog). To change details, remove and re-add.</p>
+        <h4>Thresholds</h4>
+        <p>The <strong>Minimum signature thresholds</strong> card sets <em>Prepared (minimum)</em> and <em>Confirmed (minimum)</em>; <strong>Save thresholds</strong> → <em>"Thresholds saved."</em> These gate the <a href="#sign">sign-off</a> step.</p>
+      </section>
+
+      <!-- ============ TEMPLATES ============ -->
+      <section id="templates">
+        <h2><span class="num">16</span>Email templates (admin)</h2>
+        <span class="role">Role: Administrator</span> &nbsp; <span class="path">/admin/email-templates</span>
+        <p class="lead">Controls the notification emails sent at each lifecycle milestone. One template per <strong>event × recipient role</strong>, each independently toggled on/off.</p>
+
+        <h4>Events &amp; recipients</h4>
+        <p>Events: <strong>Request Submitted</strong>, <strong>Request Verified</strong>, <strong>Request Reviewed</strong>. Recipients: Requester, Verifier, Reviewer, Working GCPC, Endorser, HOC.</p>
+
+        <h4>Editing a template</h4>
+        <ol class="steps">
+          <li>Pick an event + role from the <strong>Template</strong> dropdown. A badge shows <em>Not set</em> / <em>On</em> / <em>Off</em>.</li>
+          <li>Edit the <strong>Subject</strong> and build the <strong>body</strong> from blocks: <em>Heading, Paragraph, Info Rows, Button, Divider</em>.</li>
+          <li>Insert <strong>placeholder tokens</strong> (e.g. <code>{{requestName}}</code>, <code>{{requestNumber}}</code>, <code>{{viewLink}}</code>) by clicking a chip — it drops into the focused field.</li>
+          <li>Tick <strong>Active (send this email)</strong> to enable sending.</li>
+          <li>Watch the <strong>Live Preview</strong> (right side) render with sample data, then click <strong>Save template</strong> → <em>"Template saved."</em></li>
+        </ol>
+        <div class="note">
+          <span class="lbl">Verify</span>
+          The footer toggles between <em>"Unsaved changes"</em> and <em>"All changes saved"</em>; <strong>Discard</strong> reverts to the last save. With a template <em>Active</em>, performing the matching action (submit / verify / review) should trigger the email. A <strong>Help</strong> button explains tokens and blocks in detail.
+        </div>
+      </section>
+
+      <!-- ============ USER ROLES ============ -->
+      <section id="roles-admin">
+        <h2><span class="num">17</span>User role management (admin)</h2>
+        <span class="role">Role: Administrator</span> &nbsp; <span class="path">/admin/user-roles</span>
+        <p class="lead">Assign or remove portal web roles per contact. Title: <strong>"User Role Management — Select a user, set their portal web roles, then save your changes."</strong></p>
+        <ul>
+          <li>Non-admins see <em>"Administrators only. You need the Administrators web role to manage user roles."</em> — and the server re-checks admin rights regardless of the UI.</li>
+          <li><strong>Left:</strong> search users by name/email; each row shows avatar, name, email; a counter shows "X of Y shown".</li>
+          <li><strong>Right:</strong> tick/untick role checkboxes (Administrators, Requestor, Reviewer, Verifier, HOC, Working GCPC, Endorser, Main Committee, …). Changed roles are highlighted.</li>
+          <li>Footer reads <em>"Unsaved changes"</em> / <em>"All changes saved"</em>; <strong>Save changes</strong> applies the diff → <em>"Roles saved."</em>; <strong>Discard</strong> reverts.</li>
+        </ul>
+        <div class="note warn">
+          <span class="lbl">Verify</span>
+          Switching to another user with unsaved edits warns you first. After saving, the target user may need to <strong>sign out / in</strong> for new permissions to apply. Assign a <em>Requestor</em> role to a test account and confirm the Submit flow then opens for them.
+        </div>
+      </section>
+
+      <!-- ============ DASHBOARD ============ -->
+      <section id="dashboard">
+        <h2><span class="num">18</span>Dashboard</h2>
+        <span class="role">Roles: Administrators / Main Committee</span> &nbsp; <span class="path">/dashboard</span>
+        <p class="lead">A read-only <strong>Executive Dashboard</strong> sourced live from Dataverse.</p>
+        <ul>
+          <li><strong>KPI cards:</strong> Total Requests · New Requests · In Progress · Closed / Concluded.</li>
+          <li><strong>Charts:</strong> GCP vs GCPC split (donut), Pipeline status (New / In Progress / Closed bars), Requests by Form Type (horizontal bars).</li>
+          <li><strong>Quick links:</strong> View Requests, GCPC Requests (<code>/requests?channel=gcpc</code>), GCP Requests (<code>/requests?channel=gcp</code>).</li>
+        </ul>
+        <p>The <strong>Admin hub</strong> (<span class="path">/admin</span>) links to every admin tool: User Roles, Slots, Engagements, Signatory Groups, Email Templates (plus placeholders for SLA config &amp; Company Inventory).</p>
+        <div class="note">
+          <span class="lbl">Verify</span>
+          Submit / progress a few requests and confirm the KPI counts and charts update to match the request list.
+        </div>
+      </section>
+
+      <hr class="hr" />
+
+      <!-- ============ REFERENCE: MATTERS ============ -->
+      <section id="ref-matters">
+        <h2><span class="num">R1</span>Matter types reference</h2>
+        <h4>GCPC channel (Endorsement)</h4>
+        <table class="tbl sm">
+          <tr><th>Code</th><th>Name</th></tr>
+          <tr><td>RTP</td><td>Registration of Tender &amp; Proposal List</td></tr>
+          <tr><td>PBL</td><td>Prospective Bidders List</td></tr>
+          <tr><td>JVP</td><td>JV / Partnership</td></tr>
+          <tr><td>ST/SP</td><td>Submission of Tender / Proposal</td></tr>
+          <tr><td>CAA</td><td>Client – Acceptance of Award</td></tr>
+          <tr><td>PCCA</td><td>Project Cost Control Analysis</td></tr>
+          <tr><td>PP</td><td>Procurement Plan</td></tr>
+          <tr><td>VAP</td><td>Vendor Appointment &amp; Procurement</td></tr>
+          <tr><td>Others</td><td>Other Matters (GCPC)</td></tr>
+        </table>
+        <h4>GCP channel (Acknowledgement)</h4>
+        <table class="tbl sm">
+          <tr><th>Code</th><th>Name</th></tr>
+          <tr><td>R-PCCA</td><td>Revised Project Cost Control Analysis</td></tr>
+          <tr><td>R-PP</td><td>Revised Procurement Plan</td></tr>
+          <tr><td>CI</td><td>Contractual Issue</td></tr>
+          <tr><td>CPR</td><td>Contract &amp; Procurement Report</td></tr>
+          <tr><td>Others</td><td>GCP – Others</td></tr>
+        </table>
+      </section>
+
+      <!-- ============ REFERENCE: STATUS ============ -->
+      <section id="ref-status">
+        <h2><span class="num">R2</span>Status reference</h2>
+        <table class="tbl sm">
+          <tr><th>Status</th><th>Colour</th><th>Meaning</th></tr>
+          <tr><td>New</td><td><span class="pill p-blue">Blue</span></td><td>Submitted, awaiting data verification.</td></tr>
+          <tr><td>Ready for Engagement</td><td><span class="pill p-gold">Gold</span></td><td>Verified; awaiting engagement booking.</td></tr>
+          <tr><td>R</td><td><span class="pill p-amber">Amber</span></td><td>Engagement complete / in progress; awaiting reviewer decision.</td></tr>
+          <tr><td>Draft Review</td><td><span class="pill p-purple">Purple</span></td><td>Review submitted (Code 1); pending internal acceptance.</td></tr>
+          <tr><td>Pending Review</td><td><span class="pill p-purple">Purple</span></td><td>Awaiting signatures (sign-off).</td></tr>
+          <tr><td>Complete Review</td><td><span class="pill p-purple">Purple</span></td><td>Review fully completed; ready for Accept / Endorse.</td></tr>
+          <tr><td>Pending Acceptance</td><td><span class="pill p-purple">Purple</span></td><td>Awaiting HOC acceptance signature.</td></tr>
+          <tr><td>Pending Ack</td><td><span class="pill p-purple">Purple</span></td><td>Awaiting acknowledgement (GCP).</td></tr>
+          <tr><td>ACK</td><td><span class="pill p-green">Green</span></td><td>Acknowledged — letter generated (GCP).</td></tr>
+          <tr><td>Pending Endorse</td><td><span class="pill p-purple">Purple</span></td><td>Awaiting HOC endorsement signature (GCPC).</td></tr>
+          <tr><td>E</td><td><span class="pill p-green">Green</span></td><td>Endorsed — letter generated (GCPC).</td></tr>
+          <tr><td>Submitted / Under Verification</td><td><span class="pill p-blue">Blue</span></td><td>Re-submitted / being re-verified after rework.</td></tr>
+          <tr><td>Scheduled</td><td><span class="pill p-blue">Blue</span></td><td>Engagement session scheduled.</td></tr>
+          <tr><td>RS</td><td><span class="pill p-amber">Amber</span></td><td>Resubmission required (Code 2).</td></tr>
+          <tr><td>NC3</td><td><span class="pill p-red">Red</span></td><td>Non-compliant (Code 3).</td></tr>
+          <tr><td>NC4</td><td><span class="pill p-red">Red</span></td><td>Non-compliant (Code 4).</td></tr>
+          <tr><td>W</td><td><span class="pill p-grey">Grey</span></td><td>Compliant with waiver (Code W).</td></tr>
+          <tr><td>FR</td><td><span class="pill p-red">Red</span></td><td>For Revision — sent back for rework.</td></tr>
+        </table>
+      </section>
+
+      <!-- ============ REFERENCE: CODES ============ -->
+      <section id="ref-codes">
+        <h2><span class="num">R3</span>Decision codes reference</h2>
+        <p>The decision code on the <a href="#review">Review</a> screen determines the request's status and outcome.</p>
+        <table class="tbl sm">
+          <tr><th>Code</th><th>GCP outcome</th><th>GCPC outcome</th><th>"Others" outcome</th><th>Status set</th></tr>
+          <tr><td>Code 1</td><td>ACK</td><td>E</td><td>FA</td><td><span class="pill p-purple">Draft Review</span></td></tr>
+          <tr><td>Code 2</td><td>RS</td><td>RS</td><td>RS</td><td><span class="pill p-amber">RS</span></td></tr>
+          <tr><td>Code 3</td><td>NC</td><td>NC3</td><td>NC / NC3</td><td><span class="pill p-red">NC3</span></td></tr>
+          <tr><td>Code 4</td><td>NC4</td><td>NC4</td><td>NC4</td><td><span class="pill p-red">NC4</span></td></tr>
+          <tr><td>Code W</td><td>W</td><td>W</td><td>W</td><td><span class="pill p-grey">W</span></td></tr>
+        </table>
+        <p><em>"Others" types</em> (GCP-Others, GCPC Others) receive outcome <strong>FA</strong> (For Action) on Code 1. Code W applies to ST/SP requests only.</p>
+      </section>
+
+      <!-- ============ REFERENCE: LIFECYCLE ============ -->
+      <section id="ref-lifecycle">
+        <h2><span class="num">R4</span>Full lifecycle map</h2>
+        <div class="flow">
+<pre>  <b>Submit request</b>
+       │
+       ▼
+  Status: <b>New</b>
+       │  [Verify Data]  — Verifier picks an outcome
+       │
+       ├── FR ─────────────► For Revision (back to requestor)
+       ├── RS ─────────────► Resubmission required
+       ├── Pending Ack ────► Acknowledgement flow
+       └── <b>Ready for Engagement</b>
+                    │  [Book Engagement] — pick a slot
+                    ▼
+             Engagement held · Status → <b>R</b>
+                    │  [Review Request] — Reviewer picks a code
+                    │
+                    ├── Code 1 ─► Draft Review  (engagement auto-Completed)
+                    ├── Code 2 ─► RS
+                    ├── Code 3 ─► NC3
+                    ├── Code 4 ─► NC4
+                    └── Code W ─► W   (ST/SP only)
+                    │
+                    ▼  (Code 1 path)
+             <b>Pending Review</b> — signatories sign (thresholds met)
+                    │
+                    ▼
+             <b>Complete Review</b>
+                    │
+        GCP ────────┤──────── GCPC
+         │          │           │
+   [HOC Acceptance] │     [Endorsement]
+         ▼          │           ▼
+   Pending Ack      │     Pending Endorse
+         │          │           │
+   [Ack Letter]     │     [Endorsement Letter]
+         ▼          │           ▼
+       <b>ACK</b>        │          <b>E</b></pre>
+        </div>
+      </section>
+
+      <!-- ============ CHECKLIST ============ -->
+      <section id="checklist">
+        <h2><span class="num">R5</span>End-to-end test checklist</h2>
+        <p class="lead">A happy-path pass that exercises the whole portal. Use accounts covering Requestor, Verifier, Reviewer, HOC and Administrator.</p>
+
+        <h4>Setup (Administrator)</h4>
+        <ul class="chk">
+          <li>Sign in; confirm <strong>Dashboard</strong> and <strong>Admin</strong> links appear.</li>
+          <li>Under <strong>User Roles</strong>, assign Requestor / Verifier / Reviewer / HOC to your test accounts.</li>
+          <li>Under <strong>Slots</strong>, create at least one future <span class="pill p-green">Available</span> slot.</li>
+          <li>Under <strong>Signatory Groups</strong>, add Prepared &amp; Confirmed members and set thresholds.</li>
+          <li>Under <strong>Email Templates</strong>, set a Submitted/Verified/Reviewed template Active and Save.</li>
+        </ul>
+
+        <h4>Submit (Requestor)</h4>
+        <ul class="chk">
+          <li>Open <code>/submit</code>; pick a GCPC matter (e.g. PBL). Confirm read-only profile fields.</li>
+          <li>Trigger a validation error, then a draft-restore on refresh.</li>
+          <li>Attach a file, tick acknowledgement, submit → capture the <strong>Request ID</strong>.</li>
+          <li>Confirm the request shows as <span class="pill p-blue">New</span> in the list.</li>
+        </ul>
+
+        <h4>Verify → Engage → Review</h4>
+        <ul class="chk">
+          <li>(Verifier) Open the request → <strong>Verify Data</strong> → set <strong>Ready for Engagement</strong> + comment.</li>
+          <li>(Requestor/Reviewer) <strong>Book Engagement</strong> → pick the slot; confirm slot becomes Booked &amp; status → <span class="pill p-amber">R</span>.</li>
+          <li>(Reviewer) <strong>Review Request</strong> → <strong>Code 1</strong> + comments → Confirm; engagement auto-<span class="pill p-green">Completed</span>, status → <span class="pill p-purple">Draft Review</span>.</li>
+        </ul>
+
+        <h4>Sign-off → Accept/Endorse → Letter</h4>
+        <ul class="chk">
+          <li>(Signatories) At <strong>Pending Review</strong>, add signatures until thresholds met → status → <strong>Complete Review</strong>.</li>
+          <li>(HOC) <strong>Endorse</strong> (GCPC) / <strong>Accept</strong> (GCP): choose a conclusion code, sign, submit. Confirm company-mismatch is blocked.</li>
+          <li>Generate the <strong>letter</strong>: fill manual fields, preview, submit → status → <span class="pill p-green">E</span> / <span class="pill p-green">ACK</span>.</li>
+          <li>(Admin) Confirm the <strong>Dashboard</strong> counts updated, and a notification email fired for active templates.</li>
+        </ul>
+
+        <h4>Branch paths to spot-check</h4>
+        <ul class="chk">
+          <li>Verify with <strong>FR</strong> and <strong>RS</strong> outcomes and confirm the list/detail reflect them.</li>
+          <li>Review with <strong>Code 2 / 3 / 4</strong> and confirm the resulting RS / NC3 / NC4 statuses.</li>
+          <li>Try to book a second engagement while one is Scheduled → blocked. Cancel one → slot freed.</li>
+        </ul>
+
+        <div class="note tip" style="margin-top:24px">
+          <span class="lbl">Logging issues</span>
+          For each failure capture: the <strong>page URL</strong>, the <strong>request ID</strong>, your <strong>role(s)</strong>, what you expected vs. what happened, and a screenshot. That makes every bug reproducible.
+        </div>
+      </section>
+
+      <p class="anchor-top"><a href="#overview">↑ Back to top</a></p>
+      <p style="text-align:center;color:var(--muted);font-size:13px;margin-top:30px">
+        GCP Nexus Tester's Guide · Generated for UAT/QA · Reflects the portal as of June 2026
+      </p>
+
+    </div><!-- /wrap -->
+  </main>
+</div>
+
+<script>
+  // Mobile sidebar
+  const sb = document.getElementById('sidebar');
+  const bd = document.getElementById('backdrop');
+  document.getElementById('menuBtn').addEventListener('click', ()=>{sb.classList.add('open');bd.classList.add('show');});
+  bd.addEventListener('click', ()=>{sb.classList.remove('open');bd.classList.remove('show');});
+  document.querySelectorAll('nav.toc a').forEach(a=>a.addEventListener('click',()=>{sb.classList.remove('open');bd.classList.remove('show');}));
+
+  // Scroll-spy active link
+  const links = [...document.querySelectorAll('nav.toc a')];
+  const map = {};
+  links.forEach(a=>{const id=a.getAttribute('href').slice(1);const el=document.getElementById(id);if(el)map[id]=a;});
+  const obs = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{
+      if(e.isIntersecting){
+        links.forEach(l=>l.classList.remove('active'));
+        const a=map[e.target.id];
+        if(a){a.classList.add('active');}
+      }
+    });
+  },{rootMargin:'-10% 0px -80% 0px',threshold:0});
+  Object.keys(map).forEach(id=>{const el=document.getElementById(id);if(el)obs.observe(el);});
+</script>
+</body>
+</html>

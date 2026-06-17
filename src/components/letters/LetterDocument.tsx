@@ -183,20 +183,12 @@ export default function LetterDocument({
         <p className="lp-doc-sub">({template.documentTitle})</p>
       </header>
 
-      {/* Reference number (top-right, like a real letter ref.) */}
-      {letterNumber ? (
-        <p className="lp-doc-refno">
-          <span className="lp-doc-refno-label">{kindWord} NO.</span>
-          <span className="lp-doc-refno-value">{letterNumber}</span>
-        </p>
-      ) : null}
-
-      {/* ── Info table with black header bar ─────────────────────────── */}
+      {/* ── Info table with black header bar (kind word + letter no.) ── */}
       <table className="lp-info-table">
         <thead>
           <tr>
             <th className="lp-info-bar" colSpan={2}>
-              {kindWord}
+              {kindWord} NO.: {letterNumber || '—'}
             </th>
           </tr>
         </thead>

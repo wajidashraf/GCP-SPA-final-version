@@ -84,11 +84,11 @@ export const formatLetterDate = (iso: string | null | undefined): string => {
 /** Shared "cc." recipients — edit names/roles here. */
 export const CC_LIST = [
   'GEXCO',
-  'GCPC Chairman — Dato Rosli b Husin',
-  'GCPC Member — Mohammad Nadzif b Bustari',
-  'GCPC Member — Hafitz b Khalid',
-  'GCPC Member — Ivy Lau',
-  'GCPC Member — Foong Pak Chee',
+  'GCPC Chairman- Dato Rosli b Husin',
+  'GCPC Member- Mohammad Nadzif b Bustari',
+  'GCPC Member- Hafitz b Khalid',
+  'GCPC Member- Ivy Lau',
+  'GCPC Member- Foong Pak Chee',
   'OEC',
   'Company Team Leader',
 ];

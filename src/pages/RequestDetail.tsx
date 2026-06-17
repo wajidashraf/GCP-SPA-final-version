@@ -756,22 +756,20 @@ export default function RequestDetail() {
               />
             ) : null}
 
-            {/* Complete Review (6) → HOC acknowledges (GCP) or endorses (GCPC) the review report. */}
+            {/* Complete Review (6) → HOC acceptance (both channels): select a
+                conclusion code + sign. GCP then advances to Pending Ack (9),
+                GCPC to Pending Endorse (11). */}
             {isCompleteReview && (isAdmin() || hasRole("HOC")) ? (
               <div className="rd-actions">
                 <button
                   type="button"
                   className="rd-verify-btn"
                   onClick={() =>
-                    navigate(
-                      meta.channel === "gcp"
-                        ? `/requests/${request.id}/hoc-acceptance`
-                        : `/requests/${request.id}/endorse`,
-                    )
+                    navigate(`/requests/${request.id}/hoc-acceptance`)
                   }
                 >
                   <ClipboardCheck size={16} aria-hidden="true" />
-                  {meta.channel === "gcp" ? "Acknowledge" : "Endorse"}
+                  HOC Acceptance
                 </button>
               </div>
             ) : null}

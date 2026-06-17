@@ -1,0 +1,14 @@
+# Netlify config for the GCP Nexus Tester's Guide (static site).
+# Deploy this `guide/` folder as the site root — it is a single self-contained
+# index.html with no build step.
+#
+# Option A — drag & drop: zip this folder (or drag it) into the Netlify
+#   "Deploys" drop zone. Done.
+# Option B — Git deploy: point Netlify at this repo and set
+#   Base directory:    guide
+#   Publish directory: guide
+#   Build command:     (leave empty)
+
+[build]
+  publish = "."
+  command = ""

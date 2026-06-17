@@ -12,8 +12,8 @@ import VerifyData from './pages/VerifyData';
 import RequestReview from './pages/RequestReview';
 import Engagement from './pages/Engagement';
 import HocAcceptance from './pages/HocAcceptance';
-import EndorseReview from './pages/EndorseReview';
-import LetterPage from './pages/LetterPage';
+import AckLetterPage from './pages/AckLetterPage';
+import EndorsementLetterPage from './pages/EndorsementLetterPage';
 import Admin from './pages/Admin';
 import UserRoleManagement from './pages/UserRoleManagement';
 import SlotManagement from './pages/SlotManagement';
@@ -56,9 +56,8 @@ export default function App() {
         <Route path="/requests/:id/review" element={<RequestReview />} />
         <Route path="/requests/:id/engagement" element={<Engagement />} />
         <Route path="/requests/:id/hoc-acceptance" element={<HocAcceptance />} />
-        <Route path="/requests/:id/endorse" element={<EndorseReview />} />
-        <Route path="/requests/:id/ack-letter" element={<LetterPage />} />
-        <Route path="/requests/:id/endorsement-letter" element={<LetterPage />} />
+        <Route path="/requests/:id/ack-letter" element={<AckLetterPage />} />
+        <Route path="/requests/:id/endorsement-letter" element={<EndorsementLetterPage />} />
         <Route path="/admin" element={<Admin />} />
         <Route path="/admin/user-roles" element={<UserRoleManagement />} />
         <Route path="/admin/slots" element={<SlotManagement />} />

@@ -10,7 +10,7 @@ export default function Header() {
     <header className="header">
       <div className="container header-inner">
         <NavLink to="/" className="logo">
-          GCP <span className="accent">Central</span>
+          GCP <span className="accent">Nexus</span>
         </NavLink>
         <RequireAuth>
           <nav className="nav" aria-label="Primary">

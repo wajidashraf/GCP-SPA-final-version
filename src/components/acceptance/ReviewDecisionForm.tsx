@@ -1,18 +1,15 @@
 // src/components/acceptance/ReviewDecisionForm.tsx
-// Shared HOC decision form behind two screens:
-//   • Acknowledgement (GCP)  → reached at /requests/:id/hoc-acceptance
-//   • Endorsement   (GCPC)   → reached at /requests/:id/endorse
+// HOC Acceptance decision form — reached at /requests/:id/hoc-acceptance for
+// BOTH the GCP and GCPC channels (status 6 → "Complete Review").
 //
 // The HOC selects a conclusion code (1a / 1b / 2 / 3), adds a digital
-// signature, then submits. On submit the request advances to:
-//   GCP channel  → 9  (Pending Ack)
-//   GCPC channel → 11 (Pending Endorse)
+// signature, then submits. This is the ONLY screen carrying a conclusion code.
+// On submit the request advances along its channel:
+//   GCP channel  → 9  (Pending Ack)     → then the Acknowledgement letter
+//   GCPC channel → 11 (Pending Endorse) → then the Endorsement letter
 // Signing is restricted to users with the HOC role whose company matches
 // the company on the request. The form is read-only once a HOC signature
 // exists (the signature acts as the final lock).
-//
-// The only difference between the two screens is wording, driven by the
-// `variant` prop — the fields, backend write, and status logic are identical.
 
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -68,50 +65,22 @@ const CODE_OPTIONS: { value: ConclusionCode; label: string; description: string 
   },
 ];
 
-export type ReviewDecisionVariant = 'acknowledge' | 'endorse';
+// Single set of HOC-acceptance wording — used for both channels. (GCPC requests
+// still advance to a different status and a different follow-up letter, but the
+// decision step itself is identical: a conclusion code + the HOC signature.)
+const copy = {
+  cardTitle: 'Review Acceptance',
+  noun: 'acceptance',
+  sigName: 'Accepted by',
+  submitLabel: 'Submit Acceptance',
+  submittingMsg: 'Saving your acceptance and updating the request status…',
+  confirmTitle: 'Confirm acceptance',
+  confirmBody:
+    'Are you sure you want to submit this Review Acceptance? This will record your conclusion code and advance the request to the next stage.',
+  printAria: 'Print this acceptance form',
+} as const;
 
-type Copy = {
-  cardTitle: string;
-  noun: string; // lowercase noun used in inline copy, e.g. "acceptance"
-  sigName: string;
-  submitLabel: string;
-  submittingMsg: string;
-  confirmTitle: string;
-  confirmBody: string;
-  printAria: string;
-};
-
-const COPY: Record<ReviewDecisionVariant, Copy> = {
-  acknowledge: {
-    cardTitle: 'Review Acceptance',
-    noun: 'acceptance',
-    sigName: 'Accepted by',
-    submitLabel: 'Submit Acceptance',
-    submittingMsg: 'Saving your acceptance and updating the request status…',
-    confirmTitle: 'Confirm acceptance',
-    confirmBody:
-      'Are you sure you want to submit this Review Acceptance? This will record your conclusion code and advance the request to the next stage.',
-    printAria: 'Print this acceptance form',
-  },
-  endorse: {
-    cardTitle: 'Review Endorsement',
-    noun: 'endorsement',
-    sigName: 'Endorsed by',
-    submitLabel: 'Submit Endorsement',
-    submittingMsg: 'Saving your endorsement and updating the request status…',
-    confirmTitle: 'Confirm endorsement',
-    confirmBody:
-      'Are you sure you want to submit this Review Endorsement? This will record your conclusion code and advance the request to the next stage.',
-    printAria: 'Print this endorsement form',
-  },
-};
-
-export default function ReviewDecisionForm({
-  variant,
-}: {
-  variant: ReviewDecisionVariant;
-}) {
-  const copy = COPY[variant];
+export default function ReviewDecisionForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { request, isLoading, error } = useRequestDetail(id);
@@ -130,6 +99,17 @@ export default function ReviewDecisionForm({
   //   GCP channel  → 9  (Pending Ack)
   //   GCPC channel → 11 (Pending Endorse)
   const targetStatus: number = channel === 'gcp' ? 9 : 11;
+
+  // ── Conclusion-code options gated by the reviewer's decision code ─────────
+  // The reviewer's decision code (gcp_decisioncode, set on the Review screen)
+  // decides which HOC conclusion codes are offered here:
+  //   • Review Code 1 (proceed with acceptance) → HOC chooses 1a / 1b.
+  //   • Any other review code (2 / 3 / …)        → HOC chooses among 2 / 3.
+  const reviewDecisionCode = request?.decisionCode ?? null;
+  const visibleCodeOptions =
+    reviewDecisionCode === 1
+      ? CODE_OPTIONS.filter((o) => o.value === '1a' || o.value === '1b')
+      : CODE_OPTIONS.filter((o) => o.value === '2' || o.value === '3');
 
   // ── HOC authorization ─────────────────────────────────────────────────────
   // The signing user must hold the HOC role AND belong to the same company as
@@ -277,7 +257,7 @@ export default function ReviewDecisionForm({
 
         {request ? (
           <div className="vd-card">
-            <header className="vd-card-head">
+            <header className="vd-card-head no-print">
               <span className="vd-card-icon" aria-hidden="true">
                 <ClipboardCheck size={20} />
               </span>
@@ -301,25 +281,55 @@ export default function ReviewDecisionForm({
             </header>
 
             <div className="vd-card-body">
-              {/* ── Request meta strip ──────────────────────────────────── */}
-              <dl className="hoc-meta-strip">
-                <div className="hoc-meta-item">
-                  <dt>Review Log No.</dt>
-                  <dd>{request.title ?? '—'}</dd>
-                </div>
-                <div className="hoc-meta-item">
-                  <dt>Review Date</dt>
-                  <dd>
-                    {request.reviewDate
-                      ? new Date(request.reviewDate).toLocaleDateString(undefined, {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                        })
-                      : '—'}
-                  </dd>
-                </div>
-              </dl>
+              {/* ── Formal acceptance document (A4 paper sheet) ──────────── */}
+              <article className="lp-doc hoc-doc">
+              <header className="lp-doc-header">
+                <h2 className="lp-doc-title">{copy.cardTitle}</h2>
+                <p className="lp-doc-sub">
+                  ({matterLabel}
+                  {soaLabel ? ` — ${soaLabel}` : ''})
+                </p>
+              </header>
+
+              {/* Request info table (black header bar like the letters) */}
+              <table className="lp-info-table">
+                <thead>
+                  <tr>
+                    <th className="lp-info-bar" colSpan={2}>
+                      REVIEW ACCEPTANCE
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th>Company Name</th>
+                    <td>{request.companyName ?? '—'}</td>
+                  </tr>
+                  <tr>
+                    <th>Matters to Review</th>
+                    <td>
+                      {matterLabel}
+                      {soaLabel ? ` · ${soaLabel}` : ''}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th>Review Log No.</th>
+                    <td>{request.title ?? '—'}</td>
+                  </tr>
+                  <tr>
+                    <th>Review Date</th>
+                    <td>
+                      {request.reviewDate
+                        ? new Date(request.reviewDate).toLocaleDateString(undefined, {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                          })
+                        : '—'}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
 
               <p className="hoc-instruction">
                 Please tick ( ✓ ) based on the Summary Review Conclusion Code.
@@ -328,7 +338,7 @@ export default function ReviewDecisionForm({
               {/* ── Conclusion code radios ───────────────────────────────── */}
               <fieldset className="hoc-codes" disabled={isLocked || submitting}>
                 <legend className="visually-hidden">Conclusion Code</legend>
-                {CODE_OPTIONS.map((opt) => (
+                {visibleCodeOptions.map((opt) => (
                   <label
                     key={opt.value}
                     className={`hoc-code-option${selectedCode === opt.value ? ' hoc-code-option--selected' : ''}`}
@@ -427,6 +437,7 @@ export default function ReviewDecisionForm({
                   ) : null}
                 </div>
               </div>
+              </article>
 
               {/* ── Authorization warning ───────────────────────────────── */}
               {isHocRole && !isHocCompanyMatch && !isLocked ? (

@@ -1,14 +1,16 @@
-// src/pages/LetterPage.tsx
-// Acknowledgement / Endorsement letter editor. Reached from RequestDetail
-// when the request is at status 8/9 (GCP) or 8/11 (GCPC).
+// src/pages/AckLetterPage.tsx
+// Acknowledgement letter editor (GCP channel) — reached at
+// /requests/:id/ack-letter once the request is at status 8/9 (after HOC
+// acceptance). Submit advances the request to status 10 (Acknowledged / ACK).
 //
-// GCP channel  → Acknowledgement letter → submit advances to status 10 (ACK).
-// GCPC channel → Endorsement letter    → submit advances to status 12 (E).
+// This is a letter, NOT a decision form: there is no conclusion code. The body
+// comes from a matter-specific ACK template (src/components/letters); values we
+// already hold auto-fill, the rest are manual variables the reviewer types in.
+// Manual entries persist in gcp_acklettertextcontent via a machine-readable
+// marker so they can be re-edited.
 //
-// The letter body comes from a template (src/components/letters/letterTemplates.ts).
-// Values we already hold (company, project, dates…) auto-fill; everything else
-// is a manual variable the reviewer types in. Manual entries are persisted in
-// the letter memo field via a machine-readable marker so they can be re-edited.
+// The GCPC counterpart is EndorsementLetterPage — a deliberately separate page
+// so the endorsement letter can carry its own structure/design.
 
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -16,11 +18,7 @@ import Modal from 'react-bootstrap/Modal';
 import { ArrowLeft, FileText, Loader2, Pencil, Printer, Send } from 'lucide-react';
 import { InlineMessage, LoadingState } from '../components/ui';
 import { useRequestDetail } from '../shared/hooks/useRequestDetail';
-import {
-  submitAckLetter,
-  submitEndorsementLetter,
-  pollRequestStatus,
-} from '../shared/services/requestService';
+import { submitAckLetter, pollRequestStatus } from '../shared/services/requestService';
 import { getChoiceLabel } from '../data/types';
 import { soaCodeChoices } from '../data/soaChoices';
 import { matterChoices } from '../data/matterChoices';
@@ -32,7 +30,10 @@ import {
 } from '../components/letters';
 import type { LetterContext } from '../components/letters';
 
-export default function LetterPage() {
+const LETTER_TYPE = 'Acknowledgement';
+const TARGET_STATUS = 10; // Acknowledged (ACK)
+
+export default function AckLetterPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { request, isLoading, error } = useRequestDetail(id);
@@ -42,7 +43,6 @@ export default function LetterPage() {
     () => matterChoices.find((m) => m.value === request?.matter),
     [request?.matter],
   );
-  const isGcp = matter?.channel === 'gcp';
   const matterLabel = matter?.label ?? 'Request';
   const matterCode = matter?.code ?? null;
   const soaLabel =
@@ -50,21 +50,18 @@ export default function LetterPage() {
       ? (getChoiceLabel(soaCodeChoices, request.soaCode) ?? null)
       : null;
 
-  const letterType = isGcp ? 'Acknowledgement' : 'Endorsement';
-  const targetStatus = isGcp ? 10 : 12;
-
   const template = useMemo(
-    () => selectLetterTemplate(isGcp ? 'ACK' : 'E', matterCode),
-    [isGcp, matterCode],
+    () => selectLetterTemplate('ACK', matterCode),
+    [matterCode],
   );
 
-  // Letter number format: companyCode/projectCode/soaLabel/title/ACK|E
+  // Letter number format: companyCode/projectCode/soaLabel/title/ACK
   const letterNumber = [
     request?.companyCode,
     request?.projectCode,
     soaLabel,
     request?.title,
-    isGcp ? 'ACK' : 'E',
+    'ACK',
   ]
     .filter(Boolean)
     .join('/');
@@ -75,9 +72,7 @@ export default function LetterPage() {
   );
 
   // ── Form state ────────────────────────────────────────────────────────────
-  const existingText = isGcp
-    ? (request?.ackLetterText ?? '')
-    : (request?.endorsementLetterText ?? '');
+  const existingText = request?.ackLetterText ?? '';
 
   const [values, setValues] = useState<Record<string, string>>({});
   const [isEditing, setIsEditing] = useState(false);
@@ -85,14 +80,14 @@ export default function LetterPage() {
   // Populate manual values from any saved letter once the request loads.
   useEffect(() => {
     if (!request) return;
-    const raw = isGcp ? request.ackLetterText : request.endorsementLetterText;
+    const raw = request.ackLetterText;
     const stored = parseStoredLetter(raw);
     const restored =
       stored && stored.templateKey === template.key ? stored.values : {};
     setValues(restored);
     // Start in edit mode when nothing has been saved yet.
     setIsEditing(!raw);
-  }, [request?.id, isGcp, template.key]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [request?.id, template.key]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleChange = (key: string, value: string) =>
     setValues((prev) => ({ ...prev, [key]: value }));
@@ -129,12 +124,8 @@ export default function LetterPage() {
     setShowConfirm(false);
     try {
       const payload = serializeLetter(template, ctx, values, letterNumber);
-      if (isGcp) {
-        await submitAckLetter(id, payload);
-      } else {
-        await submitEndorsementLetter(id, payload);
-      }
-      await pollRequestStatus(id, targetStatus);
+      await submitAckLetter(id, payload);
+      await pollRequestStatus(id, TARGET_STATUS);
       navigate(`/requests/${id}`);
     } catch (err) {
       setSubmitError(
@@ -184,7 +175,7 @@ export default function LetterPage() {
                 <FileText size={20} />
               </span>
               <div>
-                <h1 className="vd-card-title">{letterType} Letter</h1>
+                <h1 className="vd-card-title">{LETTER_TYPE} Letter</h1>
                 <p className="vd-card-sub">
                   {matterLabel}
                   {soaLabel ? ` · ${soaLabel}` : ''}
@@ -282,7 +273,7 @@ export default function LetterPage() {
                     ) : (
                       <Send size={16} aria-hidden="true" />
                     )}
-                    Submit {letterType}
+                    Submit {LETTER_TYPE}
                   </button>
                 </div>
               ) : (
@@ -311,7 +302,7 @@ export default function LetterPage() {
         >
           <Modal.Header closeButton>
             <Modal.Title id="lp-confirm-title" className="vd-card-title">
-              Submit {letterType}?
+              Submit {LETTER_TYPE}?
             </Modal.Title>
           </Modal.Header>
           <Modal.Body>
@@ -321,10 +312,9 @@ export default function LetterPage() {
                 letter. You can go back and fill them in, or submit anyway.
               </InlineMessage>
             ) : null}
-            This will finalise the {letterType.toLowerCase()} letter and advance
-            the request to{' '}
-            <strong>{isGcp ? 'Acknowledged (ACK)' : 'Endorsed (E)'}</strong>.
-            This action cannot be undone.
+            This will finalise the {LETTER_TYPE.toLowerCase()} letter and advance
+            the request to <strong>Acknowledged (ACK)</strong>. This action
+            cannot be undone.
           </Modal.Body>
           <Modal.Footer>
             <button

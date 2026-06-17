@@ -11,7 +11,6 @@ import {
   requestStatusChoices,
 } from '../data/requestChoices';
 import { matterChoices } from '../data/matterChoices';
-import { soaCodeChoices } from '../data/soaChoices';
 import { SelectField, TextField } from '../forms';
 
 
@@ -74,27 +73,24 @@ export default function Requests() {
   const [companyFilter, setCompanyFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [typeFilter, setTypeFilter] = useState<string>('');
-  const [soaFilter, setSoaFilter] = useState<string>('');
   const [page, setPage] = useState(1);
 
   const hasActiveFilters =
     projectFilter !== '' ||
     companyFilter !== '' ||
     statusFilter !== '' ||
-    typeFilter !== '' ||
-    soaFilter !== '';
+    typeFilter !== '';
 
   // Reset to first page when filters change
   useEffect(() => {
     setPage(1);
-  }, [projectFilter, companyFilter, statusFilter, typeFilter, soaFilter]);
+  }, [projectFilter, companyFilter, statusFilter, typeFilter]);
 
   const filtered = useMemo(() => {
     const p = projectFilter.trim().toLowerCase();
     const c = companyFilter.trim().toLowerCase();
     const s = statusFilter ? Number(statusFilter) : null;
     const t = typeFilter ? Number(typeFilter) : null;
-    const soa = soaFilter ? Number(soaFilter) : null;
 
     return items.filter((r) => {
       if (p) {
@@ -107,10 +103,9 @@ export default function Requests() {
       }
       if (s != null && r.status !== s) return false;
       if (t != null && r.matter !== t) return false;
-      if (soa != null && r.soaCode !== soa) return false;
       return true;
     });
-  }, [items, projectFilter, companyFilter, statusFilter, typeFilter, soaFilter]);
+  }, [items, projectFilter, companyFilter, statusFilter, typeFilter]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
@@ -122,7 +117,6 @@ export default function Requests() {
     setCompanyFilter('');
     setStatusFilter('');
     setTypeFilter('');
-    setSoaFilter('');
   };
 
   const openRecord = (id: string) => {
@@ -210,23 +204,6 @@ export default function Requests() {
               ]}
             />
           </div>
-          <div className="rq-field">
-            <SelectField
-              name="soaFilter"
-              label="SOA code"
-              value={soaFilter || '__all__'}
-              onChange={(e) =>
-                setSoaFilter(e.target.value === '__all__' ? '' : e.target.value)
-              }
-              options={[
-                { label: 'All SOA codes', value: '__all__' },
-                ...soaCodeChoices.map((s) => ({
-                  label: s.label,
-                  value: String(s.value),
-                })),
-              ]}
-            />
-          </div>
 
             {hasActiveFilters && (
               <div className="rq-clear-wrap">
@@ -306,10 +283,6 @@ export default function Requests() {
                     : matterLabel;
                 const typeCode = meta?.code ?? null;
                 const channel = meta?.channel ?? null;
-                const soaLabel =
-                  r.soaCode != null
-                    ? getChoiceLabel(soaCodeChoices, r.soaCode) ?? null
-                    : null;
                 const categoryLabel =
                   r.category != null
                     ? getChoiceLabel(requestCategoryChoices, r.category) ?? null
