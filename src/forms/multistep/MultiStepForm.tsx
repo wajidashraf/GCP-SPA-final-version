@@ -36,6 +36,12 @@ type MultiStepFormProps = {
   successMessage?: ReactNode;
   successReferenceLabel?: string;
   successActionLabel?: string;
+  /**
+   * Overrides the success screen's primary button action. When provided, the
+   * button calls this instead of navigating to the requests list — used by edit
+   * mode to return to the request detail page.
+   */
+  onSuccessAction?: () => void;
 };
 
 const DEFAULT_SUBMIT_ERROR =
@@ -52,6 +58,7 @@ const MultiStepForm = ({
   successMessage = 'Your request has been received and is now in the review queue. You can track its progress anytime in My Requests.',
   successReferenceLabel = 'Request',
   successActionLabel = 'View my requests',
+  onSuccessAction,
 }: MultiStepFormProps) => {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
@@ -136,11 +143,13 @@ const MultiStepForm = ({
                 <Button
                   variant="primary"
                   onClick={() =>
-                    navigate(
-                      success.reference
-                        ? `/requests?submitted=${success.reference}`
-                        : '/requests'
-                    )
+                    onSuccessAction
+                      ? onSuccessAction()
+                      : navigate(
+                          success.reference
+                            ? `/requests?submitted=${success.reference}`
+                            : '/requests'
+                        )
                   }
                 >
                   {successActionLabel}

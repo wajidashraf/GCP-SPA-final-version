@@ -12,6 +12,9 @@ type RtpFormState = {
   requestorName: string;
   requestorEmail: string;
   companyId: string;
+  /** Display name of the bound company (Account). Shown in the read-only
+   *  Company field; seeded from `user.company` (new) or the loaded request (edit). */
+  companyName: string;
 
   // Step 2
   clientName: string;

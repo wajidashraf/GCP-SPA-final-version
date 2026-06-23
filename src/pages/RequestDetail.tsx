@@ -15,6 +15,7 @@ import {
   Layers3,
   MessageSquare,
   MessageSquarePlus,
+  Pencil,
   Send,
   ShieldCheck,
   Tag,
@@ -63,6 +64,7 @@ import type { GcpRequest } from "../types/request";
 import type { GcpRtpRequest } from "../types/rtpRequest";
 import { useAuth } from "../context/AuthContext";
 import { isAdmin, hasRole } from "../utils/authorization";
+import { hasEditForm } from "../forms/editRegistry";
 import { AddSuggestionModal } from "../components/suggestions/AddSuggestionModal";
 import { SuggestionsViewModal } from "../components/suggestions/SuggestionsViewModal";
 import { SignatureSection } from "../components/signatures";
@@ -341,6 +343,21 @@ export default function RequestDetail() {
     };
   }, [request]);
 
+  // Edit gate — show the Edit button only when the request is in RS (16), the
+  // viewer may edit (owner / Reviewer / Verifier / admin), and an edit form is
+  // registered for this matter type. Authoritative checks are the table
+  // permissions + the EditRequest page's own guards; this is UX only.
+  const canEdit = useMemo(() => {
+    if (!request || authLoading) return false;
+    if (request.status !== 16) return false;
+    if (!hasEditForm(meta?.matterCode)) return false;
+    const isOwner =
+      !!user?.contactId && request.requestorContactId === user.contactId;
+    return (
+      isOwner || isAdmin() || hasRole("Reviewer") || hasRole("Verifier")
+    );
+  }, [request, authLoading, user, meta]);
+
   // Section 1 fields — the project field is relabelled "Contract" for matter
   // types outside the registration/proposal flows; the value is unchanged.
   const basicInfoFields = useMemo<SectionDef<GcpRequest>["fields"]>(() => {
@@ -514,6 +531,16 @@ export default function RequestDetail() {
                   <ShieldCheck size={14} aria-hidden="true" />
                   Acknowledged
                 </span>
+              ) : null}
+              {canEdit ? (
+                <button
+                  type="button"
+                  className="rd-recordbar-edit"
+                  onClick={() => navigate(`/requests/${request.id}/edit`)}
+                >
+                  <Pencil size={14} aria-hidden="true" />
+                  Edit
+                </button>
               ) : null}
             </div>
 

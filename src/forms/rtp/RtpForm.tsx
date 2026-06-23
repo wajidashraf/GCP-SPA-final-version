@@ -9,7 +9,7 @@ import SelectField from '../SelectField';
 import TextAreaField from '../TextAreaField';
 import TextField from '../TextField';
 import { MultiStepForm, useFormDraft } from '../multistep';
-import type { StepDefinition } from '../multistep';
+import type { StepDefinition, SubmitResult } from '../multistep';
 import { useAuth } from '../../context/AuthContext';
 import { matterChoices, type MatterChoice } from '../../data/matterChoices';
 import {
@@ -23,7 +23,19 @@ import { sendRequestNotification } from '../../shared/notificationApi';
 import { submitRtpRequest } from './api';
 import type { RtpFormState } from './types';
 
-type RtpFormProps = { matter: MatterChoice };
+type RtpFormProps = {
+  matter: MatterChoice;
+  /** 'new' (default) creates a request; 'edit' patches an existing one. */
+  mode?: 'new' | 'edit';
+  /** Pre-filled state for edit mode (loaded from the existing record). */
+  initialState?: RtpFormState;
+  /** Parent gcp_request id — present in edit mode. */
+  requestId?: string;
+  /** Edit-mode submit handler: receives current form state, performs the PATCH. */
+  onEditSubmit?: (state: RtpFormState) => Promise<SubmitResult>;
+  /** Called by the success screen's primary button in edit mode (navigate back). */
+  onEditSuccess?: () => void;
+};
 
 const DRAFT_KEY = 'rtp:new';
 
@@ -33,21 +45,29 @@ const HalfCol = ({ children }: { children: React.ReactNode }) => (
   </Col>
 );
 
-const RtpForm = ({ matter }: RtpFormProps) => {
+const RtpForm = ({
+  matter,
+  mode = 'new',
+  initialState,
+  onEditSubmit,
+  onEditSuccess,
+}: RtpFormProps) => {
   const { user } = useAuth();
+  const isEdit = mode === 'edit';
 
   const defaultCategoryValue = useMemo(() => {
     const code = matter.channel.toUpperCase();
     return requestCategoryChoices.find((c) => c.label === code)?.value ?? 2;
   }, [matter.channel]);
 
-  const initial: RtpFormState = {
+  const initial: RtpFormState = initialState ?? {
     matterValue: matter.value,
     categoryValue: defaultCategoryValue,
     requestorContactId: user?.email ?? '',
     requestorName: user?.name ?? '',
     requestorEmail: user?.email ?? '',
     companyId: '',
+    companyName: user?.company ?? '',
     clientName: '',
     registrationType: '',
     tenderClosingDate: '',
@@ -57,9 +77,12 @@ const RtpForm = ({ matter }: RtpFormProps) => {
     specialProjectFlag: false,
   };
 
+  // Edit mode never touches the new-request draft (would clobber the loaded
+  // record / leak edits across records). New mode persists as before.
   const { state, setState, clearDraft } = useFormDraft<RtpFormState>(
     DRAFT_KEY,
-    initial
+    initial,
+    { persist: !isEdit }
   );
   const [isSubmitting, setSubmitting] = useState(false);
   // Files chosen on the last step. Not persisted to draft (File objects aren't
@@ -92,16 +115,29 @@ const RtpForm = ({ matter }: RtpFormProps) => {
 
   // Sync the lookup binding to the logged-in user's parent account (resolved
   // by AuthContext via the contact's parentcustomerid). The field is shown as
-  // read-only display text driven by `user.company`.
+  // read-only display text driven by `state.companyName`. Edit mode keeps the
+  // saved company — the logged-in user may be a Reviewer/Verifier, not the owner.
   useEffect(() => {
+    if (isEdit) return;
     if (!user?.companyAccountId) return;
-    if (state.companyId === user.companyAccountId) return;
-    setState((prev) => ({ ...prev, companyId: user.companyAccountId ?? '' }));
+    if (
+      state.companyId === user.companyAccountId &&
+      state.companyName === (user.company ?? '')
+    ) {
+      return;
+    }
+    setState((prev) => ({
+      ...prev,
+      companyId: user.companyAccountId ?? '',
+      companyName: user.company ?? '',
+    }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.companyAccountId]);
+  }, [user?.companyAccountId, user?.company, isEdit]);
 
-  // Sync requestor name + email when AuthContext hydrates.
+  // Sync requestor name + email when AuthContext hydrates. Edit mode keeps the
+  // original requestor's details (do not overwrite with the editing user).
   useEffect(() => {
+    if (isEdit) return;
     if (!user?.email) return;
     setState((prev) => {
       if (
@@ -118,15 +154,22 @@ const RtpForm = ({ matter }: RtpFormProps) => {
       };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.email, user?.name]);
+  }, [user?.email, user?.name, isEdit]);
 
   const matterOptions = useMemo(
     () => toSelectOptions(matterChoices.map((m) => ({ label: m.label, value: m.value }))),
     []
   );
   const categoryOptions = useMemo(() => toSelectOptions(requestCategoryChoices), []);
-  const requestorOptions = user
-    ? [{ label: user.name, value: user.email }]
+  // Render from state (not `user`) so edit mode shows the saved requestor, not
+  // the editing user — see the identity rule in the edit-request plan.
+  const requestorOptions = state.requestorContactId
+    ? [
+        {
+          label: state.requestorName || state.requestorEmail,
+          value: state.requestorContactId,
+        },
+      ]
     : [];
   const registrationOptions = useMemo(
     () => toSelectOptions(registrationTypeChoices),
@@ -182,21 +225,21 @@ const RtpForm = ({ matter }: RtpFormProps) => {
               name="company"
               label="Company"
               options={
-                user?.companyAccountId
+                state.companyId
                   ? [
                       {
-                        label: user.company || 'Loading…',
-                        value: user.companyAccountId,
+                        label: state.companyName || 'Loading…',
+                        value: state.companyId,
                       },
                     ]
                   : []
               }
-              value={user?.companyAccountId ?? ''}
+              value={state.companyId}
               isRequired
               isReadOnly
               placeholder={
-                user?.companyAccountId
-                  ? user.company || 'Loading…'
+                state.companyId
+                  ? state.companyName || 'Loading…'
                   : 'No company linked'
               }
             />
@@ -303,14 +346,18 @@ const RtpForm = ({ matter }: RtpFormProps) => {
               helpText="Tick if this RTP request requires special handling."
             />
           </Col>
-          <Col xs={12}>
-            <FileUpload
-              label="Attachments"
-              value={attachments}
-              onChange={setAttachments}
-              uploader={attachmentsUploader}
-            />
-          </Col>
+          {/* Attachments are only editable when creating. Editing an existing
+              request leaves its documents untouched in this version. */}
+          {!isEdit ? (
+            <Col xs={12}>
+              <FileUpload
+                label="Attachments"
+                value={attachments}
+                onChange={setAttachments}
+                uploader={attachmentsUploader}
+              />
+            </Col>
+          ) : null}
         </Row>
       ),
       validate: () => {
@@ -322,6 +369,19 @@ const RtpForm = ({ matter }: RtpFormProps) => {
   ];
 
   const handleSubmit = async () => {
+    // Edit mode: delegate the PATCH to the caller, which has the record ids.
+    if (isEdit) {
+      if (!onEditSubmit) {
+        throw new Error('Edit mode requires an onEditSubmit handler.');
+      }
+      setSubmitting(true);
+      try {
+        return await onEditSubmit(state);
+      } finally {
+        setSubmitting(false);
+      }
+    }
+
     setSubmitting(true);
     try {
       // Last-step attachments belong to the request itself (field: null).
@@ -379,6 +439,15 @@ const RtpForm = ({ matter }: RtpFormProps) => {
       steps={steps}
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit}
+      submitLabel={isEdit ? 'Save Changes' : undefined}
+      successTitle={isEdit ? 'Changes saved' : undefined}
+      successMessage={
+        isEdit
+          ? 'Your changes have been saved. The request stays in Resubmit until it is moved forward in the workflow.'
+          : undefined
+      }
+      successActionLabel={isEdit ? 'Back to request' : undefined}
+      onSuccessAction={isEdit ? onEditSuccess : undefined}
     />
   );
 };

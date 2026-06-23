@@ -11,15 +11,19 @@ import {
   createProject,
   getProjectById,
 } from '../../shared/services/projectService';
-import { createRequest } from '../../shared/services/requestService';
-import { createRtpRequest } from '../../shared/services/rtpRequestService';
+import { createRequest, updateRequest } from '../../shared/services/requestService';
+import {
+  createRtpRequest,
+  updateRtpRequest,
+} from '../../shared/services/rtpRequestService';
 import { serializeDocuments } from '../../shared/documents';
 import type { DocumentLink } from '../../shared/documents';
 import type { CreateGcpProjectInput } from '../../types/project';
-import type { CreateGcpRequestInput } from '../../types/request';
+import type { CreateGcpRequestInput, GcpRequest } from '../../types/request';
 import type {
   CreateGcpRtpRequestInput,
   FormTypeValue,
+  GcpRtpRequest,
 } from '../../types/rtpRequest';
 import type { SoaCodeValue } from '../../data/soaChoices';
 import type { RtpFormState } from './types';
@@ -159,5 +163,76 @@ const submitRtpRequest = async (
   };
 };
 
-export { submitRtpRequest };
-export type { SubmitResult, SubmitRtpOptions };
+// ── Edit mode ────────────────────────────────────────────────────────────────
+// Reverse of the create mapping above: hydrate the form state from a loaded
+// parent gcp_request + its gcp_rtprequest child, then PATCH the editable
+// scalar fields back. Lookups (Company / Requestor / Project) are NOT rebound —
+// edit only changes scalar values, so no append/appendto is exercised.
+
+/** Build RTP form state from the loaded parent + child records (edit prefill). */
+const loadRtpFormState = (
+  request: GcpRequest,
+  rtp: GcpRtpRequest
+): RtpFormState => ({
+  matterValue: (request.matter ?? rtp.matter) as RtpFormState['matterValue'],
+  categoryValue: (request.category ??
+    rtp.category ??
+    2) as RtpFormState['categoryValue'],
+  // Mirror new mode: the requestor select's value is the email, the label the name.
+  requestorContactId: request.requestorEmail ?? rtp.requesterEmail ?? '',
+  requestorName: request.requestorName ?? '',
+  requestorEmail: request.requestorEmail ?? rtp.requesterEmail ?? '',
+  companyId: request.companyId ?? '',
+  companyName: request.companyName ?? '',
+  clientName: rtp.clientNameText ?? '',
+  registrationType: rtp.registrationType ?? '',
+  // gcp_tenderclosingdate is DateOnly; the <input type="date"> wants yyyy-mm-dd.
+  tenderClosingDate: rtp.tenderClosingDate
+    ? rtp.tenderClosingDate.slice(0, 10)
+    : '',
+  projectName: rtp.projectName ?? request.projectName ?? '',
+  projectDescription:
+    rtp.projectDescription ?? request.projectDescription ?? '',
+  acknowledged: rtp.acknowledged ?? request.acknowledged ?? false,
+  specialProjectFlag: rtp.specialProject ?? false,
+});
+
+type UpdateRtpIds = {
+  /** Parent gcp_request GUID. */
+  requestId: string;
+  /** Child gcp_rtprequest GUID. */
+  rtpRecordId: string;
+};
+
+/**
+ * Save edits: PATCH the editable scalar fields on the parent request and the
+ * RTP child. Does NOT change gcp_requeststatus (stays RS / Resubmit) and does
+ * NOT touch lookups, documents, or the linked project record.
+ */
+const updateRtpRequestFromState = async (
+  state: RtpFormState,
+  ids: UpdateRtpIds
+): Promise<void> => {
+  // Parent gcp_request — only the fields this form surfaces.
+  await updateRequest(ids.requestId, {
+    gcp_project_name: state.projectName || null,
+    gcp_projectdiscription: state.projectDescription || null,
+    gcp_acknowledgement: state.acknowledged,
+    gcp_requestoremail: state.requestorEmail || null,
+  });
+
+  // Child gcp_rtprequest — editable detail fields (see create mapping above).
+  await updateRtpRequest(ids.rtpRecordId, {
+    gcp_client_name_text: state.clientName || null,
+    gcp_projectname: state.projectName || null,
+    gcp_projectdescription: state.projectDescription || null,
+    gcp_registrationtype:
+      state.registrationType === '' ? null : state.registrationType,
+    gcp_tenderclosingdate: state.tenderClosingDate || null,
+    gcp_acknowledgement: state.acknowledged,
+    gcp_specialproject: state.specialProjectFlag,
+  });
+};
+
+export { submitRtpRequest, loadRtpFormState, updateRtpRequestFromState };
+export type { SubmitResult, SubmitRtpOptions, UpdateRtpIds };

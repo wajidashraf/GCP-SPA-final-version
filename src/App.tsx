@@ -8,6 +8,7 @@ import Submit from './pages/Submit';
 import SubmitForm from './pages/SubmitForm';
 import Requests from './pages/Requests';
 import RequestDetail from './pages/RequestDetail';
+import EditRequest from './pages/EditRequest';
 import VerifyData from './pages/VerifyData';
 import RequestReview from './pages/RequestReview';
 import Engagement from './pages/Engagement';
@@ -52,6 +53,7 @@ export default function App() {
         />
         <Route path="/requests" element={<Requests />} />
         <Route path="/requests/:id" element={<RequestDetail />} />
+        <Route path="/requests/:id/edit" element={<EditRequest />} />
         <Route path="/requests/:id/verify-data" element={<VerifyData />} />
         <Route path="/requests/:id/review" element={<RequestReview />} />
         <Route path="/requests/:id/engagement" element={<Engagement />} />

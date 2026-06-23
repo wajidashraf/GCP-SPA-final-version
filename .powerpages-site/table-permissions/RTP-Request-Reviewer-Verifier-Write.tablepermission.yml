@@ -3,11 +3,11 @@ adx_entitypermission_webrole:
 - a9024323-2bc2-4fc9-b7cf-aafb69581168
 append: true
 appendto: true
-create: false
+create: true
 delete: false
-entitylogicalname: gcp_request
-entityname: Request - Reviewer Verifier Write
-id: 4f2a9c1e-8b3d-4e67-a5f2-9c8d1e2f3a4b
-read: false
+entitylogicalname: gcp_rtprequest
+entityname: RTP Request - Reviewer Verifier Write
+id: 7d3f8a21-4c9b-4e52-b8a6-1f2e3d4c5b6a
+read: true
 scope: 756150000
 write: true
