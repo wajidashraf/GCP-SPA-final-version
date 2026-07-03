@@ -202,12 +202,18 @@ type UpdateRtpIds = {
   requestId: string;
   /** Child gcp_rtprequest GUID. */
   rtpRecordId: string;
+  /**
+   * Final document set to persist on gcp_request.gcp_documentsurl (kept existing
+   * links + new uploads). When omitted, the documents column is left untouched.
+   */
+  documents?: DocumentLink[];
 };
 
 /**
  * Save edits: PATCH the editable scalar fields on the parent request and the
  * RTP child. Does NOT change gcp_requeststatus (stays RS / Resubmit) and does
- * NOT touch lookups, documents, or the linked project record.
+ * NOT touch the basic-info lookups (Company / Requestor) or the linked project
+ * record. The documents column is rewritten only when `ids.documents` is given.
  */
 const updateRtpRequestFromState = async (
   state: RtpFormState,
@@ -219,6 +225,10 @@ const updateRtpRequestFromState = async (
     gcp_projectdiscription: state.projectDescription || null,
     gcp_acknowledgement: state.acknowledged,
     gcp_requestoremail: state.requestorEmail || null,
+    // Rewrite the document links only when the caller manages documents.
+    ...(ids.documents
+      ? { gcp_documentsurl: serializeDocuments(ids.documents) }
+      : {}),
   });
 
   // Child gcp_rtprequest — editable detail fields (see create mapping above).

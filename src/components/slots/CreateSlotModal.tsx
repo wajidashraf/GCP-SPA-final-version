@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import Modal from 'react-bootstrap/Modal';
-import { CalendarPlus, Clock, Loader2, X } from 'lucide-react';
+import { CalendarPlus, Loader2, X } from 'lucide-react';
 import { DateTimeField, MultiSelectField, TextField } from '../../forms';
 import { InlineMessage } from '../ui';
-import { slotDurationChoices, SLOT_STATUS_AVAILABLE } from '../../data/slotChoices';
+import { SLOT_STATUS_AVAILABLE } from '../../data/slotChoices';
 import { createSlot, MAX_ATTENDEES } from '../../shared/services/slotService';
 
 /** A contact (Reviewer) that can be picked as a slot attendee. */
@@ -48,6 +48,9 @@ const localToIso = (local: string): string | null => {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 };
 
+const isAfter = (end: string, start: string): boolean =>
+  !!end && !!start && new Date(end) > new Date(start);
+
 const CreateSlotModal = ({
   show,
   onHide,
@@ -56,14 +59,21 @@ const CreateSlotModal = ({
 }: CreateSlotModalProps) => {
   const [title, setTitle] = useState('');
   const [start, setStart] = useState('');
-  const [duration, setDuration] = useState<number>(DEFAULT_DURATION);
+  const [end, setEnd] = useState('');
   // Selected attendees, as contact GUIDs (max MAX_ATTENDEES).
   const [attendees, setAttendees] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
 
-  const end = useMemo(() => addMinutes(start, duration), [start, duration]);
+  // Picking a start auto-fills a sensible end (start + 30 min) when end is empty
+  // or no longer after the new start — the admin can still override it.
+  const handleStartChange = (value: string) => {
+    setStart(value);
+    if (value && (!end || !isAfter(end, value))) {
+      setEnd(addMinutes(value, DEFAULT_DURATION));
+    }
+  };
 
   const attendeeOptions = useMemo(
     () => contacts.map((c) => ({ label: c.name, value: c.contactId })),
@@ -72,13 +82,17 @@ const CreateSlotModal = ({
 
   const titleError = touched && !title.trim() ? 'A title is required.' : undefined;
   const startError = touched && !start ? 'A start date and time is required.' : undefined;
+  const endError =
+    touched && start && end && !isAfter(end, start)
+      ? 'End must be after the start time.'
+      : undefined;
   const attendeeError =
     touched && attendees.length === 0 ? 'Select at least one reviewer.' : undefined;
 
   const reset = () => {
     setTitle('');
     setStart('');
-    setDuration(DEFAULT_DURATION);
+    setEnd('');
     setAttendees([]);
     setError(null);
     setTouched(false);
@@ -92,7 +106,8 @@ const CreateSlotModal = ({
 
   const handleSubmit = async () => {
     setTouched(true);
-    if (!title.trim() || !start || attendees.length === 0) return;
+    if (!title.trim() || !start || !end || attendees.length === 0) return;
+    if (!isAfter(end, start)) return;
 
     const byId = new Map(contacts.map((c) => [c.contactId, c]));
     const selected = attendees.map((id) => ({
@@ -180,70 +195,40 @@ const CreateSlotModal = ({
             error={titleError}
           />
 
-          <DateTimeField
-            name="slotStart"
-            label="Start date & time"
-            value={start}
-            onChange={(e) => setStart(e.target.value)}
-            isRequired
-            error={startError}
-          />
-
-          {/* Duration chips → auto-compute the end time */}
-          <div className="slot-duration">
-            <span className="slot-duration-label">
-              <Clock size={14} aria-hidden="true" /> Duration
-            </span>
-            <div className="slot-chip-row" role="radiogroup" aria-label="Duration">
-              {slotDurationChoices.map((opt) => {
-                const active = duration === opt.value;
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    className={`slot-chip${active ? ' slot-chip-active' : ''}`}
-                    onClick={() => setDuration(opt.value)}
-                  >
-                    {opt.value} min
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="slot-endtime">
-            <span className="slot-endtime-label">Ends at</span>
-            <span className="slot-endtime-value">
-              {end
-                ? new Date(end).toLocaleString(undefined, {
-                    weekday: 'short',
-                    day: 'numeric',
-                    month: 'short',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })
-                : 'Set a start time to calculate'}
-            </span>
+          {/* Start + end on the same row */}
+          <div className="slot-field-row">
+            <DateTimeField
+              name="slotStart"
+              label="Start date & time"
+              value={start}
+              onChange={(e) => handleStartChange(e.target.value)}
+              isRequired
+              error={startError}
+            />
+            <DateTimeField
+              name="slotEnd"
+              label="End date & time"
+              value={end}
+              onChange={(e) => setEnd(e.target.value)}
+              isRequired
+              error={endError}
+            />
           </div>
 
           {/* Attendees — Reviewer-role contacts (up to MAX_ATTENDEES) */}
-          <div className="slot-attendees">
-            <MultiSelectField
-              name="attendees"
-              label="Reviewers"
-              value={attendees}
-              onChange={setAttendees}
-              options={attendeeOptions}
-              maxSelected={MAX_ATTENDEES}
-              placeholder="Select reviewers"
-              emptyText="No reviewers available."
-              isRequired
-              error={attendeeError}
-              helpText={`Select up to ${MAX_ATTENDEES} reviewers (${attendees.length}/${MAX_ATTENDEES}).`}
-            />
-          </div>
+          <MultiSelectField
+            name="attendees"
+            label="Reviewers"
+            value={attendees}
+            onChange={setAttendees}
+            options={attendeeOptions}
+            maxSelected={MAX_ATTENDEES}
+            placeholder="Select reviewers"
+            emptyText="No reviewers available."
+            isRequired
+            error={attendeeError}
+            helpText={`Select up to ${MAX_ATTENDEES} reviewers (${attendees.length}/${MAX_ATTENDEES}).`}
+          />
         </div>
 
         <footer className="slot-modal-foot">

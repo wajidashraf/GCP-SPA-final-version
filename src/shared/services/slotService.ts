@@ -228,9 +228,18 @@ const applyAttendeeUpdates = (
   const out = { ...body };
   attendees.slice(0, ATTENDEE_NAV_PROPS.length).forEach((attendee, i) => {
     if (attendee === undefined) return; // leave this slot unchanged
-    const bindKey = `${ATTENDEE_NAV_PROPS[i]}@odata.bind`;
+    const nav = ATTENDEE_NAV_PROPS[i];
     const set = attendee && isGuid(attendee.contactId);
-    out[bindKey] = set ? odataBind('contacts', attendee.contactId) : null;
+    if (set) {
+      // Associate: append @odata.bind to the navigation property name.
+      out[`${nav}@odata.bind`] = odataBind('contacts', attendee.contactId);
+    } else {
+      // Disassociate: set the navigation property name itself to null —
+      // WITHOUT the @odata.bind annotation (setting `<nav>@odata.bind: null`
+      // is rejected by Dataverse). See "Disassociate by using a single-valued
+      // navigation property" in the Web API docs.
+      out[nav] = null;
+    }
     out[ATTENDEE_EMAIL_COLS[i]] = set ? attendee.email ?? null : null;
   });
   return out;

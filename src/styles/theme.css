@@ -2922,6 +2922,23 @@ tr:last-child td {
   border-top: 1px solid var(--border);
 }
 
+/* Two fields side by side (e.g. title+status, start+end) — keeps the modal
+   compact so it fits without scrolling. */
+.slot-field-row {
+  display: flex;
+  gap: 14px;
+}
+.slot-field-row > * {
+  flex: 1 1 0;
+  min-width: 0;
+}
+@media (max-width: 480px) {
+  .slot-field-row {
+    flex-direction: column;
+    gap: 0;
+  }
+}
+
 /* Duration chips */
 .slot-duration {
   margin-bottom: 16px;

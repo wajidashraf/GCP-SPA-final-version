@@ -19,6 +19,8 @@ import {
 import { toSelectOptions } from '../../data/types';
 import { makeSharePointUploader } from '../../shared/uploadApi';
 import { documentsFromUploads } from '../../shared/documents';
+import type { DocumentLink } from '../../shared/documents';
+import { DocumentStrip } from '../../components/detail/DocumentStrip';
 import { sendRequestNotification } from '../../shared/notificationApi';
 import { submitRtpRequest } from './api';
 import type { RtpFormState } from './types';
@@ -31,8 +33,16 @@ type RtpFormProps = {
   initialState?: RtpFormState;
   /** Parent gcp_request id — present in edit mode. */
   requestId?: string;
-  /** Edit-mode submit handler: receives current form state, performs the PATCH. */
-  onEditSubmit?: (state: RtpFormState) => Promise<SubmitResult>;
+  /** Existing documents on the record (edit mode) — parsed from gcp_documentsurl. */
+  initialDocuments?: DocumentLink[];
+  /**
+   * Edit-mode submit handler: receives the current form state plus the final
+   * document set (kept existing links + new uploads) to persist.
+   */
+  onEditSubmit?: (
+    state: RtpFormState,
+    documents: DocumentLink[]
+  ) => Promise<SubmitResult>;
   /** Called by the success screen's primary button in edit mode (navigate back). */
   onEditSuccess?: () => void;
 };
@@ -49,6 +59,8 @@ const RtpForm = ({
   matter,
   mode = 'new',
   initialState,
+  requestId,
+  initialDocuments,
   onEditSubmit,
   onEditSuccess,
 }: RtpFormProps) => {
@@ -90,6 +102,19 @@ const RtpForm = ({
   // the final step they belong to the request itself (field: null).
   const [attachments, setAttachments] = useState<UploadedFile[]>([]);
 
+  // Edit mode: existing request-level documents the user can remove (field: null).
+  // Per-field documents (field != null) belong to other steps and are preserved
+  // untouched on save.
+  const [existingDocs, setExistingDocs] = useState<DocumentLink[]>(() =>
+    (initialDocuments ?? []).filter((d) => d.field === null)
+  );
+  const preservedFieldDocs = useMemo(
+    () => (initialDocuments ?? []).filter((d) => d.field !== null),
+    [initialDocuments]
+  );
+  const removeExistingDoc = (doc: DocumentLink) =>
+    setExistingDocs((prev) => prev.filter((d) => d !== doc));
+
   // Stable draft id to fold this request's uploads into one SharePoint folder
   // before the request record exists.
   const draftId = useMemo(
@@ -100,14 +125,17 @@ const RtpForm = ({
     []
   );
 
+  // In edit mode the request already exists — fold uploads into its real folder.
+  // In new mode the record doesn't exist yet, so use the stable draft id.
+  const uploadRequestId = isEdit && requestId ? requestId : draftId;
   const attachmentsUploader = useMemo(
     () =>
       makeSharePointUploader({
         entityType: 'rtp',
-        requestId: draftId,
+        requestId: uploadRequestId,
         loginHint: user?.email,
       }),
-    [draftId, user?.email]
+    [uploadRequestId, user?.email]
   );
 
   const set = <K extends keyof RtpFormState>(key: K, value: RtpFormState[K]) =>
@@ -346,18 +374,28 @@ const RtpForm = ({
               helpText="Tick if this RTP request requires special handling."
             />
           </Col>
-          {/* Attachments are only editable when creating. Editing an existing
-              request leaves its documents untouched in this version. */}
-          {!isEdit ? (
+          {/* Edit mode: existing documents on this record, each removable.
+              Removing a file detaches it from the record (drops the link); the
+              file itself remains in SharePoint. */}
+          {isEdit && existingDocs.length > 0 ? (
             <Col xs={12}>
-              <FileUpload
-                label="Attachments"
-                value={attachments}
-                onChange={setAttachments}
-                uploader={attachmentsUploader}
+              <label className="rtp-doc-label">Existing documents</label>
+              <DocumentStrip
+                documents={existingDocs}
+                onRemove={removeExistingDoc}
               />
             </Col>
           ) : null}
+
+          {/* Attachments — uploadable when creating and when editing. */}
+          <Col xs={12}>
+            <FileUpload
+              label={isEdit ? 'Add documents' : 'Attachments'}
+              value={attachments}
+              onChange={setAttachments}
+              uploader={attachmentsUploader}
+            />
+          </Col>
         </Row>
       ),
       validate: () => {
@@ -376,7 +414,23 @@ const RtpForm = ({
       }
       setSubmitting(true);
       try {
-        return await onEditSubmit(state);
+        // Final document set = per-field docs (untouched) + kept existing
+        // request-level docs + newly uploaded files (field: null).
+        const newDocs = documentsFromUploads(
+          attachments.map((f) => ({
+            name: f.file.name,
+            url: f.url,
+            id: f.remoteId,
+          })),
+          null,
+          new Date().toISOString()
+        );
+        const documents = [
+          ...preservedFieldDocs,
+          ...existingDocs,
+          ...newDocs,
+        ];
+        return await onEditSubmit(state, documents);
       } finally {
         setSubmitting(false);
       }

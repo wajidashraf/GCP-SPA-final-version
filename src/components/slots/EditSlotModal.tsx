@@ -1,13 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Modal from 'react-bootstrap/Modal';
-import { Clock, Edit, Loader2, X } from 'lucide-react';
-import { DateTimeField, MultiSelectField, SelectField, TextField } from '../../forms';
+import { Edit, Loader2, X } from 'lucide-react';
+import { DateTimeField, MultiSelectField, TextField } from '../../forms';
 import { InlineMessage } from '../ui';
-import {
-  slotDurationChoices,
-  slotStatusChoices,
-} from '../../data/slotChoices';
-import { toSelectOptions } from '../../data/types';
+import { getChoiceLabel } from '../../data/types';
+import { slotStatusChoices } from '../../data/slotChoices';
 import { updateSlot, MAX_ATTENDEES } from '../../shared/services/slotService';
 import type { Slot } from '../../types/slot';
 import type { AttendeeOption } from './CreateSlotModal';
@@ -31,32 +28,31 @@ const isoToLocal = (iso: string | null): string => {
   return Number.isNaN(d.getTime()) ? '' : toLocalInput(d);
 };
 
-const addMinutes = (local: string, minutes: number): string => {
-  if (!local) return '';
-  const d = new Date(local);
-  if (Number.isNaN(d.getTime())) return '';
-  d.setMinutes(d.getMinutes() + minutes);
-  return toLocalInput(d);
-};
-
 const localToIso = (local: string): string | null => {
   if (!local) return null;
   const d = new Date(local);
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 };
 
-const inferDuration = (startIso: string | null, endIso: string | null): number => {
-  if (!startIso || !endIso) return 30;
-  const mins = Math.round(
-    (new Date(endIso).getTime() - new Date(startIso).getTime()) / 60000
-  );
-  const valid = slotDurationChoices.map((d) => d.value);
-  return (valid as readonly number[]).includes(mins) ? mins : 30;
-};
-
 const EditSlotModal = ({ show, slot, onHide, onSaved, contacts }: EditSlotModalProps) => {
-  const initialStart = slot ? isoToLocal(slot.start) : '';
-  const initialDuration = slot ? inferDuration(slot.start, slot.end) : 30;
+  // Editable: start, end, reviewers. Title and status are shown read-only.
+  const [start, setStart] = useState('');
+  const [end, setEnd] = useState('');
+  const [attendees, setAttendees] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [touched, setTouched] = useState(false);
+
+  // Re-seed all fields whenever a different slot is opened. (The modal stays
+  // mounted across opens, so useState initialisers alone would never refresh.)
+  useEffect(() => {
+    if (!slot) return;
+    setStart(isoToLocal(slot.start));
+    setEnd(isoToLocal(slot.end));
+    setAttendees(slot.attendees.slice(0, MAX_ATTENDEES).map((a) => a.contactId));
+    setError(null);
+    setTouched(false);
+  }, [slot]);
 
   // Merge existing slot attendees into the selectable options so they're always
   // visible even if they no longer hold the Reviewer role.
@@ -78,22 +74,11 @@ const EditSlotModal = ({ show, slot, onHide, onSaved, contacts }: EditSlotModalP
     [mergedContacts]
   );
 
-  const [title, setTitle] = useState(slot?.title ?? '');
-  const [start, setStart] = useState(initialStart);
-  const [duration, setDuration] = useState(initialDuration);
-  const [status, setStatus] = useState(String(slot?.status ?? 2));
-  // Selected attendees, as contact GUIDs (max MAX_ATTENDEES).
-  const [attendees, setAttendees] = useState<string[]>(() =>
-    slot ? slot.attendees.slice(0, MAX_ATTENDEES).map((a) => a.contactId) : []
-  );
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [touched, setTouched] = useState(false);
-
-  const end = useMemo(() => addMinutes(start, duration), [start, duration]);
-
-  const titleError = touched && !title.trim() ? 'A title is required.' : undefined;
   const startError = touched && !start ? 'A start date and time is required.' : undefined;
+  const endError =
+    touched && start && end && new Date(end) <= new Date(start)
+      ? 'End must be after the start time.'
+      : undefined;
 
   const handleClose = () => {
     if (submitting) return;
@@ -102,8 +87,9 @@ const EditSlotModal = ({ show, slot, onHide, onSaved, contacts }: EditSlotModalP
 
   const handleSave = async () => {
     setTouched(true);
-    if (!title.trim() || !start) return;
     if (!slot) return;
+    if (!start || !end) return;
+    if (new Date(end) <= new Date(start)) return;
 
     setSubmitting(true);
     setError(null);
@@ -116,11 +102,11 @@ const EditSlotModal = ({ show, slot, onHide, onSaved, contacts }: EditSlotModalP
         return { contactId: id, email: byId.get(id)?.email ?? null };
       });
 
+      // Only the editable timing fields are written — title and status are
+      // left untouched (admin can change start/time and reviewers only).
       await updateSlot(
         slot.id,
         {
-          gcp_type: title.trim(),
-          gcp_slotstatus: Number(status),
           gcp_date: localToIso(start),
           gcp_start: localToIso(start),
           gcp_end: localToIso(end),
@@ -154,7 +140,7 @@ const EditSlotModal = ({ show, slot, onHide, onSaved, contacts }: EditSlotModalP
             <h2 id="edit-slot-title" className="slot-modal-title">
               Edit slot
             </h2>
-            <p className="slot-modal-sub">Update the slot's details and attendees.</p>
+            <p className="slot-modal-sub">Update the slot's time and reviewers.</p>
           </div>
           <button
             type="button"
@@ -174,85 +160,58 @@ const EditSlotModal = ({ show, slot, onHide, onSaved, contacts }: EditSlotModalP
             </InlineMessage>
           )}
 
-          <TextField
-            name="editSlotTitle"
-            label="Title / type"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="e.g. Vendor onboarding review"
-            isRequired
-            error={titleError}
-          />
-
-          <SelectField
-            name="editSlotStatus"
-            label="Status"
-            isRequired
-            options={toSelectOptions(slotStatusChoices)}
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-          />
-
-          <DateTimeField
-            name="editSlotStart"
-            label="Start date & time"
-            value={start}
-            onChange={(e) => setStart(e.target.value)}
-            isRequired
-            error={startError}
-          />
-
-          <div className="slot-duration">
-            <span className="slot-duration-label">
-              <Clock size={14} aria-hidden="true" /> Duration
-            </span>
-            <div className="slot-chip-row" role="radiogroup" aria-label="Duration">
-              {slotDurationChoices.map((opt) => {
-                const active = duration === opt.value;
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    className={`slot-chip${active ? ' slot-chip-active' : ''}`}
-                    onClick={() => setDuration(opt.value)}
-                  >
-                    {opt.value} min
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="slot-endtime">
-            <span className="slot-endtime-label">Ends at</span>
-            <span className="slot-endtime-value">
-              {end
-                ? new Date(end).toLocaleString(undefined, {
-                    weekday: 'short',
-                    day: 'numeric',
-                    month: 'short',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })
-                : 'Set a start time to calculate'}
-            </span>
-          </div>
-
-          <div className="slot-attendees">
-            <MultiSelectField
-              name="editAttendees"
-              label="Reviewers"
-              value={attendees}
-              onChange={setAttendees}
-              options={attendeeOptions}
-              maxSelected={MAX_ATTENDEES}
-              placeholder="Select reviewers"
-              emptyText="No reviewers available."
-              helpText={`Select up to ${MAX_ATTENDEES} reviewers (${attendees.length}/${MAX_ATTENDEES}).`}
+          {/* Read-only basic info (prepopulated from the record) */}
+          <div className="slot-field-row">
+            <TextField
+              name="editSlotTitle"
+              label="Title / type"
+              value={slot?.title ?? ''}
+              isReadOnly
+            />
+            <TextField
+              name="editSlotStatus"
+              label="Status"
+              value={
+                slot?.statusLabel ??
+                (slot?.status != null
+                  ? getChoiceLabel(slotStatusChoices, slot.status)
+                  : '')
+              }
+              isReadOnly
             />
           </div>
+
+          {/* Editable: start + end on the same row */}
+          <div className="slot-field-row">
+            <DateTimeField
+              name="editSlotStart"
+              label="Start date & time"
+              value={start}
+              onChange={(e) => setStart(e.target.value)}
+              isRequired
+              error={startError}
+            />
+            <DateTimeField
+              name="editSlotEnd"
+              label="End date & time"
+              value={end}
+              onChange={(e) => setEnd(e.target.value)}
+              isRequired
+              error={endError}
+            />
+          </div>
+
+          <MultiSelectField
+            name="editAttendees"
+            label="Reviewers"
+            value={attendees}
+            onChange={setAttendees}
+            options={attendeeOptions}
+            maxSelected={MAX_ATTENDEES}
+            placeholder="Select reviewers"
+            emptyText="No reviewers available."
+            helpText={`Select up to ${MAX_ATTENDEES} reviewers (${attendees.length}/${MAX_ATTENDEES}).`}
+          />
         </div>
 
         <footer className="slot-modal-foot">

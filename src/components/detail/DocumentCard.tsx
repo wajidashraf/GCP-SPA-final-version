@@ -3,13 +3,15 @@
 // in src/forms/FileUpload.tsx — a file-type tile with a truncated name below —
 // plus always-visible preview and download actions.
 
-import { Download, Eye, FileText } from 'lucide-react';
+import { Download, Eye, FileText, Trash2 } from 'lucide-react';
 import type { DocumentLink } from '../../shared/documents';
 import { extColor, getExt, isImage, truncateName } from './documentMeta';
 
 type DocumentCardProps = {
   doc: DocumentLink;
   onPreview: (doc: DocumentLink) => void;
+  /** When provided, a remove (trash) action is shown — used in edit mode. */
+  onRemove?: (doc: DocumentLink) => void;
 };
 
 // Append ?download=1 so SharePoint responds with Content-Disposition: attachment
@@ -17,7 +19,7 @@ type DocumentCardProps = {
 const toDownloadUrl = (url: string): string =>
   url.includes('?') ? `${url}&download=1` : `${url}?download=1`;
 
-const DocumentCard = ({ doc, onPreview }: DocumentCardProps) => {
+const DocumentCard = ({ doc, onPreview, onRemove }: DocumentCardProps) => {
   const ext = getExt(doc.name);
   const color = extColor(doc.name);
 
@@ -53,6 +55,17 @@ const DocumentCard = ({ doc, onPreview }: DocumentCardProps) => {
           >
             <Download size={12} aria-hidden="true" />
           </a>
+          {onRemove ? (
+            <button
+              type="button"
+              className="rd-doc-action rd-doc-action-danger"
+              onClick={() => onRemove(doc)}
+              title="Remove"
+              aria-label={`Remove ${doc.name}`}
+            >
+              <Trash2 size={12} aria-hidden="true" />
+            </button>
+          ) : null}
         </div>
       </div>
 

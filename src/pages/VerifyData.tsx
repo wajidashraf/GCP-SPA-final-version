@@ -34,7 +34,7 @@ const label = (value: number): string =>
  *  - base options: FR (0), RS (16), Ready for Engagement (2)
  *  - special projects (RTP) additionally allow W (19)
  *  - the request's current status is always selectable (added if missing)
- *  - matter types 1, 5, 10, 11, 13, 14 drop "Ready for Engagement"
+ *  - matter types 1, 10, 11, 13, 14 drop "Ready for Engagement"
  *  - matter types 10, 11, 13, 14 add "Pending Ack" (9)
  *  - matter type 12 (Contract Progress Report) allows only FR (0) + current
  */
@@ -53,7 +53,7 @@ const buildStatusOptions = (
   addCurrent();
 
   const mt = Number(matter);
-  if ([1, 5, 10, 11, 13, 14].includes(mt)) list = list.filter((v) => v !== 2);
+  if ([1, 10, 11, 13, 14].includes(mt)) list = list.filter((v) => v !== 2);
   if ([10, 11, 13, 14].includes(mt)) list.push(9);
   if (mt === 12) {
     list = list.filter((v) => v === 0);

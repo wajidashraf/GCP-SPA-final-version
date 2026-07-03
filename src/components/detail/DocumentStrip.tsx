@@ -9,9 +9,11 @@ import DocumentPreviewModal from './DocumentPreviewModal';
 
 type DocumentStripProps = {
   documents: DocumentLink[];
+  /** When provided, each card shows a remove action (edit mode). */
+  onRemove?: (doc: DocumentLink) => void;
 };
 
-const DocumentStrip = ({ documents }: DocumentStripProps) => {
+const DocumentStrip = ({ documents, onRemove }: DocumentStripProps) => {
   const [preview, setPreview] = useState<DocumentLink | null>(null);
 
   if (documents.length === 0) return null;
@@ -24,6 +26,7 @@ const DocumentStrip = ({ documents }: DocumentStripProps) => {
             key={`${doc.url}-${i}`}
             doc={doc}
             onPreview={setPreview}
+            onRemove={onRemove}
           />
         ))}
       </div>

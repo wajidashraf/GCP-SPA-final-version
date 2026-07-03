@@ -539,6 +539,20 @@
   background: var(--navy);
   color: var(--accent-2);
 }
+.rtp-doc-label {
+  display: block;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--navy);
+  margin-bottom: 6px;
+}
+.rd-doc-action-danger {
+  color: #dc2626;
+}
+.rd-doc-action-danger:hover {
+  background: #dc2626;
+  color: #fff;
+}
 .rd-doc-name {
   margin-top: 5px;
   font-size: 0.72rem;

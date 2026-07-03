@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { InlineMessage } from '../../components/ui';
 import { matterChoices } from '../../data/matterChoices';
+import { parseDocuments } from '../../shared/documents';
+import type { DocumentLink } from '../../shared/documents';
 import type { SubmitResult } from '../multistep';
 import RtpForm from './RtpForm';
 import { loadRtpFormState, updateRtpRequestFromState } from './api';
@@ -26,6 +28,12 @@ const RtpEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
     [request, rtp]
   );
 
+  // Existing documents stored on the parent request (gcp_documentsurl).
+  const initialDocuments = useMemo(
+    () => parseDocuments(request.documentsUrl),
+    [request.documentsUrl]
+  );
+
   if (!matter || !rtp || !initialState) {
     return (
       <InlineMessage tone="warning" title="Can’t edit this request">
@@ -39,11 +47,13 @@ const RtpEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
   }
 
   const handleEditSubmit = async (
-    state: RtpFormState
+    state: RtpFormState,
+    documents: DocumentLink[]
   ): Promise<SubmitResult> => {
     await updateRtpRequestFromState(state, {
       requestId: request.id,
       rtpRecordId: rtp.id,
+      documents,
     });
     return {
       reference: request.title ?? request.id.slice(0, 8),
@@ -57,6 +67,7 @@ const RtpEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
       mode="edit"
       initialState={initialState}
       requestId={request.id}
+      initialDocuments={initialDocuments}
       onEditSubmit={handleEditSubmit}
       onEditSuccess={onSaved}
     />
