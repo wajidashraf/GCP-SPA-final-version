@@ -110,11 +110,30 @@ export default function AckLetterPage() {
       .map((v) => v.label);
   }, [template, ctx, values]);
 
+  // Required manual variables (e.g. the freeform letter body) that are still
+  // empty — submission is blocked until these are filled.
+  const missingRequired = useMemo(() => {
+    if (!ctx) return [];
+    return template.variables
+      .filter((v) => v.isRequired)
+      .filter((v) => {
+        const auto = v.auto?.(ctx);
+        if (auto && auto.trim()) return false; // auto-filled
+        return !values[v.key]?.trim();
+      })
+      .map((v) => v.label);
+  }, [template, ctx, values]);
+
   const handleSaveDraft = () => setIsEditing(false);
 
   const handleSubmit = () => {
     setFormError(null);
     setSubmitError(null);
+    if (missingRequired.length > 0) {
+      setIsEditing(true);
+      setFormError(`Please fill in the ${missingRequired.join(', ')} before submitting.`);
+      return;
+    }
     setShowConfirm(true);
   };
 

@@ -10,9 +10,8 @@ import {
   Users,
 } from 'lucide-react';
 import { InlineMessage } from '../components/ui';
-import { CreateSlotModal } from '../components/slots/CreateSlotModal';
-import type { AttendeeOption } from '../components/slots/CreateSlotModal';
-import { EditSlotModal } from '../components/slots/EditSlotModal';
+import { SlotFormModal } from '../components/slots/SlotFormModal';
+import type { AttendeeOption } from '../components/slots/SlotFormModal';
 import { listSlots } from '../shared/services/slotService';
 import { SLOT_STATUS_AVAILABLE } from '../data/slotChoices';
 import type { Slot } from '../types/slot';
@@ -328,14 +327,16 @@ export default function SlotManagement() {
         )}
       </div>
 
-      <CreateSlotModal
+      <SlotFormModal
+        mode="create"
         show={showCreate}
         onHide={() => setShowCreate(false)}
-        onCreated={handleCreated}
+        onSaved={handleCreated}
         contacts={contacts}
       />
 
-      <EditSlotModal
+      <SlotFormModal
+        mode="edit"
         show={editTarget !== null}
         slot={editTarget}
         onHide={() => setEditTarget(null)}

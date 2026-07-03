@@ -1,4 +1,5 @@
 export { default as CheckboxField } from './CheckboxField';
+export { default as CurrencyField } from './CurrencyField';
 export { default as DateField } from './DateField';
 export { default as DateTimeField } from './DateTimeField';
 export { default as DynamicRowFields } from './DynamicRowFields';
@@ -17,6 +18,7 @@ export { default as StepIndicator } from './StepIndicator';
 export { default as TextAreaField } from './TextAreaField';
 export { default as TextField } from './TextField';
 export type { CheckboxFieldProps } from './CheckboxField';
+export type { CurrencyFieldProps } from './CurrencyField';
 export type { DateFieldProps } from './DateField';
 export type { DateTimeFieldProps } from './DateTimeField';
 export type { DynamicRowFieldsProps, FieldDef, RowFieldsData } from './DynamicRowFields';

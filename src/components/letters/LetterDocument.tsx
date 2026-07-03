@@ -94,14 +94,17 @@ export const renderLetterText = (
   lines.push(`Dear ${ctx.request.companyName ?? 'Sir/Madam'},`);
   lines.push('');
   for (const p of template.paragraphs) lines.push(seg(p));
-  lines.push('');
-  lines.push(template.signoff);
-  lines.push('');
-  lines.push('Attachments:');
-  template.attachments.forEach((a) => lines.push(`- ${a}`));
-  lines.push('');
-  lines.push('cc.');
-  CC_LIST.forEach((c) => lines.push(`- ${c}`));
+  // Freeform letters (Acknowledgement) stop at the body.
+  if (!template.freeform) {
+    lines.push('');
+    lines.push(template.signoff);
+    lines.push('');
+    lines.push('Attachments:');
+    template.attachments.forEach((a) => lines.push(`- ${a}`));
+    lines.push('');
+    lines.push('cc.');
+    CC_LIST.forEach((c) => lines.push(`- ${c}`));
+  }
   return lines.join('\n');
 };
 
@@ -155,6 +158,18 @@ export default function LetterDocument({
     }
     const current = values[v.key] ?? '';
     if (editing) {
+      if (v.multiline) {
+        return (
+          <textarea
+            className="lp-var-input lp-var-textarea"
+            rows={8}
+            value={current}
+            placeholder={v.placeholder ?? v.label}
+            aria-label={v.label}
+            onChange={(e) => onChange(v.key, e.target.value)}
+          />
+        );
+      }
       return (
         <input
           className="lp-var-input"
@@ -166,11 +181,14 @@ export default function LetterDocument({
         />
       );
     }
-    return current ? (
-      <span className="lp-var">{current}</span>
-    ) : (
-      <span className="lp-var lp-var--blank">«{v.label}»</span>
-    );
+    if (current) {
+      return (
+        <span className={`lp-var${v.multiline ? ' lp-var--multiline' : ''}`}>
+          {current}
+        </span>
+      );
+    }
+    return <span className="lp-var lp-var--blank">«{v.label}»</span>;
   };
 
   const kindWord = template.kind === 'ACK' ? 'ACKNOWLEDGEMENT' : 'ENDORSEMENT';
@@ -226,37 +244,43 @@ export default function LetterDocument({
         ))}
       </div>
 
-      {/* ── Sign-off (centered) ──────────────────────────────────────── */}
-      <div className="lp-signoff">
-        <div className="lp-signrule" aria-hidden="true">
-          …………………………………………….
-        </div>
-        {template.signoff.split('\n').map((line, i) => (
-          <div key={i}>{line}</div>
-        ))}
-      </div>
+      {/* Freeform letters (Acknowledgement) end at the body — no sign-off,
+          attachments or cc sections below the reviewer's text. */}
+      {!template.freeform ? (
+        <>
+          {/* ── Sign-off (centered) ──────────────────────────────────── */}
+          <div className="lp-signoff">
+            <div className="lp-signrule" aria-hidden="true">
+              …………………………………………….
+            </div>
+            {template.signoff.split('\n').map((line, i) => (
+              <div key={i}>{line}</div>
+            ))}
+          </div>
 
-      {/* ── Attachments ──────────────────────────────────────────────── */}
-      <div className="lp-section">
-        <p className="lp-section-title">Attachments:</p>
-        <ol className="lp-list">
-          {template.attachments.map((a) => (
-            <li key={a}>{a}</li>
-          ))}
-        </ol>
-      </div>
+          {/* ── Attachments ──────────────────────────────────────────── */}
+          <div className="lp-section">
+            <p className="lp-section-title">Attachments:</p>
+            <ol className="lp-list">
+              {template.attachments.map((a) => (
+                <li key={a}>{a}</li>
+              ))}
+            </ol>
+          </div>
 
-      {/* ── CC list ──────────────────────────────────────────────────── */}
-      <div className="lp-section">
-        <p className="lp-section-title">cc.</p>
-        <ul className="lp-list lp-list--plain">
-          {CC_LIST.map((cc) => (
-            <li key={cc}>
-              <em>{cc}</em>
-            </li>
-          ))}
-        </ul>
-      </div>
+          {/* ── CC list ──────────────────────────────────────────────── */}
+          <div className="lp-section">
+            <p className="lp-section-title">cc.</p>
+            <ul className="lp-list lp-list--plain">
+              {CC_LIST.map((cc) => (
+                <li key={cc}>
+                  <em>{cc}</em>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </>
+      ) : null}
     </article>
   );
 }

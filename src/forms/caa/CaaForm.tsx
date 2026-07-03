@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import Col from 'react-bootstrap/Col';
 import Row from 'react-bootstrap/Row';
 import CheckboxField from '../CheckboxField';
+import CurrencyField from '../CurrencyField';
 import DateField from '../DateField';
 import DynamicRowFields from '../DynamicRowFields';
 import FileUpload from '../FileUpload';
@@ -388,26 +389,26 @@ const CaaForm = ({ matter }: CaaFormProps) => {
       render: () => (
         <Row className="g-3">
           <HalfCol>
-            <NumberField
+            <CurrencyField
               label="Tender / Proposal Price"
               value={state.tenderProposalPrice}
-              onChange={(e) => set('tenderProposalPrice', e.target.value)}
+              onChange={(v) => set('tenderProposalPrice', v)}
               helpText="Currency"
             />
           </HalfCol>
           <HalfCol>
-            <NumberField
+            <CurrencyField
               label="Final Contract Amount"
               value={state.finalContractAmount}
-              onChange={(e) => set('finalContractAmount', e.target.value)}
+              onChange={(v) => set('finalContractAmount', v)}
               helpText="Currency"
             />
           </HalfCol>
           <HalfCol>
-            <NumberField
+            <CurrencyField
               label="Estimated Budget Cost"
               value={state.estimatedBudgetCost}
-              onChange={(e) => set('estimatedBudgetCost', e.target.value)}
+              onChange={(v) => set('estimatedBudgetCost', v)}
               helpText="Currency"
             />
           </HalfCol>

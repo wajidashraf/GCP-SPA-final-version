@@ -41,6 +41,10 @@ export interface LetterVariable {
   /** Hint text shown in the manual input. */
   placeholder?: string;
   kind?: 'text' | 'date';
+  /** Render the manual input as a multi-line textarea (freeform body). */
+  multiline?: boolean;
+  /** Block submission until this (manual) variable has a value. */
+  isRequired?: boolean;
   /**
    * Auto-resolver. Return a non-empty string to auto-fill (read-only). Return
    * null / '' to leave it as a manual, user-editable variable.
@@ -67,6 +71,12 @@ export interface LetterTemplate {
   attachments: string[];
   /** Variables referenced by infoRowKeys / paragraphs. */
   variables: LetterVariable[];
+  /**
+   * Freeform letter: render the body below the salutation as a single editable
+   * area and omit the sign-off, attachments and cc sections. Used for
+   * Acknowledgement letters, where the reviewer types the whole body.
+   */
+  freeform?: boolean;
 }
 
 // ── Shared helpers ──────────────────────────────────────────────────────────
@@ -93,7 +103,8 @@ export const CC_LIST = [
   'Company Team Leader',
 ];
 
-const SIGNOFF_GCP = 'On behalf of\nGroup Contracts and Procurement';
+// Acknowledgement letters are freeform (no sign-off); this is used by the
+// Endorsement (GCPC) templates only.
 const SIGNOFF_GCPC = 'On behalf of\nGroup Contracts and Procurement Committee';
 
 // ── Reusable variables (auto-filled from the request) ───────────────────────
@@ -135,12 +146,6 @@ const vAcceptanceDate: LetterVariable = {
   kind: 'date',
   auto: (c) => formatLetterDate(c.request.acceptanceDate),
 };
-const vSubmittedOn: LetterVariable = {
-  key: 'submittedOn',
-  label: 'Submission Date',
-  kind: 'date',
-  auto: (c) => formatLetterDate(c.request.submittedOn),
-};
 
 /** Date the Summary Review was submitted to the company — manual (not stored). */
 const vSummaryReviewDate: LetterVariable = {
@@ -153,6 +158,15 @@ const vGrossMargin: LetterVariable = {
   key: 'grossMargin',
   label: 'Forecast gross margin',
   placeholder: 'e.g. 12%',
+};
+
+/** Freeform letter body — the reviewer types the whole acknowledgement here. */
+const vLetterBody: LetterVariable = {
+  key: 'body',
+  label: 'Letter content',
+  placeholder: 'Type the letter content here…',
+  multiline: true,
+  isRequired: true,
 };
 
 // Standard info-table layouts.
@@ -171,117 +185,57 @@ const ENDORSE_INFO = ['projectCode', 'reviewNo', 'dateOfReview', 'acceptanceDate
 //  ACKNOWLEDGEMENT TEMPLATES (GCP channel)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Acknowledgement letters are freeform: the info table + salutation are kept,
+// but the body below "Dear <company>" is a single editable area the reviewer
+// types, with no sign-off / attachments / cc sections. Templates differ only by
+// the document subtitle and the info-table rows shown.
+
 /** CI — Contractual Issue (Variation Order / Payment / EOT / L&E). */
 const ackCI: LetterTemplate = {
   key: 'ack-ci',
   kind: 'ACK',
+  freeform: true,
   documentTitle: 'For Variation Order / Payment / EOT / L&E',
   infoRowKeys: ACK_INFO,
   variables: [
     vProjectCode, vCompany, vProjectName, vMatters, vReviewNo, vDateOfReview,
-    vAcceptanceDate, vSubmittedOn, vSummaryReviewDate,
-    {
-      key: 'issueDescription',
-      label: 'Brief description of the matter',
-      placeholder:
-        'e.g. Variation Order for additional piling works / EOT for late information',
-    },
-    {
-      key: 'claimValue',
-      label: 'Claimed value / extension',
-      placeholder: 'e.g. RM120,000.00 / extension of 30 calendar days',
-    },
+    vAcceptanceDate, vLetterBody,
   ],
-  paragraphs: [
-    [
-      'Based on the company’s internal review, we record that the matter relating to ',
-      { var: 'issueDescription' },
-      ' was submitted to us on ',
-      { var: 'submittedOn' },
-      ' with a claimed value of ',
-      { var: 'claimValue' },
-      '.',
-    ],
-    [
-      'Following our internal assessment and reference to the GCP Summary Review for Contractual Issues submitted to you on ',
-      { var: 'summaryReviewDate' },
-      ', we hereby acknowledge and record that the matter has been reviewed, based on your Review Acceptance dated ',
-      { var: 'acceptanceDate' },
-      '.',
-    ],
-  ],
-  signoff: SIGNOFF_GCP,
-  attachments: ['Company Review Acceptance', 'GCP Summary Review signed by GCP'],
+  paragraphs: [[{ var: 'body' }]],
+  signoff: '',
+  attachments: [],
 };
 
 /** Revised Project Baseline (Revised PCCA). */
 const ackRevisedBaseline: LetterTemplate = {
   key: 'ack-revised-baseline',
   kind: 'ACK',
+  freeform: true,
   documentTitle: 'Revised Project Baseline',
   infoRowKeys: ['projectCode', 'company', 'projectName', 'matters', 'reviewNo', 'dateOfReview'],
   variables: [
     vProjectCode, vCompany, vProjectName, vMatters, vReviewNo, vDateOfReview,
-    vAcceptanceDate, vSubmittedOn,
-    {
-      key: 'revenue',
-      label: 'Updated project revenue',
-      placeholder: 'e.g. RM 45,000,000',
-    },
-    vGrossMargin,
-    {
-      key: 'packages',
-      label: 'No. of Procurement Packages',
-      placeholder: 'e.g. 12',
-    },
+    vLetterBody,
   ],
-  paragraphs: [
-    [
-      'Based on the company’s internal review, we record that the revised project baseline was submitted on ',
-      { var: 'submittedOn' },
-      ', with an updated project revenue of ',
-      { var: 'revenue' },
-      ' and a gross margin of ',
-      { var: 'grossMargin' },
-      '. The number of Procurement Packages, as referred to in the updated PCCA, now stands at ',
-      { var: 'packages' },
-      '.',
-    ],
-    [
-      'Following our internal review and reference to the GCP Summary Review for Revised Project Baseline, we hereby acknowledge and confirm that the revised submission has been reviewed, based on your Review Acceptance dated ',
-      { var: 'acceptanceDate' },
-      '.',
-    ],
-  ],
-  signoff: SIGNOFF_GCP,
-  attachments: ['Company Review Acceptance', 'GCP Summary Review signed by Members'],
+  paragraphs: [[{ var: 'body' }]],
+  signoff: '',
+  attachments: [],
 };
 
 /** Fallback for any other GCP matter without a dedicated template. */
 const ackGeneric: LetterTemplate = {
   key: 'ack-generic',
   kind: 'ACK',
+  freeform: true,
   documentTitle: 'Acknowledgement',
   infoRowKeys: ACK_INFO,
   variables: [
     vProjectCode, vCompany, vProjectName, vMatters, vReviewNo, vDateOfReview,
-    vAcceptanceDate,
-    {
-      key: 'body',
-      label: 'Acknowledgement details',
-      placeholder: 'Describe the matter that has been reviewed and acknowledged.',
-    },
+    vAcceptanceDate, vLetterBody,
   ],
-  paragraphs: [
-    [{ var: 'body' }],
-    [
-      'Following our internal review, we hereby acknowledge and confirm that the submission has been reviewed, based on your Review Acceptance dated ',
-      { var: 'acceptanceDate' },
-      '.',
-    ],
-  ],
-  signoff: SIGNOFF_GCP,
-  attachments: ['Company Review Acceptance', 'GCP Summary Review signed by Members'],
+  paragraphs: [[{ var: 'body' }]],
+  signoff: '',
+  attachments: [],
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

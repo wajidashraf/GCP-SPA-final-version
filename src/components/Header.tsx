@@ -14,16 +14,16 @@ export default function Header() {
         </NavLink>
         <RequireAuth>
           <nav className="nav" aria-label="Primary">
+            <NavLink to="/" end>
+              Home
+            </NavLink>
+            <NavLink to="/requests">Requests</NavLink>
             {showDashboard ? (
               <>
                 <NavLink to="/dashboard">Dashboard</NavLink>
                 <NavLink to="/admin">Manage</NavLink>
               </>
             ) : null}
-            <NavLink to="/" end>
-              Home
-            </NavLink>
-            <NavLink to="/requests">Requests</NavLink>
           </nav>
         </RequireAuth>
         <AuthButton />
