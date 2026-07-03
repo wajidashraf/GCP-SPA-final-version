@@ -218,7 +218,7 @@ export default function AckLetterPage() {
               {isEditing ? (
                 <InlineMessage tone="info" className="no-print mb-2">
                   Highlighted fields are filled from the request. Fill in the
-                  remaining boxes — you can edit any text before submitting.
+                  remaining boxes, you can edit any text before submitting.
                 </InlineMessage>
               ) : null}
 

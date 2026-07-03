@@ -54,8 +54,24 @@ export default function App() {
         <Route path="/requests" element={<Requests />} />
         <Route path="/requests/:id" element={<RequestDetail />} />
         <Route path="/requests/:id/edit" element={<EditRequest />} />
-        <Route path="/requests/:id/verify-data" element={<VerifyData />} />
-        <Route path="/requests/:id/review" element={<RequestReview />} />
+        {/* Verify Data — Verifier (or admin) only, even via direct URL. */}
+        <Route
+          path="/requests/:id/verify-data"
+          element={
+            <RequireRole roles={['Administrators', 'Verifier']} fallback={<Navigate to="/requests" replace />}>
+              <VerifyData />
+            </RequireRole>
+          }
+        />
+        {/* Review Request — Reviewer (or admin) only, even via direct URL. */}
+        <Route
+          path="/requests/:id/review"
+          element={
+            <RequireRole roles={['Administrators', 'Reviewer']} fallback={<Navigate to="/requests" replace />}>
+              <RequestReview />
+            </RequireRole>
+          }
+        />
         <Route path="/requests/:id/engagement" element={<Engagement />} />
         <Route path="/requests/:id/hoc-acceptance" element={<HocAcceptance />} />
         <Route path="/requests/:id/ack-letter" element={<AckLetterPage />} />

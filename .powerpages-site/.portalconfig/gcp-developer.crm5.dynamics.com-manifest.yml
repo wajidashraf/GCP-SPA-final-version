@@ -841,7 +841,7 @@ adx_webfile:
   IsDeleted: true
 - RecordId: 117e45c2-4b65-4035-a892-25609064663b
   DisplayName: 117e45c2-4b65-4035-a892-25609064663b
-  CheckSum: 0b0c5ac269e485c10376b483bb7d69430630002274e3dc8a8223af7324665448
+  CheckSum: 10391b6140c0800515d139289b0f45c8e5535f8fe128ff65b5c925ad13d4f123
   IsDeleted: false
 - RecordId: 27470bed-dbcc-4cbb-ae13-ace568949dd6
   DisplayName: 27470bed-dbcc-4cbb-ae13-ace568949dd6
@@ -875,6 +875,10 @@ adx_webfile:
   DisplayName: bb679733-a43a-43c3-830a-ff599a09d81f
   CheckSum: e76e9cacc37b77dde8a31127ae18c4caf1b26fe53b75bb41d9933dba7a5260aa
   IsDeleted: true
+- RecordId: c741414a-b320-4a36-8b70-cd55c5ba107a
+  DisplayName: c741414a-b320-4a36-8b70-cd55c5ba107a
+  CheckSum: fe349aa4b82ab43f8b09ab382ef58e46a2c73dfa6674d611db6851091744c86a
+  IsDeleted: false
 - RecordId: f4a3b093-220b-4508-b2da-4acd97dfc7a1
   DisplayName: f4a3b093-220b-4508-b2da-4acd97dfc7a1
   CheckSum: 9593d01af0772eb59b03077b7afc96af9f31631af6e0c6d96c7cdd5efb384aac
@@ -920,7 +924,7 @@ adx_webpage:
   IsDeleted: false
 - RecordId: 39a4b6db-572f-4553-bb9d-d1841e49a8c1
   DisplayName: 39a4b6db-572f-4553-bb9d-d1841e49a8c1
-  CheckSum: 3332e7a9e65f9f5ae05be8ddfdf5c2b4badae8aafe5016c448283eef4df34ed8
+  CheckSum: c73468c11e38aadc3414e846372e61431ba24df67e35f1285a9a7eadb727602b
   IsDeleted: false
 - RecordId: 5bac11fb-9a98-4dd9-a742-b74e953ad02b
   DisplayName: 5bac11fb-9a98-4dd9-a742-b74e953ad02b
@@ -1101,7 +1105,7 @@ annotation:
   IsDeleted: true
 - RecordId: 117e45c2-4b65-4035-a892-25609064663b
   DisplayName: index.html
-  CheckSum: 3d946c4ef9deb418b17b144fc6ba6e60fbb7dc43922baec76a84dcc68ea86c61
+  CheckSum: dfb2097d2784844d3ddbd01acfcce7e5811f9b099690664a1b0b6a32b107da50
   IsDeleted: false
 - RecordId: 27470bed-dbcc-4cbb-ae13-ace568949dd6
   DisplayName: bootstrap.min.css
@@ -1135,6 +1139,10 @@ annotation:
   DisplayName: index-DKmppIIm.css
   CheckSum: f0a0e2a64d4d57ab2af025a495e52121d474696f6094a3fa76100829cd360edd
   IsDeleted: true
+- RecordId: c741414a-b320-4a36-8b70-cd55c5ba107a
+  DisplayName: index-Q0JDberh.css
+  CheckSum: 4e07a92da4fed3c5cd37ae3ebdff011b7090e861d4f5edcefe98b0ea8340b6c5
+  IsDeleted: false
 - RecordId: f4a3b093-220b-4508-b2da-4acd97dfc7a1
   DisplayName: index-C5J4P0ct.css
   CheckSum: 6c1bceff28f2dc400b8fb521f6eb27f8d6b48f40cc35d2c57a4ab68280297dfb

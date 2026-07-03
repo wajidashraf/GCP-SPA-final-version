@@ -685,7 +685,8 @@ export default function RequestDetail() {
               : null}
 
             {/* ── Actions ────────────────────────────────────────────── */}
-            {isNew ? (
+            {/* New → Verifier (or admin) verifies the submitted data. */}
+            {isNew && (isAdmin() || hasRole("Verifier")) ? (
               <div className="rd-actions">
                 <button
                   type="button"
@@ -728,8 +729,8 @@ export default function RequestDetail() {
               </div>
             ) : null}
 
-            {/* Status R → reviewer records a decision + comment on the request. */}
-            {isReview ? (
+            {/* Status R → Reviewer (or admin) records a decision + comment on the request. */}
+            {isReview && (isAdmin() || hasRole("Reviewer")) ? (
               <div className="rd-actions">
                 <button
                   type="button"
