@@ -9,9 +9,11 @@ import SelectField from '../SelectField';
 import TextAreaField from '../TextAreaField';
 import TextField from '../TextField';
 import { MultiStepForm, useFormDraft } from '../multistep';
-import type { StepDefinition } from '../multistep';
+import type { StepDefinition, SubmitResult } from '../multistep';
 import { useAuth } from '../../context/AuthContext';
 import { notifyEvent } from '../../shared/notificationApi';
+import { DocumentStrip } from '../../components/detail/DocumentStrip';
+import type { DocumentLink } from '../../shared/documents';
 import { matterChoices, type MatterChoice } from '../../data/matterChoices';
 import {
   procurementMethodChoices,
@@ -32,7 +34,27 @@ import type { PblFormState } from './types';
 const OTHER_COMPANY_VALUE = '__other__';
 const EXCLUDED_COMPANY_NAME = 'OBYU Realty Sdn Bhd';
 
-type PblFormProps = { matter: MatterChoice };
+type PblFormProps = {
+  matter: MatterChoice;
+  /** 'new' (default) creates a request; 'edit' patches an existing one. */
+  mode?: 'new' | 'edit';
+  /** Pre-filled state for edit mode (loaded from the existing record). */
+  initialState?: PblFormState;
+  /** Parent gcp_request id — present in edit mode. */
+  requestId?: string;
+  /** Existing documents on the record (edit mode) — parsed from gcp_documentsurl. */
+  initialDocuments?: DocumentLink[];
+  /**
+   * Edit-mode submit handler: receives the current form state plus the final
+   * document set (kept existing links + new uploads) to persist.
+   */
+  onEditSubmit?: (
+    state: PblFormState,
+    documents: DocumentLink[]
+  ) => Promise<SubmitResult>;
+  /** Called by the success screen's primary button in edit mode (navigate back). */
+  onEditSuccess?: () => void;
+};
 
 const DRAFT_KEY = 'pbl:new';
 
@@ -42,21 +64,31 @@ const HalfCol = ({ children }: { children: ReactNode }) => (
   </Col>
 );
 
-const PblForm = ({ matter }: PblFormProps) => {
+const PblForm = ({
+  matter,
+  mode = 'new',
+  initialState,
+  requestId,
+  initialDocuments,
+  onEditSubmit,
+  onEditSuccess,
+}: PblFormProps) => {
   const { user } = useAuth();
+  const isEdit = mode === 'edit';
 
   const defaultCategoryValue = useMemo(() => {
     const code = matter.channel.toUpperCase();
     return requestCategoryChoices.find((c) => c.label === code)?.value ?? 2;
   }, [matter.channel]);
 
-  const initial: PblFormState = {
+  const initial: PblFormState = initialState ?? {
     matterValue: matter.value,
     categoryValue: defaultCategoryValue,
     requestorContactId: user?.email ?? '',
     requestorName: user?.name ?? '',
     requestorEmail: user?.email ?? '',
     companyId: '',
+    companyName: user?.company ?? '',
     projectId: '',
     projectName: '',
     projectCode: '',
@@ -66,9 +98,12 @@ const PblForm = ({ matter }: PblFormProps) => {
     acknowledged: false,
   };
 
+  // Edit mode never touches the new-request draft (would clobber the loaded
+  // record / leak edits across records). New mode persists as before.
   const { state, setState, clearDraft } = useFormDraft<PblFormState>(
     DRAFT_KEY,
-    initial
+    initial,
+    { persist: !isEdit }
   );
   const [isSubmitting, setSubmitting] = useState(false);
 
@@ -76,6 +111,19 @@ const PblForm = ({ matter }: PblFormProps) => {
   // serialized into the draft, so this lives in component state; their
   // SharePoint links are persisted on gcp_documentsurl at submit (field: null).
   const [attachments, setAttachments] = useState<UploadedFile[]>([]);
+
+  // Edit mode: existing request-level documents the user can remove (field: null).
+  // Per-field documents (field != null) belong to other steps and are preserved
+  // untouched on save.
+  const [existingDocs, setExistingDocs] = useState<DocumentLink[]>(() =>
+    (initialDocuments ?? []).filter((d) => d.field === null)
+  );
+  const preservedFieldDocs = useMemo(
+    () => (initialDocuments ?? []).filter((d) => d.field !== null),
+    [initialDocuments]
+  );
+  const removeExistingDoc = (doc: DocumentLink) =>
+    setExistingDocs((prev) => prev.filter((d) => d !== doc));
 
   // Stable draft id to fold this request's uploads into one SharePoint folder
   // before the request record exists.
@@ -87,14 +135,17 @@ const PblForm = ({ matter }: PblFormProps) => {
     []
   );
 
+  // In edit mode the request already exists — fold uploads into its real folder.
+  // In new mode the record doesn't exist yet, so use the stable draft id.
+  const uploadRequestId = isEdit && requestId ? requestId : draftId;
   const attachmentsUploader = useMemo(
     () =>
       makeSharePointUploader({
         entityType: 'pbl',
-        requestId: draftId,
+        requestId: uploadRequestId,
         loginHint: user?.email,
       }),
-    [draftId, user?.email]
+    [uploadRequestId, user?.email]
   );
 
   const set = <K extends keyof PblFormState>(
@@ -102,17 +153,31 @@ const PblForm = ({ matter }: PblFormProps) => {
     value: PblFormState[K]
   ) => setState((prev) => ({ ...prev, [key]: value }));
 
-  // Sync company lookup to logged-in user's parent account
+  // Sync company lookup to logged-in user's parent account. Edit mode keeps
+  // the saved company — the logged-in user may be a Reviewer/Verifier editing
+  // someone else's request, not the original requestor.
   useEffect(() => {
+    if (isEdit) return;
     if (!user?.companyAccountId) return;
-    if (state.companyId === user.companyAccountId) return;
-    setState((prev) => ({ ...prev, companyId: user.companyAccountId ?? '' }));
+    if (
+      state.companyId === user.companyAccountId &&
+      state.companyName === (user.company ?? '')
+    ) {
+      return;
+    }
+    setState((prev) => ({
+      ...prev,
+      companyId: user.companyAccountId ?? '',
+      companyName: user.company ?? '',
+    }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.companyAccountId]);
+  }, [user?.companyAccountId, user?.company, isEdit]);
 
   // Sync requestor name + email when AuthContext hydrates (draft persists across
-  // sessions and may have stale '' values from before login resolved).
+  // sessions and may have stale '' values from before login resolved). Edit mode
+  // keeps the original requestor's details (do not overwrite with the editor).
   useEffect(() => {
+    if (isEdit) return;
     if (!user?.email) return;
     setState((prev) => {
       if (prev.requestorEmail === user.email && prev.requestorName === user.name) {
@@ -126,7 +191,7 @@ const PblForm = ({ matter }: PblFormProps) => {
       };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.email, user?.name]);
+  }, [user?.email, user?.name, isEdit]);
 
   // Load companies (Accounts) for the bidder Company dropdown on step 3.
   // Only accounts that have both a company code and a sector value; the user's
@@ -184,8 +249,15 @@ const PblForm = ({ matter }: PblFormProps) => {
     () => toSelectOptions(requestCategoryChoices),
     []
   );
-  const requestorOptions = user
-    ? [{ label: user.name, value: user.email }]
+  // Render from state (not `user`) so edit mode shows the saved requestor, not
+  // the editing user — see the identity rule in docs/edit-request-mode-plan.md.
+  const requestorOptions = state.requestorContactId
+    ? [
+        {
+          label: state.requestorName || state.requestorEmail,
+          value: state.requestorContactId,
+        },
+      ]
     : [];
   const procurementOptions = useMemo(
     () => toSelectOptions(procurementMethodChoices),
@@ -286,21 +358,21 @@ const PblForm = ({ matter }: PblFormProps) => {
               name="company"
               label="Company"
               options={
-                user?.companyAccountId
+                state.companyId
                   ? [
                       {
-                        label: user.company || 'Loading…',
-                        value: user.companyAccountId,
+                        label: state.companyName || 'Loading…',
+                        value: state.companyId,
                       },
                     ]
                   : []
               }
-              value={user?.companyAccountId ?? ''}
+              value={state.companyId}
               isRequired
               isReadOnly
               placeholder={
-                user?.companyAccountId
-                  ? user.company || 'Loading…'
+                state.companyId
+                  ? state.companyName || 'Loading…'
                   : 'No company linked'
               }
             />
@@ -606,9 +678,21 @@ const PblForm = ({ matter }: PblFormProps) => {
       description: 'Acknowledge & submit',
       render: () => (
         <Row className="g-3">
+          {/* Edit mode: existing documents on this record, each removable.
+              Removing a file detaches it from the record (drops the link); the
+              file itself remains in SharePoint. */}
+          {isEdit && existingDocs.length > 0 ? (
+            <Col xs={12}>
+              <label className="rtp-doc-label">Existing documents</label>
+              <DocumentStrip
+                documents={existingDocs}
+                onRemove={removeExistingDoc}
+              />
+            </Col>
+          ) : null}
           <Col xs={12}>
             <FileUpload
-              label="Attachments"
+              label={isEdit ? 'Add documents' : 'Attachments'}
               value={attachments}
               onChange={setAttachments}
               uploader={attachmentsUploader}
@@ -634,6 +718,32 @@ const PblForm = ({ matter }: PblFormProps) => {
   ];
 
   const handleSubmit = async () => {
+    // Edit mode: delegate the PATCH/diff to the caller, which has the record
+    // ids and the loaded bidder snapshot. No draft clear, no notification.
+    if (isEdit) {
+      if (!onEditSubmit) {
+        throw new Error('Edit mode requires an onEditSubmit handler.');
+      }
+      setSubmitting(true);
+      try {
+        // Final document set = per-field docs (untouched) + kept existing
+        // request-level docs + newly uploaded files (field: null).
+        const newDocs = documentsFromUploads(
+          attachments.map((f) => ({
+            name: f.file.name,
+            url: f.url,
+            id: f.remoteId,
+          })),
+          null,
+          new Date().toISOString()
+        );
+        const documents = [...preservedFieldDocs, ...existingDocs, ...newDocs];
+        return await onEditSubmit(state, documents);
+      } finally {
+        setSubmitting(false);
+      }
+    }
+
     setSubmitting(true);
     try {
       // Final-step attachments belong to the request itself (field: null).
@@ -671,6 +781,15 @@ const PblForm = ({ matter }: PblFormProps) => {
       steps={steps}
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit}
+      submitLabel={isEdit ? 'Save Changes' : undefined}
+      successTitle={isEdit ? 'Changes saved' : undefined}
+      successMessage={
+        isEdit
+          ? 'Your changes have been saved. The request stays in Resubmit until it is moved forward in the workflow.'
+          : undefined
+      }
+      successActionLabel={isEdit ? 'Back to request' : undefined}
+      onSuccessAction={isEdit ? onEditSuccess : undefined}
     />
   );
 };

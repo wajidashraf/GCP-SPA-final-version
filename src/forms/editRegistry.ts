@@ -10,6 +10,7 @@ import type { ComponentType } from 'react';
 import type { GcpRequest } from '../types/request';
 import type { ChildData } from '../shared/hooks/useRequestDetail';
 import { RtpEditForm } from './rtp/RtpEditForm';
+import { PblEditForm } from './pbl/PblEditForm';
 
 /** Props every edit-form wrapper receives from the EditRequest page. */
 type EditFormProps = {
@@ -26,6 +27,7 @@ type EditFormProps = {
 const EDIT_FORM_REGISTRY: Partial<Record<string, ComponentType<EditFormProps>>> =
   {
     RTP: RtpEditForm,
+    PBL: PblEditForm,
   };
 
 /** True when the given matter code has a registered edit form. */

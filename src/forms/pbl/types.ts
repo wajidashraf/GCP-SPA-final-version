@@ -6,6 +6,9 @@ import type { SectorValue } from '../../data/projectChoices';
 import type { MatterChoice } from '../../data/matterChoices';
 
 type PblBidderDraft = {
+  /** gcp_pblbidders row GUID when this draft mirrors an existing Dataverse row
+   *  (edit mode). Absent for rows added in the UI — those are POSTed on save. */
+  id?: string;
   /** Account GUID when a company is picked from the dropdown; '' when "Other" or not picked. */
   companyAccountId: string;
   /** Free-text company name. Used as the primary name + gcp_company column. */
@@ -28,6 +31,7 @@ type PblFormState = {
   requestorName: string;
   requestorEmail: string;
   companyId: string;
+  companyName: string;
 
   // Step 2 — Project Details
   projectId: string;

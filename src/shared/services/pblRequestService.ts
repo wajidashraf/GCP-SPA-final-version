@@ -1,9 +1,10 @@
 // src/shared/services/pblRequestService.ts
-// Create service for the gcp_pblrequest table.
+// Create/update service for the gcp_pblrequest table.
 
 import {
   extractRecordId,
   odataBind,
+  powerPagesFetch,
   powerPagesFetchResponse,
 } from '../powerPagesApi';
 import { DEFAULT_PBL_REQUEST_SELECT, mapGcpPblRequest } from '../../types/pblRequest';
@@ -11,6 +12,7 @@ import type {
   CreateGcpPblRequestInput,
   GcpPblRequest,
   GcpPblRequestEntity,
+  UpdateGcpPblRequestInput,
 } from '../../types/pblRequest';
 import { makeListByParent } from './childRequestList';
 import type { ListChildOptions, ListChildResult } from './childRequestList';
@@ -81,6 +83,24 @@ const createPblRequest = async (
   return { id };
 };
 
+// ── Update ──────────────────────────────────────────────────────────────────
+type UpdatePblRequestOptions = {
+  lookups?: PblRequestLookupBinds;
+};
+
+const updatePblRequest = async (
+  id: string,
+  input: UpdateGcpPblRequestInput,
+  options: UpdatePblRequestOptions = {}
+): Promise<void> => {
+  const body = applyLookupBinds(input as CreateGcpPblRequestInput, options.lookups);
+  await powerPagesFetch<void>(`${BASE_URL}(${id})`, {
+    method: 'PATCH',
+    json: body,
+    headers: { 'If-Match': '*' },
+  });
+};
+
 /** List PBL request rows belonging to a single parent gcp_request. */
 const listPblRequestsByParent = makeListByParent<GcpPblRequestEntity, GcpPblRequest>({
   baseUrl: BASE_URL,
@@ -90,12 +110,14 @@ const listPblRequestsByParent = makeListByParent<GcpPblRequestEntity, GcpPblRequ
 
 export {
   createPblRequest,
+  updatePblRequest,
   listPblRequestsByParent,
   ENTITY_SET as PBL_REQUEST_ENTITY_SET,
 };
 export type {
   CreatePblRequestOptions,
   CreatePblRequestResult,
+  UpdatePblRequestOptions,
   PblRequestLookupBinds,
   ListChildOptions as ListPblRequestsOptions,
   ListChildResult as ListPblRequestsResult,

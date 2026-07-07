@@ -1,10 +1,12 @@
 // src/shared/services/pblBidderService.ts
-// Create service for the gcp_pblbidders table.
+// Create/update/delete service for the gcp_pblbidders table.
 
 import {
   extractRecordId,
   odataBind,
+  powerPagesFetch,
   powerPagesFetchResponse,
+  WebApiError,
 } from '../powerPagesApi';
 import {
   DEFAULT_PBL_BIDDER_SELECT,
@@ -14,6 +16,7 @@ import type {
   CreateGcpPblBidderInput,
   GcpPblBidder,
   GcpPblBidderEntity,
+  UpdateGcpPblBidderInput,
 } from '../../types/pblBidder';
 import { makeListByParent } from './childRequestList';
 import type { ListChildOptions, ListChildResult } from './childRequestList';
@@ -89,6 +92,32 @@ const createPblBidder = async (
   return { id };
 };
 
+// ── Update / delete (edit mode) ─────────────────────────────────────────────
+const updatePblBidder = async (
+  id: string,
+  input: UpdateGcpPblBidderInput
+): Promise<void> => {
+  await powerPagesFetch<void>(`${BASE_URL}(${id})`, {
+    method: 'PATCH',
+    json: input,
+    headers: { 'If-Match': '*' },
+  });
+};
+
+/**
+ * Hard-delete a bidder row (edit mode removes rows permanently — see
+ * docs/edit-request-mode-plan.md). 404 is treated as success so a retried
+ * save after a partial failure is idempotent.
+ */
+const deletePblBidder = async (id: string): Promise<void> => {
+  try {
+    await powerPagesFetch<void>(`${BASE_URL}(${id})`, { method: 'DELETE' });
+  } catch (err) {
+    if (err instanceof WebApiError && err.status === 404) return;
+    throw err;
+  }
+};
+
 /**
  * List bidder rows belonging to a single parent gcp_pblrequest. Bidders relate
  * to the PBL request (not directly to gcp_request) via the `gcp_PBLRequest`
@@ -103,6 +132,8 @@ const listBiddersByPblRequest = makeListByParent<GcpPblBidderEntity, GcpPblBidde
 
 export {
   createPblBidder,
+  updatePblBidder,
+  deletePblBidder,
   listBiddersByPblRequest,
   ENTITY_SET as PBL_BIDDER_ENTITY_SET,
 };

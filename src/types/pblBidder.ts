@@ -38,6 +38,8 @@ type CreateGcpPblBidderInput = {
   'gcp_PBLRequest@odata.bind'?: string;
 };
 
+type UpdateGcpPblBidderInput = Partial<CreateGcpPblBidderInput>;
+
 // ── Clean domain type used by the read-only detail UI ───────────────────────
 type GcpPblBidder = {
   id: string;
@@ -95,4 +97,9 @@ const DEFAULT_PBL_BIDDER_SELECT: readonly string[] = [
 ];
 
 export { mapGcpPblBidder, DEFAULT_PBL_BIDDER_SELECT };
-export type { GcpPblBidderEntity, CreateGcpPblBidderInput, GcpPblBidder };
+export type {
+  GcpPblBidderEntity,
+  CreateGcpPblBidderInput,
+  UpdateGcpPblBidderInput,
+  GcpPblBidder,
+};

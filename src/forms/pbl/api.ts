@@ -8,16 +8,32 @@
 //      via `gcp_PBLRequest@odata.bind`. Justification (if <3 bidders) is
 //      stored on every bidder row per the table schema.
 
-import { createRequest } from '../../shared/services/requestService';
-import { createPblRequest } from '../../shared/services/pblRequestService';
-import { createPblBidder } from '../../shared/services/pblBidderService';
+import {
+  createRequest,
+  updateRequest,
+} from '../../shared/services/requestService';
+import {
+  createPblRequest,
+  updatePblRequest,
+} from '../../shared/services/pblRequestService';
+import {
+  createPblBidder,
+  updatePblBidder,
+  deletePblBidder,
+} from '../../shared/services/pblBidderService';
 import { serializeDocuments } from '../../shared/documents';
 import type { DocumentLink } from '../../shared/documents';
-import type { CreateGcpRequestInput } from '../../types/request';
-import type { CreateGcpPblRequestInput } from '../../types/pblRequest';
-import type { CreateGcpPblBidderInput } from '../../types/pblBidder';
+import type { CreateGcpRequestInput, GcpRequest } from '../../types/request';
+import type {
+  CreateGcpPblRequestInput,
+  GcpPblRequest,
+} from '../../types/pblRequest';
+import type {
+  CreateGcpPblBidderInput,
+  GcpPblBidder,
+} from '../../types/pblBidder';
 import type { SoaCodeValue } from '../../data/soaChoices';
-import type { PblFormState } from './types';
+import type { PblBidderDraft, PblFormState } from './types';
 
 type SubmitResult = {
   requestId: string;
@@ -120,5 +136,162 @@ const submitPblRequest = async (
   };
 };
 
-export { submitPblRequest };
-export type { SubmitResult };
+// ── Edit mode ────────────────────────────────────────────────────────────────
+// Reverse of the create mapping above: hydrate the form state from a loaded
+// parent gcp_request + gcp_pblrequest child + gcp_pblbidders rows, then PATCH
+// the editable fields back and diff the bidder collection (POST new rows,
+// DELETE removed ones). Requestor/Company lookups are never rebound; the
+// Project lookup IS rebound because the Project select stays editable in edit
+// mode. gcp_requestoremail is deliberately never PATCHed — the original
+// requestor's identity must survive edits by Reviewers/Verifiers.
+
+/** Build PBL form state from the loaded parent + child + bidders (edit prefill). */
+const loadPblFormState = (
+  request: GcpRequest,
+  pbl: GcpPblRequest,
+  bidders: GcpPblBidder[]
+): PblFormState => ({
+  matterValue: request.matter as PblFormState['matterValue'],
+  categoryValue: (request.category ?? 2) as PblFormState['categoryValue'],
+  // Mirror new mode: the requestor select's value is the email, the label the name.
+  requestorContactId: request.requestorEmail ?? '',
+  requestorName: request.requestorName ?? '',
+  requestorEmail: request.requestorEmail ?? '',
+  companyId: request.companyId ?? '',
+  companyName: request.companyName ?? '',
+  // The parent request has no project lookup in its mapped type; the child
+  // gcp_pblrequest carries the gcp_Project lookup.
+  projectId: pbl.projectId ?? '',
+  projectName: request.projectName ?? '',
+  projectCode: pbl.projectCode ?? request.projectCode ?? '',
+  procurementMethod: pbl.procurementMethod ?? '',
+  bidders: bidders.map(
+    (b): PblBidderDraft => ({
+      id: b.id,
+      companyAccountId: b.companyAccountId ?? '',
+      // gcp_company (text) is what the create flow writes; the formatted
+      // lookup label and primary name are fallbacks.
+      companyName: b.company ?? b.companyName ?? b.bidderName ?? '',
+      isOtherCompany: !b.companyAccountId,
+      sector: (b.sector ?? '') as PblBidderDraft['sector'],
+      location: b.location ?? '',
+      personInCharge: b.personInCharge ?? '',
+      picContactNumber: b.picContactNumber ?? '',
+      sourcesFrom: b.sourcesFrom ?? '',
+      recommendationBy: b.recommendedBy ?? '',
+    })
+  ),
+  // Stored on every row; take the first non-null in case a past partial save
+  // left rows inconsistent (the update diff heals discrepant rows).
+  justificationForLessBidders:
+    bidders.find((b) => b.justificationForLt3Bidders != null)
+      ?.justificationForLt3Bidders ?? '',
+  acknowledged: request.acknowledged ?? false,
+});
+
+type UpdatePblIds = {
+  /** Parent gcp_request GUID. */
+  requestId: string;
+  /** Child gcp_pblrequest GUID. */
+  pblRecordId: string;
+  /** Bidder rows as loaded (the diff baseline): ids drive DELETE detection,
+   *  per-row justification drives skip-if-unchanged PATCHes. */
+  originalBidders: GcpPblBidder[];
+  /**
+   * Final document set to persist on gcp_request.gcp_documentsurl (kept
+   * existing links + new uploads). When omitted, the column is left untouched.
+   */
+  documents?: DocumentLink[];
+};
+
+/**
+ * Save edits: PATCH the parent request and PBL child, then reconcile the
+ * bidder rows against the loaded snapshot. Does NOT change gcp_requeststatus
+ * (stays RS / Resubmit) and never touches the Requestor/Company lookups or
+ * gcp_requestoremail. Idempotent operations (PATCH/DELETE) run before the
+ * non-idempotent POSTs so a failed save can be retried without duplicates.
+ */
+const updatePblRequestFromState = async (
+  state: PblFormState,
+  ids: UpdatePblIds
+): Promise<void> => {
+  const projectId = state.projectId || null;
+
+  // Parent gcp_request — project fields + acknowledgement (+ documents).
+  await updateRequest(
+    ids.requestId,
+    {
+      gcp_project_name: state.projectName || null,
+      gcp_projectcode: state.projectCode || null,
+      gcp_acknowledgement: state.acknowledged,
+      // Rewrite the document links only when the caller manages documents.
+      ...(ids.documents
+        ? { gcp_documentsurl: serializeDocuments(ids.documents) }
+        : {}),
+    },
+    { lookups: { projectId } }
+  );
+
+  // Child gcp_pblrequest — procurement method + project code/lookup.
+  await updatePblRequest(
+    ids.pblRecordId,
+    {
+      gcp_projectcode: state.projectCode || null,
+      gcp_procurementmethod:
+        state.procurementMethod === '' ? null : state.procurementMethod,
+    },
+    { lookups: { projectId } }
+  );
+
+  // Bidder diff. Justification is recomputed from the FINAL bidder count and
+  // stored on every row (same rule as the create flow).
+  const justification =
+    state.bidders.length < 3 ? state.justificationForLessBidders || null : null;
+  const keptIds = new Set(
+    state.bidders.map((b) => b.id).filter((id): id is string => !!id)
+  );
+
+  // 1. DELETE rows the user removed.
+  const removed = ids.originalBidders.filter((o) => !keptIds.has(o.id));
+  for (const o of removed) {
+    await deletePblBidder(o.id);
+  }
+
+  // 2. PATCH kept rows whose stored justification differs from the recomputed
+  //    value. Rows aren't editable in place, so nothing else can change.
+  for (const b of state.bidders) {
+    if (!b.id) continue;
+    const original = ids.originalBidders.find((o) => o.id === b.id);
+    if ((original?.justificationForLt3Bidders ?? null) !== justification) {
+      await updatePblBidder(b.id, {
+        gcp_justificationforlt3bidders: justification,
+      });
+    }
+  }
+
+  // 3. POST rows added in the UI (no id) — same column set as the create flow.
+  for (const b of state.bidders) {
+    if (b.id) continue;
+    const isOther = b.isOtherCompany || !b.companyAccountId;
+    const input: CreateGcpPblBidderInput = {
+      gcp_pblbiddername: b.companyName || 'Bidder',
+      gcp_company: (b.companyName || '').slice(0, 100),
+      gcp_sector: b.sector === '' ? null : b.sector,
+      gcp_location: b.location || null,
+      gcp_person_in_charge: b.personInCharge || null,
+      gcp_piccontactnumber: b.picContactNumber || null,
+      gcp_recommendedby: b.recommendationBy || null,
+      gcp_sourcesfrom: b.sourcesFrom || null,
+      gcp_justificationforlt3bidders: justification,
+    };
+    await createPblBidder(input, {
+      lookups: {
+        pblRequestId: ids.pblRecordId,
+        companyAccountId: isOther ? null : b.companyAccountId,
+      },
+    });
+  }
+};
+
+export { submitPblRequest, loadPblFormState, updatePblRequestFromState };
+export type { SubmitResult, UpdatePblIds };

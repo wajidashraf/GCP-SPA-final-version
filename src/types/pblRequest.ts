@@ -43,6 +43,8 @@ type CreateGcpPblRequestInput = {
   'gcp_Request@odata.bind'?: string;
 };
 
+type UpdateGcpPblRequestInput = Partial<CreateGcpPblRequestInput>;
+
 const mapGcpPblRequest = (e: GcpPblRequestEntity): GcpPblRequest => ({
   id: e.gcp_pblrequestid ?? '',
   title: e.gcp_pblrequesttitle ?? null,
@@ -67,4 +69,5 @@ export type {
   GcpPblRequest,
   GcpPblRequestEntity,
   CreateGcpPblRequestInput,
+  UpdateGcpPblRequestInput,
 };

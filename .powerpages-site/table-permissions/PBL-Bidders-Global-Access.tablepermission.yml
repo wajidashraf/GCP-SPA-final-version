@@ -3,7 +3,7 @@ adx_entitypermission_webrole:
 append: true
 appendto: true
 create: true
-delete: false
+delete: true
 entitylogicalname: gcp_pblbidders
 entityname: PBL Bidders - Global Access
 id: ec323d84-21ee-4048-a8c4-8504683878a5
