@@ -1,0 +1,6 @@
+adx_serverlogic_adx_webrole:
+- a479817d-fa2b-43f4-9838-3a5a8d2a2b07
+description: 'Signature thresholds: read (any signed-in user), set (admin only, enforced in code).'
+display_name: Signatory Thresholds
+id: 58345dc1-b272-43b0-81de-1d315a1056c3
+name: signatorythresholds

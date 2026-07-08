@@ -1,8 +1,20 @@
-// Frontend client for the signatory-member management Azure Function.
-// Mirrors the pattern in src/shared/webRoleApi.ts.
+// Frontend client for signatory-member management.
+//
+// Migrated from the Azure Function (portal-token + cross-origin fetch) to Power
+// Pages Server Logic. Calls are now SAME-ORIGIN to /_api/serverlogics/* and reuse
+// the site's existing anti-forgery + session auth via powerPagesFetch — no MSAL,
+// no portal-token endpoint, no CORS, no external Function App.
+//
+// Server logic sources live in /server-logic:
+//   signatorymembers.serverlogic.js      -> /_api/serverlogics/signatorymembers
+//   signatorythresholds.serverlogic.js   -> /_api/serverlogics/signatorythresholds
+//
+// The exported surface (names, signatures, types) is unchanged so call sites in
+// SignatoryManagement.tsx and SignatureSection.tsx keep working as-is. The legacy
+// `loginHint` argument is accepted but ignored — the portal session identifies
+// the caller server-side.
 
-import { acquirePortalToken } from './portalToken';
-import { uploadConfig } from './uploadConfig';
+import { powerPagesFetch } from './powerPagesApi';
 
 export interface SignatoryMemberDto {
   id: string;
@@ -17,96 +29,106 @@ export interface SignatoryThresholds {
   confirmCount: number;
 }
 
-interface ApiOk {
-  ok: true;
-  members?: SignatoryMemberDto[];
-  preparedCount?: number;
-  confirmCount?: number;
+const MEMBERS_ENDPOINT = '/_api/serverlogics/signatorymembers';
+const THRESHOLDS_ENDPOINT = '/_api/serverlogics/signatorythresholds';
+
+// Server logic wraps a handler's return value in a platform envelope:
+//   { RequestId, Success, Data, ExecutionTime, ServerLogicName, Error }
+// Our handlers, in turn, return a JSON string application envelope:
+//   { ok: true, data } | { ok: false, error }
+interface ServerLogicEnvelope {
+  Success?: boolean;
+  Data?: unknown;
+  Error?: string | null;
 }
-interface ApiErr {
-  ok: false;
+
+interface AppEnvelope<T> {
+  ok?: boolean;
+  data?: T;
   error?: string;
 }
 
-export const isSignatoryApiConfigured = uploadConfig.isConfigured;
+// Peel both envelopes. Throws with the server-side message on a platform failure
+// (Success === false) or an application failure (ok === false). Tolerates a raw
+// payload with no envelope.
+const unwrap = <T>(res: unknown): T | undefined => {
+  let payload: unknown = res;
 
-const call = async (
-  path: string,
-  init: RequestInit & { json?: unknown } = {},
-  loginHint?: string
-): Promise<ApiOk> => {
-  if (!uploadConfig.isConfigured) {
-    throw new Error(
-      'Signatory API is not configured. Set VITE_UPLOAD_FN_BASEURL / VITE_PORTAL_TOKEN_CLIENT_ID.'
-    );
+  const env = res as ServerLogicEnvelope;
+  if (env && typeof env === 'object' && ('Success' in env || 'Data' in env)) {
+    if (env.Success === false) {
+      throw new Error(env.Error || 'Server logic call failed');
+    }
+    payload = env.Data;
   }
-  const token = await acquirePortalToken();
-  const { json, headers, ...rest } = init;
-  const res = await fetch(`${uploadConfig.functionBaseUrl}/api/${path}`, {
-    ...rest,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      ...(json !== undefined ? { 'Content-Type': 'application/json' } : {}),
-      ...(headers ?? {}),
-    },
-    body: json !== undefined ? JSON.stringify(json) : rest.body,
-  });
 
-  let body: ApiOk | ApiErr | null = null;
-  try {
-    body = (await res.json()) as ApiOk | ApiErr;
-  } catch {
-    /* non-JSON response */
+  if (typeof payload === 'string') {
+    try {
+      payload = JSON.parse(payload);
+    } catch {
+      /* leave as a plain string */
+    }
   }
-  if (!res.ok || !body || !body.ok) {
-    const message = body && !body.ok ? body.error : undefined;
-    throw new Error(message ?? `Request failed (HTTP ${res.status})`);
+
+  const app = payload as AppEnvelope<T>;
+  if (app && typeof app === 'object' && 'ok' in app) {
+    if (!app.ok) throw new Error(app.error || 'Request failed');
+    return app.data;
   }
-  return body;
+  return payload as T;
 };
+
+// Same-origin server logic is always available (no external Function App or
+// client id to configure). Kept for API compatibility with existing call sites.
+export const isSignatoryApiConfigured = true;
 
 /** All current signatory members. */
 export const listSignatoryMembers = async (
-  loginHint?: string
+  _loginHint?: string
 ): Promise<SignatoryMemberDto[]> => {
-  const res = await call('signatory-members', { method: 'GET' }, loginHint);
-  return res.members ?? [];
+  const res = await powerPagesFetch<unknown>(
+    MEMBERS_ENDPOINT,
+    { method: 'GET' }
+  );
+  return unwrap<SignatoryMemberDto[]>(res) ?? [];
 };
 
 /** Add a member to a signatory group. Returns the updated member list. */
 export const addSignatoryMember = async (
   input: { name: string; email: string; group: 'prepared' | 'confirmed' },
-  loginHint?: string
+  _loginHint?: string
 ): Promise<SignatoryMemberDto[]> => {
-  const res = await call(
-    'signatory-members',
-    { method: 'POST', json: input },
-    loginHint
+  const res = await powerPagesFetch<unknown>(
+    MEMBERS_ENDPOINT,
+    { method: 'POST', json: input }
   );
-  return res.members ?? [];
+  return unwrap<SignatoryMemberDto[]>(res) ?? [];
 };
 
-/** Remove a signatory member row by its record GUID. Returns the updated member list. */
+/** Remove a signatory member row by its record GUID. Returns the updated list. */
 export const removeSignatoryMember = async (
   id: string,
-  loginHint?: string
+  _loginHint?: string
 ): Promise<SignatoryMemberDto[]> => {
-  const res = await call(
-    `signatory-members/${encodeURIComponent(id)}`,
-    { method: 'DELETE' },
-    loginHint
+  const res = await powerPagesFetch<unknown>(
+    `${MEMBERS_ENDPOINT}?id=${encodeURIComponent(id)}`,
+    { method: 'DELETE' }
   );
-  return res.members ?? [];
+  return unwrap<SignatoryMemberDto[]>(res) ?? [];
 };
 
 /** Read the global minimum signature thresholds. */
 export const getSignatoryThresholds = async (
-  loginHint?: string
+  _loginHint?: string
 ): Promise<SignatoryThresholds> => {
-  const res = await call('signatory-thresholds', { method: 'GET' }, loginHint);
+  const res = await powerPagesFetch<unknown>(
+    THRESHOLDS_ENDPOINT,
+    { method: 'GET' }
+  );
+  const t = unwrap<SignatoryThresholds>(res);
   return {
-    preparedCount: res.preparedCount ?? 1,
-    confirmCount: res.confirmCount ?? 2,
+    preparedCount: t?.preparedCount ?? 1,
+    confirmCount: t?.confirmCount ?? 2,
   };
 };
 
@@ -114,15 +136,15 @@ export const getSignatoryThresholds = async (
 export const setSignatoryThresholds = async (
   preparedCount: number,
   confirmCount: number,
-  loginHint?: string
+  _loginHint?: string
 ): Promise<SignatoryThresholds> => {
-  const res = await call(
-    'signatory-thresholds',
-    { method: 'PATCH', json: { preparedCount, confirmCount } },
-    loginHint
+  const res = await powerPagesFetch<unknown>(
+    THRESHOLDS_ENDPOINT,
+    { method: 'PUT', json: { preparedCount, confirmCount } }
   );
+  const t = unwrap<SignatoryThresholds>(res);
   return {
-    preparedCount: res.preparedCount ?? preparedCount,
-    confirmCount: res.confirmCount ?? confirmCount,
+    preparedCount: t?.preparedCount ?? preparedCount,
+    confirmCount: t?.confirmCount ?? confirmCount,
   };
 };
