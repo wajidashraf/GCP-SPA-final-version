@@ -77,7 +77,8 @@ async function listMembers() {
   const options =
     "$select=gcp_signatorymember1id,gcp_name,gcp_email,gcp_group,gcp_sortorder" +
     "&$orderby=gcp_group asc,gcp_sortorder asc,gcp_name asc";
-  const data = readDv(await Server.Connector.Dataverse.RetrieveMultipleRecords(ENTITY_SET, options));
+  // skipCache = true: always read fresh so a just-created row is visible.
+  const data = readDv(await Server.Connector.Dataverse.RetrieveMultipleRecords(ENTITY_SET, options, true));
   const rows = data && data.value ? data.value : [];
   const members = [];
   for (let i = 0; i < rows.length; i++) {

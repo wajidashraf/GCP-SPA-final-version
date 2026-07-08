@@ -72,7 +72,8 @@ async function readThresholds() {
   const options =
     "$select=gcp_signatorymember1id,gcp_preparedcount,gcp_confirmcount" +
     "&$filter=" + SENTINEL_FILTER + "&$top=1";
-  const data = readDv(await Server.Connector.Dataverse.RetrieveMultipleRecords(ENTITY_SET, options));
+  // skipCache = true: always read fresh (thresholds change via the admin UI).
+  const data = readDv(await Server.Connector.Dataverse.RetrieveMultipleRecords(ENTITY_SET, options, true));
   const row = data && data.value && data.value.length ? data.value[0] : null;
   return {
     preparedCount: row && row.gcp_preparedcount != null ? row.gcp_preparedcount : 1,
@@ -103,7 +104,7 @@ async function put() {
     }
     const findOptions =
       "$select=gcp_signatorymember1id&$filter=" + SENTINEL_FILTER + "&$top=1";
-    const found = readDv(await Server.Connector.Dataverse.RetrieveMultipleRecords(ENTITY_SET, findOptions));
+    const found = readDv(await Server.Connector.Dataverse.RetrieveMultipleRecords(ENTITY_SET, findOptions, true));
     const existing = found && found.value && found.value.length ? found.value[0] : null;
     const payload = JSON.stringify({
       gcp_preparedcount: preparedCount,
