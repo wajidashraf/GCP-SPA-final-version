@@ -9,6 +9,7 @@ type CaaFormState = {
   requestorName: string;
   requestorEmail: string;
   companyId: string;
+  companyName: string;
   projectId: string;
   projectName: string;
   projectCode: string;

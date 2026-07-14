@@ -9,6 +9,7 @@
 import {
   extractRecordId,
   odataBind,
+  powerPagesFetch,
   powerPagesFetchResponse,
 } from '../powerPagesApi';
 import {
@@ -19,6 +20,7 @@ import type {
   CreateGcpCprRequestInput,
   GcpCprRequest,
   GcpCprRequestEntity,
+  UpdateGcpCprRequestInput,
 } from '../../types/cprRequest';
 import { makeListByParent } from './childRequestList';
 import type { ListChildOptions, ListChildResult } from './childRequestList';
@@ -94,6 +96,22 @@ const createCprRequest = async (
   return { id };
 };
 
+// ── Update ──────────────────────────────────────────────────────────────────
+type UpdateCprRequestOptions = { lookups?: CprRequestLookupBinds };
+
+const updateCprRequest = async (
+  id: string,
+  input: UpdateGcpCprRequestInput,
+  options: UpdateCprRequestOptions = {}
+): Promise<void> => {
+  const body = applyLookupBinds(input as CreateGcpCprRequestInput, options.lookups);
+  await powerPagesFetch<void>(`${BASE_URL}(${id})`, {
+    method: 'PATCH',
+    json: body,
+    headers: { 'If-Match': '*' },
+  });
+};
+
 /** List CPR request rows belonging to a single parent gcp_request. */
 const listCprRequestsByParent = makeListByParent<GcpCprRequestEntity, GcpCprRequest>({
   baseUrl: BASE_URL,
@@ -103,12 +121,14 @@ const listCprRequestsByParent = makeListByParent<GcpCprRequestEntity, GcpCprRequ
 
 export {
   createCprRequest,
+  updateCprRequest,
   listCprRequestsByParent,
   ENTITY_SET as CPR_REQUEST_ENTITY_SET,
 };
 export type {
   CreateCprRequestOptions,
   CreateCprRequestResult,
+  UpdateCprRequestOptions,
   CprRequestLookupBinds,
   ListChildOptions as ListCprRequestsOptions,
   ListChildResult as ListCprRequestsResult,

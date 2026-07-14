@@ -9,6 +9,7 @@ type OthersFormState = {
   requestorName: string;
   requestorEmail: string;
   companyId: string;
+  companyName: string;
 
   // Step 2 — Project Details (project/company persist on the parent gcp_request;
   // description of matters persists on the child gcp_otherrequests)

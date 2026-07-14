@@ -112,16 +112,12 @@ const PblForm = ({
   // SharePoint links are persisted on gcp_documentsurl at submit (field: null).
   const [attachments, setAttachments] = useState<UploadedFile[]>([]);
 
-  // Edit mode: existing request-level documents the user can remove (field: null).
-  // Per-field documents (field != null) belong to other steps and are preserved
-  // untouched on save.
-  const [existingDocs, setExistingDocs] = useState<DocumentLink[]>(() =>
-    (initialDocuments ?? []).filter((d) => d.field === null)
-  );
-  const preservedFieldDocs = useMemo(
-    () => (initialDocuments ?? []).filter((d) => d.field !== null),
-    [initialDocuments]
-  );
+  // Edit mode: every existing document on this record is shown and removable —
+  // request-level attachments and per-field uploads alike — so nothing is hidden
+  // from the editor and a re-upload cannot silently duplicate a file.
+  const [existingDocs, setExistingDocs] = useState<DocumentLink[]>(() => [
+    ...(initialDocuments ?? []),
+  ]);
   const removeExistingDoc = (doc: DocumentLink) =>
     setExistingDocs((prev) => prev.filter((d) => d !== doc));
 
@@ -737,7 +733,7 @@ const PblForm = ({
           null,
           new Date().toISOString()
         );
-        const documents = [...preservedFieldDocs, ...existingDocs, ...newDocs];
+        const documents = [...existingDocs, ...newDocs];
         return await onEditSubmit(state, documents);
       } finally {
         setSubmitting(false);

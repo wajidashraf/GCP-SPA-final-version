@@ -12,6 +12,7 @@
 import {
   extractRecordId,
   odataBind,
+  powerPagesFetch,
   powerPagesFetchResponse,
 } from '../powerPagesApi';
 import {
@@ -22,6 +23,7 @@ import type {
   CreateGcpOtherRequestInput,
   GcpOtherRequest,
   GcpOtherRequestEntity,
+  UpdateGcpOtherRequestInput,
 } from '../../types/otherRequest';
 import { makeListByParent } from './childRequestList';
 import type { ListChildOptions, ListChildResult } from './childRequestList';
@@ -98,6 +100,25 @@ const createOtherRequest = async (
   return { id };
 };
 
+// ── Update ──────────────────────────────────────────────────────────────────
+type UpdateOtherRequestOptions = { lookups?: OtherRequestLookupBinds };
+
+const updateOtherRequest = async (
+  id: string,
+  input: UpdateGcpOtherRequestInput,
+  options: UpdateOtherRequestOptions = {}
+): Promise<void> => {
+  const body = applyLookupBinds(
+    input as CreateGcpOtherRequestInput,
+    options.lookups
+  );
+  await powerPagesFetch<void>(`${BASE_URL}(${id})`, {
+    method: 'PATCH',
+    json: body,
+    headers: { 'If-Match': '*' },
+  });
+};
+
 /** List Other request rows belonging to a single parent gcp_request. */
 const listOtherRequestsByParent = makeListByParent<
   GcpOtherRequestEntity,
@@ -111,12 +132,14 @@ const listOtherRequestsByParent = makeListByParent<
 
 export {
   createOtherRequest,
+  updateOtherRequest,
   listOtherRequestsByParent,
   ENTITY_SET as OTHER_REQUEST_ENTITY_SET,
 };
 export type {
   CreateOtherRequestOptions,
   CreateOtherRequestResult,
+  UpdateOtherRequestOptions,
   OtherRequestLookupBinds,
   ListChildOptions as ListOtherRequestsOptions,
   ListChildResult as ListOtherRequestsResult,

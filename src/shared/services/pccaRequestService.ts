@@ -8,6 +8,7 @@
 import {
   extractRecordId,
   odataBind,
+  powerPagesFetch,
   powerPagesFetchResponse,
 } from '../powerPagesApi';
 import {
@@ -18,6 +19,7 @@ import type {
   CreateGcpPccaRequestInput,
   GcpPccaRequest,
   GcpPccaRequestEntity,
+  UpdateGcpPccaRequestInput,
 } from '../../types/pccaRequest';
 import { makeListByParent } from './childRequestList';
 import type { ListChildOptions, ListChildResult } from './childRequestList';
@@ -93,6 +95,22 @@ const createPccaRequest = async (
   return { id };
 };
 
+// ── Update ──────────────────────────────────────────────────────────────────
+type UpdatePccaRequestOptions = { lookups?: PccaRequestLookupBinds };
+
+const updatePccaRequest = async (
+  id: string,
+  input: UpdateGcpPccaRequestInput,
+  options: UpdatePccaRequestOptions = {}
+): Promise<void> => {
+  const body = applyLookupBinds(input as CreateGcpPccaRequestInput, options.lookups);
+  await powerPagesFetch<void>(`${BASE_URL}(${id})`, {
+    method: 'PATCH',
+    json: body,
+    headers: { 'If-Match': '*' },
+  });
+};
+
 /** List PCCA request rows belonging to a single parent gcp_request. */
 const listPccaRequestsByParent = makeListByParent<
   GcpPccaRequestEntity,
@@ -105,12 +123,14 @@ const listPccaRequestsByParent = makeListByParent<
 
 export {
   createPccaRequest,
+  updatePccaRequest,
   listPccaRequestsByParent,
   ENTITY_SET as PCCA_REQUEST_ENTITY_SET,
 };
 export type {
   CreatePccaRequestOptions,
   CreatePccaRequestResult,
+  UpdatePccaRequestOptions,
   PccaRequestLookupBinds,
   ListChildOptions as ListPccaRequestsOptions,
   ListChildResult as ListPccaRequestsResult,

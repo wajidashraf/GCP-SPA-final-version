@@ -11,6 +11,7 @@
 import {
   extractRecordId,
   odataBind,
+  powerPagesFetch,
   powerPagesFetchResponse,
 } from '../powerPagesApi';
 import {
@@ -21,6 +22,7 @@ import type {
   CreateGcpCiRequestInput,
   GcpCiRequest,
   GcpCiRequestEntity,
+  UpdateGcpCiRequestInput,
 } from '../../types/ciRequest';
 import { makeListByParent } from './childRequestList';
 import type { ListChildOptions, ListChildResult } from './childRequestList';
@@ -96,6 +98,22 @@ const createCiRequest = async (
   return { id };
 };
 
+// ── Update ──────────────────────────────────────────────────────────────────
+type UpdateCiRequestOptions = { lookups?: CiRequestLookupBinds };
+
+const updateCiRequest = async (
+  id: string,
+  input: UpdateGcpCiRequestInput,
+  options: UpdateCiRequestOptions = {}
+): Promise<void> => {
+  const body = applyLookupBinds(input as CreateGcpCiRequestInput, options.lookups);
+  await powerPagesFetch<void>(`${BASE_URL}(${id})`, {
+    method: 'PATCH',
+    json: body,
+    headers: { 'If-Match': '*' },
+  });
+};
+
 /** List CI request rows belonging to a single parent gcp_request. */
 const listCiRequestsByParent = makeListByParent<GcpCiRequestEntity, GcpCiRequest>({
   baseUrl: BASE_URL,
@@ -105,12 +123,14 @@ const listCiRequestsByParent = makeListByParent<GcpCiRequestEntity, GcpCiRequest
 
 export {
   createCiRequest,
+  updateCiRequest,
   listCiRequestsByParent,
   ENTITY_SET as CI_REQUEST_ENTITY_SET,
 };
 export type {
   CreateCiRequestOptions,
   CreateCiRequestResult,
+  UpdateCiRequestOptions,
   CiRequestLookupBinds,
   ListChildOptions as ListCiRequestsOptions,
   ListChildResult as ListCiRequestsResult,

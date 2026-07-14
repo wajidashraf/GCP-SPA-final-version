@@ -116,6 +116,8 @@ type CreateGcpStspRequestInput = {
   'gcp_Request@odata.bind'?: string;
 };
 
+type UpdateGcpStspRequestInput = Partial<CreateGcpStspRequestInput>;
+
 const mapGcpStspRequest = (e: GcpStspRequestEntity): GcpStspRequest => ({
   id: e.gcp_stsprequestid ?? '',
   title: e.gcp_stsprequestname ?? null,
@@ -179,4 +181,5 @@ export type {
   GcpStspRequest,
   GcpStspRequestEntity,
   CreateGcpStspRequestInput,
+  UpdateGcpStspRequestInput,
 };

@@ -7,12 +7,21 @@
 //      `gcp_Request@odata.bind` plus the Project and Company lookups. Carries the
 //      acknowledgement bit (required on this table).
 
-import { createRequest } from '../../shared/services/requestService';
-import { createPpRequest } from '../../shared/services/ppRequestService';
+import {
+  createRequest,
+  updateRequest,
+} from '../../shared/services/requestService';
+import {
+  createPpRequest,
+  updatePpRequest,
+} from '../../shared/services/ppRequestService';
 import { serializeDocuments } from '../../shared/documents';
 import type { DocumentLink } from '../../shared/documents';
-import type { CreateGcpRequestInput } from '../../types/request';
-import type { CreateGcpPpRequestInput } from '../../types/ppRequest';
+import type { CreateGcpRequestInput, GcpRequest } from '../../types/request';
+import type {
+  CreateGcpPpRequestInput,
+  GcpPpRequest,
+} from '../../types/ppRequest';
 import type { SoaCodeValue } from '../../data/soaChoices';
 import type { PpFormState } from './types';
 
@@ -91,5 +100,81 @@ const submitPpRequest = async (
   };
 };
 
-export { submitPpRequest };
-export type { SubmitResult, SubmitPpOptions };
+// ── Edit mode ────────────────────────────────────────────────────────────────
+// Reverse of the create mapping above: hydrate the form state from a loaded
+// parent gcp_request + gcp_pprequest child, then PATCH the editable fields back.
+// Requestor/Company lookups are never rebound and gcp_requestoremail is never
+// PATCHed — the original requestor's identity must survive edits by
+// Reviewers/Verifiers. The Project lookup IS rebound (the Project select stays
+// editable in edit mode).
+
+/** Build PP form state from the loaded parent + child records (edit prefill). */
+const loadPpFormState = (
+  request: GcpRequest,
+  pp: GcpPpRequest
+): PpFormState => ({
+  matterValue: request.matter as PpFormState['matterValue'],
+  categoryValue: (request.category ?? 2) as PpFormState['categoryValue'],
+  // Mirror new mode: the requestor select's value is the email, the label the name.
+  requestorContactId: request.requestorEmail ?? '',
+  requestorName: request.requestorName ?? '',
+  requestorEmail: request.requestorEmail ?? '',
+  companyId: request.companyId ?? '',
+  companyName: request.companyName ?? '',
+  projectId: pp.projectId ?? '',
+  projectName: request.projectName ?? pp.name ?? '',
+  projectCode: request.projectCode ?? pp.projectCode ?? '',
+  acknowledged: request.acknowledged ?? pp.acknowledged ?? false,
+});
+
+type UpdatePpIds = {
+  /** Parent gcp_request GUID. */
+  requestId: string;
+  /** Child gcp_pprequest GUID. */
+  ppRecordId: string;
+  /**
+   * Final document set to persist on gcp_request.gcp_documentsurl (kept existing
+   * links + new uploads). When omitted, the column is left untouched.
+   */
+  documents?: DocumentLink[];
+};
+
+/**
+ * Save edits: PATCH the editable fields on the parent request and the PP child.
+ * Does NOT change gcp_requeststatus (stays RS / Resubmit) and never touches the
+ * Requestor/Company lookups or gcp_requestoremail.
+ */
+const updatePpRequestFromState = async (
+  state: PpFormState,
+  ids: UpdatePpIds
+): Promise<void> => {
+  const projectId = state.projectId || null;
+
+  // Parent gcp_request — project fields + acknowledgement (+ documents).
+  await updateRequest(
+    ids.requestId,
+    {
+      gcp_project_name: state.projectName || null,
+      gcp_projectcode: orNull(state.projectCode),
+      gcp_acknowledgement: state.acknowledged,
+      ...(ids.documents
+        ? { gcp_documentsurl: serializeDocuments(ids.documents) }
+        : {}),
+    },
+    { lookups: { projectId } }
+  );
+
+  // Child gcp_pprequest — same editable column set as the create mapping.
+  await updatePpRequest(
+    ids.ppRecordId,
+    {
+      gcp_pprequestname: state.projectName || null,
+      gcp_projectcode: orNull(state.projectCode),
+      gcp_acknowledgement: state.acknowledged,
+    },
+    { lookups: { projectId } }
+  );
+};
+
+export { submitPpRequest, loadPpFormState, updatePpRequestFromState };
+export type { SubmitResult, SubmitPpOptions, UpdatePpIds };

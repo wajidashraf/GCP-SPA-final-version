@@ -54,6 +54,10 @@ type CreateGcpVapRequestInput = {
   'gcp_Request@odata.bind'?: string;
 };
 
+// ── Input shape for update (PATCH) ──────────────────────────────────────────
+// All scalar fields optional; lookups are rebound via the service's lookup binds.
+type UpdateGcpVapRequestInput = Partial<CreateGcpVapRequestInput>;
+
 const mapGcpVapRequest = (e: GcpVapRequestEntity): GcpVapRequest => ({
   id: e.gcp_vaprequestid ?? '',
   name: e.gcp_vaprequestname ?? null,
@@ -76,4 +80,9 @@ const DEFAULT_VAP_REQUEST_SELECT: readonly string[] = [
 ];
 
 export { mapGcpVapRequest, DEFAULT_VAP_REQUEST_SELECT };
-export type { GcpVapRequest, GcpVapRequestEntity, CreateGcpVapRequestInput };
+export type {
+  GcpVapRequest,
+  GcpVapRequestEntity,
+  CreateGcpVapRequestInput,
+  UpdateGcpVapRequestInput,
+};

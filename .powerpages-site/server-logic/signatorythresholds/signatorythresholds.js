@@ -23,24 +23,53 @@ function respondError(message) {
   return JSON.stringify({ ok: false, error: message });
 }
 
+// ⚠️ Connector response is DOUBLE-ENCODED (verified 2026-07-14, see
+// signatorymembers.js): a JSON STRING of the {StatusCode, Body,
+// IsSuccessStatusCode, ...} envelope whose Body is ITSELF a JSON string of
+// the OData payload. Parse the string, recurse to unwrap Body. Missing either
+// parse yields `.value === undefined` → empty result with NO error.
 function readDv(res) {
-  if (res && typeof res === "object" && ("IsSuccessStatusCode" in res)) {
-    if (!res.IsSuccessStatusCode) {
-      let msg = res.ReasonPhrase || "Dataverse request failed";
-      if (res.Body) {
-        try {
-          const parsed = JSON.parse(res.Body);
-          if (parsed && parsed.error && parsed.error.message) {
-            msg = parsed.error.message;
-          }
-        } catch (e) { /* body was not JSON */ }
-      }
-      throw new Error(msg);
-    }
-    if (!res.Body) return null;
-    try { return JSON.parse(res.Body); } catch (e) { return res.Body; }
+  if (res === null || res === undefined) return res;
+
+  if (typeof res === "string") {
+    let parsedStr;
+    try { parsedStr = JSON.parse(res); } catch (e) { return res; }
+    return readDv(parsedStr);
   }
-  return res;
+
+  if (typeof res !== "object") return res;
+
+  // Direct access on purpose: host-marshalled objects can fail `in` checks.
+  let successFlag = res.IsSuccessStatusCode;
+  if (successFlag === undefined) successFlag = res.isSuccessStatusCode;
+
+  let body = res.Body;
+  if (body === undefined) body = res.body;
+
+  if (successFlag === false) {
+    let msg = res.ReasonPhrase || res.reasonPhrase || "Dataverse request failed";
+    let errBody = body;
+    if (typeof errBody === "string") {
+      try { errBody = JSON.parse(errBody); } catch (e) { errBody = null; }
+    }
+    if (errBody && errBody.error && errBody.error.message) {
+      msg = errBody.error.message;
+    }
+    throw new Error(msg);
+  }
+
+  let payload = res;
+  if (body !== undefined && body !== null && body !== "") {
+    payload = body;
+    if (typeof payload === "string") {
+      try { payload = JSON.parse(payload); } catch (e) { return payload; }
+    }
+  }
+
+  if (payload && payload.error && payload.error.message) {
+    throw new Error(payload.error.message);
+  }
+  return payload;
 }
 
 function readBody() {

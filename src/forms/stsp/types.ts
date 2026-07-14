@@ -9,6 +9,7 @@ type StspFormState = {
   requestorName: string;
   requestorEmail: string;
   companyId: string;
+  companyName: string;
 
   // Step 2 — Project details
   projectId: string; // → parent gcp_request (lookup) + ST/SP gcp_Project lookup

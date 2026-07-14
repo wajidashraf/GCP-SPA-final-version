@@ -5,7 +5,14 @@
       "PowerShell(func *)",
       "PowerShell(az functionapp list *)",
       "PowerShell(npx tsc --noEmit -p tsconfig.json 2>&1 | Out-String; \"===== FE TSC EXIT: $LASTEXITCODE =====\")",
-      "PowerShell(Compress-Archive *)"
+      "PowerShell(Compress-Archive *)",
+      "Bash(pac --version)",
+      "mcp__plugin_power-pages_microsoft-learn__microsoft_docs_fetch",
+      "Bash(git commit -m ' *)",
+      "Bash(echo \"---- commit exit: $? ----\")",
+      "Bash(git push *)",
+      "Bash(echo \"---- push exit: $? ----\")",
+      "PowerShell(pac pages upload-code-site --rootPath \"c:\\\\Users\\\\WajidAshraf\\\\Videos\\\\GCP\\\\gcp-final\" --compiledPath \"c:\\\\Users\\\\WajidAshraf\\\\Videos\\\\GCP\\\\gcp-final\\\\dist\" --siteName \"gcp-nexus\")"
     ]
   }
 }

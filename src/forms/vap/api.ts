@@ -7,12 +7,21 @@
 //      `gcp_Request@odata.bind` plus the Project and Company lookups. Carries the
 //      acknowledgement bit (required on this table) and name.
 
-import { createRequest } from '../../shared/services/requestService';
-import { createVapRequest } from '../../shared/services/vapRequestService';
+import {
+  createRequest,
+  updateRequest,
+} from '../../shared/services/requestService';
+import {
+  createVapRequest,
+  updateVapRequest,
+} from '../../shared/services/vapRequestService';
 import { serializeDocuments } from '../../shared/documents';
 import type { DocumentLink } from '../../shared/documents';
-import type { CreateGcpRequestInput } from '../../types/request';
-import type { CreateGcpVapRequestInput } from '../../types/vapRequest';
+import type { CreateGcpRequestInput, GcpRequest } from '../../types/request';
+import type {
+  CreateGcpVapRequestInput,
+  GcpVapRequest,
+} from '../../types/vapRequest';
 import type { SoaCodeValue } from '../../data/soaChoices';
 import type { VapFormState } from './types';
 
@@ -91,5 +100,81 @@ const submitVapRequest = async (
   };
 };
 
-export { submitVapRequest };
-export type { SubmitResult, SubmitVapOptions };
+// ── Edit mode ────────────────────────────────────────────────────────────────
+// Reverse of the create mapping above: hydrate the form state from a loaded
+// parent gcp_request + gcp_vaprequest child, then PATCH the editable fields
+// back. Requestor/Company lookups are never rebound and gcp_requestoremail is
+// never PATCHed — the original requestor's identity must survive edits by
+// Reviewers/Verifiers. The Project lookup IS rebound (the Project select stays
+// editable in edit mode).
+
+/** Build VAP form state from the loaded parent + child records (edit prefill). */
+const loadVapFormState = (
+  request: GcpRequest,
+  vap: GcpVapRequest
+): VapFormState => ({
+  matterValue: request.matter as VapFormState['matterValue'],
+  categoryValue: (request.category ?? 2) as VapFormState['categoryValue'],
+  // Mirror new mode: the requestor select's value is the email, the label the name.
+  requestorContactId: request.requestorEmail ?? '',
+  requestorName: request.requestorName ?? '',
+  requestorEmail: request.requestorEmail ?? '',
+  companyId: request.companyId ?? '',
+  companyName: request.companyName ?? '',
+  projectId: vap.projectId ?? '',
+  projectName: request.projectName ?? vap.name ?? '',
+  projectCode: request.projectCode ?? vap.projectCode ?? '',
+  acknowledged: request.acknowledged ?? vap.acknowledged ?? false,
+});
+
+type UpdateVapIds = {
+  /** Parent gcp_request GUID. */
+  requestId: string;
+  /** Child gcp_vaprequest GUID. */
+  vapRecordId: string;
+  /**
+   * Final document set to persist on gcp_request.gcp_documentsurl (kept existing
+   * links + new uploads). When omitted, the column is left untouched.
+   */
+  documents?: DocumentLink[];
+};
+
+/**
+ * Save edits: PATCH the editable fields on the parent request and the VAP child.
+ * Does NOT change gcp_requeststatus (stays RS / Resubmit) and never touches the
+ * Requestor/Company lookups or gcp_requestoremail.
+ */
+const updateVapRequestFromState = async (
+  state: VapFormState,
+  ids: UpdateVapIds
+): Promise<void> => {
+  const projectId = state.projectId || null;
+
+  // Parent gcp_request — project fields + acknowledgement (+ documents).
+  await updateRequest(
+    ids.requestId,
+    {
+      gcp_project_name: state.projectName || null,
+      gcp_projectcode: orNull(state.projectCode),
+      gcp_acknowledgement: state.acknowledged,
+      ...(ids.documents
+        ? { gcp_documentsurl: serializeDocuments(ids.documents) }
+        : {}),
+    },
+    { lookups: { projectId } }
+  );
+
+  // Child gcp_vaprequest — same editable column set as the create mapping.
+  await updateVapRequest(
+    ids.vapRecordId,
+    {
+      gcp_vaprequestname: state.projectName || null,
+      gcp_projectcode: orNull(state.projectCode),
+      gcp_acknowledgement: state.acknowledged,
+    },
+    { lookups: { projectId } }
+  );
+};
+
+export { submitVapRequest, loadVapFormState, updateVapRequestFromState };
+export type { SubmitResult, SubmitVapOptions, UpdateVapIds };

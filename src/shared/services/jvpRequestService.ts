@@ -9,6 +9,7 @@
 import {
   extractRecordId,
   odataBind,
+  powerPagesFetch,
   powerPagesFetchResponse,
 } from '../powerPagesApi';
 import { DEFAULT_JVP_REQUEST_SELECT, mapGcpJvpRequest } from '../../types/jvpRequest';
@@ -16,6 +17,7 @@ import type {
   CreateGcpJvpRequestInput,
   GcpJvpRequest,
   GcpJvpRequestEntity,
+  UpdateGcpJvpRequestInput,
 } from '../../types/jvpRequest';
 import { makeListByParent } from './childRequestList';
 import type { ListChildOptions, ListChildResult } from './childRequestList';
@@ -86,6 +88,24 @@ const createJvpRequest = async (
   return { id };
 };
 
+// ── Update ──────────────────────────────────────────────────────────────────
+type UpdateJvpRequestOptions = {
+  lookups?: JvpRequestLookupBinds;
+};
+
+const updateJvpRequest = async (
+  id: string,
+  input: UpdateGcpJvpRequestInput,
+  options: UpdateJvpRequestOptions = {}
+): Promise<void> => {
+  const body = applyLookupBinds(input as CreateGcpJvpRequestInput, options.lookups);
+  await powerPagesFetch<void>(`${BASE_URL}(${id})`, {
+    method: 'PATCH',
+    json: body,
+    headers: { 'If-Match': '*' },
+  });
+};
+
 /** List JVP (gcp_jvmrequest) rows belonging to a single parent gcp_request. */
 const listJvpRequestsByParent = makeListByParent<GcpJvpRequestEntity, GcpJvpRequest>({
   baseUrl: BASE_URL,
@@ -95,12 +115,14 @@ const listJvpRequestsByParent = makeListByParent<GcpJvpRequestEntity, GcpJvpRequ
 
 export {
   createJvpRequest,
+  updateJvpRequest,
   listJvpRequestsByParent,
   ENTITY_SET as JVP_REQUEST_ENTITY_SET,
 };
 export type {
   CreateJvpRequestOptions,
   CreateJvpRequestResult,
+  UpdateJvpRequestOptions,
   JvpRequestLookupBinds,
   ListChildOptions as ListJvpRequestsOptions,
   ListChildResult as ListJvpRequestsResult,

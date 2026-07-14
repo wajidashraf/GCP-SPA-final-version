@@ -135,16 +135,6 @@ export default function EditRequest() {
               </div>
             </header>
 
-            {childError ? (
-              <InlineMessage
-                tone="warning"
-                title="Some details couldn’t be loaded"
-                className="mb-3"
-              >
-                {childError}
-              </InlineMessage>
-            ) : null}
-
             {child ? (
               <EditForm
                 request={request}
@@ -152,8 +142,26 @@ export default function EditRequest() {
                 onSaved={backToDetail}
                 onCancel={backToDetail}
               />
-            ) : (
+            ) : isLoading ? (
               <LoadingState message="Loading request details…" />
+            ) : (
+              // Child failed to load — editing needs it, so this is a hard stop
+              // (not the read-only detail page's soft "some details missing").
+              <InlineMessage
+                tone="error"
+                title="This request’s details couldn’t be loaded"
+              >
+                {childError
+                  ? `We couldn’t load the details needed to edit this request: ${childError}`
+                  : 'We couldn’t load the details needed to edit this request.'}{' '}
+                <button
+                  type="button"
+                  className="rd-back-link"
+                  onClick={backToDetail}
+                >
+                  Back to request
+                </button>
+              </InlineMessage>
             )}
           </>
         ) : null}

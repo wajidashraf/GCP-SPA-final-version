@@ -82,6 +82,10 @@ type CreateGcpPccaRequestInput = {
   'gcp_Request@odata.bind'?: string;
 };
 
+// ── Input shape for update (PATCH) ──────────────────────────────────────────
+// All scalar fields optional; lookups are rebound via the service's lookup binds.
+type UpdateGcpPccaRequestInput = Partial<CreateGcpPccaRequestInput>;
+
 const mapGcpPccaRequest = (e: GcpPccaRequestEntity): GcpPccaRequest => ({
   id: e.gcp_pccarequestid ?? '',
   title: e.gcp_occarequestname ?? null,
@@ -119,4 +123,9 @@ const DEFAULT_PCCA_REQUEST_SELECT: readonly string[] = [
 ];
 
 export { mapGcpPccaRequest, DEFAULT_PCCA_REQUEST_SELECT };
-export type { GcpPccaRequest, GcpPccaRequestEntity, CreateGcpPccaRequestInput };
+export type {
+  GcpPccaRequest,
+  GcpPccaRequestEntity,
+  CreateGcpPccaRequestInput,
+  UpdateGcpPccaRequestInput,
+};

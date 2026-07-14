@@ -9,6 +9,7 @@
 import {
   extractRecordId,
   odataBind,
+  powerPagesFetch,
   powerPagesFetchResponse,
 } from '../powerPagesApi';
 import {
@@ -19,6 +20,7 @@ import type {
   CreateGcpVapRequestInput,
   GcpVapRequest,
   GcpVapRequestEntity,
+  UpdateGcpVapRequestInput,
 } from '../../types/vapRequest';
 import { makeListByParent } from './childRequestList';
 import type { ListChildOptions, ListChildResult } from './childRequestList';
@@ -94,6 +96,22 @@ const createVapRequest = async (
   return { id };
 };
 
+// ── Update ──────────────────────────────────────────────────────────────────
+type UpdateVapRequestOptions = { lookups?: VapRequestLookupBinds };
+
+const updateVapRequest = async (
+  id: string,
+  input: UpdateGcpVapRequestInput,
+  options: UpdateVapRequestOptions = {}
+): Promise<void> => {
+  const body = applyLookupBinds(input as CreateGcpVapRequestInput, options.lookups);
+  await powerPagesFetch<void>(`${BASE_URL}(${id})`, {
+    method: 'PATCH',
+    json: body,
+    headers: { 'If-Match': '*' },
+  });
+};
+
 /** List VAP request rows belonging to a single parent gcp_request. */
 const listVapRequestsByParent = makeListByParent<GcpVapRequestEntity, GcpVapRequest>({
   baseUrl: BASE_URL,
@@ -103,12 +121,14 @@ const listVapRequestsByParent = makeListByParent<GcpVapRequestEntity, GcpVapRequ
 
 export {
   createVapRequest,
+  updateVapRequest,
   listVapRequestsByParent,
   ENTITY_SET as VAP_REQUEST_ENTITY_SET,
 };
 export type {
   CreateVapRequestOptions,
   CreateVapRequestResult,
+  UpdateVapRequestOptions,
   VapRequestLookupBinds,
   ListChildOptions as ListVapRequestsOptions,
   ListChildResult as ListVapRequestsResult,

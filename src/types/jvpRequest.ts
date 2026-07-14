@@ -109,6 +109,8 @@ type CreateGcpJvpRequestInput = {
   'gcp_Request@odata.bind'?: string;
 };
 
+type UpdateGcpJvpRequestInput = Partial<CreateGcpJvpRequestInput>;
+
 const mapGcpJvpRequest = (e: GcpJvpRequestEntity): GcpJvpRequest => ({
   id: e.gcp_jvmrequestid ?? '',
   title: e.gcp_jvmrequesttitle ?? null,
@@ -164,4 +166,9 @@ const DEFAULT_JVP_REQUEST_SELECT: readonly string[] = [
 ];
 
 export { mapGcpJvpRequest, DEFAULT_JVP_REQUEST_SELECT };
-export type { GcpJvpRequest, GcpJvpRequestEntity, CreateGcpJvpRequestInput };
+export type {
+  GcpJvpRequest,
+  GcpJvpRequestEntity,
+  CreateGcpJvpRequestInput,
+  UpdateGcpJvpRequestInput,
+};

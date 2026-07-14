@@ -9,6 +9,7 @@
 import {
   extractRecordId,
   odataBind,
+  powerPagesFetch,
   powerPagesFetchResponse,
 } from '../powerPagesApi';
 import { DEFAULT_STSP_REQUEST_SELECT, mapGcpStspRequest } from '../../types/stspRequest';
@@ -16,6 +17,7 @@ import type {
   CreateGcpStspRequestInput,
   GcpStspRequest,
   GcpStspRequestEntity,
+  UpdateGcpStspRequestInput,
 } from '../../types/stspRequest';
 import { makeListByParent } from './childRequestList';
 import type { ListChildOptions, ListChildResult } from './childRequestList';
@@ -88,6 +90,24 @@ const createStspRequest = async (
   return { id };
 };
 
+// ── Update ──────────────────────────────────────────────────────────────────
+type UpdateStspRequestOptions = {
+  lookups?: StspRequestLookupBinds;
+};
+
+const updateStspRequest = async (
+  id: string,
+  input: UpdateGcpStspRequestInput,
+  options: UpdateStspRequestOptions = {}
+): Promise<void> => {
+  const body = applyLookupBinds(input as CreateGcpStspRequestInput, options.lookups);
+  await powerPagesFetch<void>(`${BASE_URL}(${id})`, {
+    method: 'PATCH',
+    json: body,
+    headers: { 'If-Match': '*' },
+  });
+};
+
 /** List ST/SP request rows belonging to a single parent gcp_request. */
 const listStspRequestsByParent = makeListByParent<GcpStspRequestEntity, GcpStspRequest>({
   baseUrl: BASE_URL,
@@ -97,12 +117,14 @@ const listStspRequestsByParent = makeListByParent<GcpStspRequestEntity, GcpStspR
 
 export {
   createStspRequest,
+  updateStspRequest,
   listStspRequestsByParent,
   ENTITY_SET as STSP_REQUEST_ENTITY_SET,
 };
 export type {
   CreateStspRequestOptions,
   CreateStspRequestResult,
+  UpdateStspRequestOptions,
   StspRequestLookupBinds,
   ListChildOptions as ListStspRequestsOptions,
   ListChildResult as ListStspRequestsResult,

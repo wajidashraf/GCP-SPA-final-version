@@ -11,10 +11,12 @@ import SelectField from '../SelectField';
 import TextAreaField from '../TextAreaField';
 import TextField from '../TextField';
 import { MultiStepForm, useFormDraft } from '../multistep';
-import type { StepDefinition } from '../multistep';
+import type { StepDefinition, SubmitResult } from '../multistep';
 import type { TableData, UploadedFile } from '..';
 import { useAuth } from '../../context/AuthContext';
 import { notifyEvent } from '../../shared/notificationApi';
+import { DocumentStrip } from '../../components/detail/DocumentStrip';
+import type { DocumentLink } from '../../shared/documents';
 import { matterChoices, type MatterChoice } from '../../data/matterChoices';
 import { requestCategoryChoices } from '../../data/requestChoices';
 import { toSelectOptions } from '../../data/types';
@@ -25,7 +27,27 @@ import type { GcpProject } from '../../types/project';
 import { submitStspRequest } from './api';
 import type { StspFormState } from './types';
 
-type StspFormProps = { matter: MatterChoice };
+type StspFormProps = {
+  matter: MatterChoice;
+  /** 'new' (default) creates a request; 'edit' patches an existing one. */
+  mode?: 'new' | 'edit';
+  /** Pre-filled state for edit mode (loaded from the existing record). */
+  initialState?: StspFormState;
+  /** Parent gcp_request id — present in edit mode. */
+  requestId?: string;
+  /** Existing documents on the record (edit mode) — parsed from gcp_documentsurl. */
+  initialDocuments?: DocumentLink[];
+  /**
+   * Edit-mode submit handler: receives the current form state plus the final
+   * document set (kept existing links + new uploads) to persist.
+   */
+  onEditSubmit?: (
+    state: StspFormState,
+    documents: DocumentLink[]
+  ) => Promise<SubmitResult>;
+  /** Called by the success screen's primary button in edit mode (navigate back). */
+  onEditSuccess?: () => void;
+};
 
 const DRAFT_KEY = 'stsp:new';
 
@@ -50,21 +72,31 @@ const parseTableData = (value: string): TableData | undefined => {
   return undefined;
 };
 
-const StspForm = ({ matter }: StspFormProps) => {
+const StspForm = ({
+  matter,
+  mode = 'new',
+  initialState,
+  requestId,
+  initialDocuments,
+  onEditSubmit,
+  onEditSuccess,
+}: StspFormProps) => {
   const { user } = useAuth();
+  const isEdit = mode === 'edit';
 
   const defaultCategoryValue = useMemo(() => {
     const code = matter.channel.toUpperCase();
     return requestCategoryChoices.find((c) => c.label === code)?.value ?? 2;
   }, [matter.channel]);
 
-  const initial: StspFormState = {
+  const initial: StspFormState = initialState ?? {
     matterValue: matter.value,
     categoryValue: defaultCategoryValue,
     requestorContactId: user?.email ?? '',
     requestorName: user?.name ?? '',
     requestorEmail: user?.email ?? '',
     companyId: '',
+    companyName: user?.company ?? '',
 
     projectId: '',
     projectName: '',
@@ -94,9 +126,12 @@ const StspForm = ({ matter }: StspFormProps) => {
     acknowledged: false,
   };
 
+  // Edit mode never touches the new-request draft (would clobber the loaded
+  // record / leak edits across records). New mode persists as before.
   const { state, setState, clearDraft } = useFormDraft<StspFormState>(
     DRAFT_KEY,
-    initial
+    initial,
+    { persist: !isEdit }
   );
   const [isSubmitting, setSubmitting] = useState(false);
 
@@ -111,6 +146,15 @@ const StspForm = ({ matter }: StspFormProps) => {
   // Last-step general attachments (field: null — belongs to the request itself).
   const [attachments, setAttachments] = useState<UploadedFile[]>([]);
 
+  // Edit mode: every existing document on this record is shown and removable —
+  // request-level attachments and the per-field contract-structure upload alike —
+  // so none is hidden and re-uploading cannot silently duplicate a file.
+  const [existingDocs, setExistingDocs] = useState<DocumentLink[]>(() => [
+    ...(initialDocuments ?? []),
+  ]);
+  const removeExistingDoc = (doc: DocumentLink) =>
+    setExistingDocs((prev) => prev.filter((d) => d !== doc));
+
   // Stable draft id to fold this request's uploads into one SharePoint folder
   // before the request record exists.
   const draftId = useMemo(
@@ -121,25 +165,29 @@ const StspForm = ({ matter }: StspFormProps) => {
     []
   );
 
+  // In edit mode the request already exists — fold uploads into its real folder.
+  // In new mode the record doesn't exist yet, so use the stable draft id.
+  const uploadRequestId = isEdit && requestId ? requestId : draftId;
+
   const contractStructureUploader = useMemo(
     () =>
       makeSharePointUploader({
         entityType: 'stsp',
-        requestId: draftId,
+        requestId: uploadRequestId,
         fieldName: CONTRACT_STRUCTURE_FIELD,
         loginHint: user?.email,
       }),
-    [draftId, user?.email]
+    [uploadRequestId, user?.email]
   );
 
   const attachmentsUploader = useMemo(
     () =>
       makeSharePointUploader({
         entityType: 'stsp',
-        requestId: draftId,
+        requestId: uploadRequestId,
         loginHint: user?.email,
       }),
-    [draftId, user?.email]
+    [uploadRequestId, user?.email]
   );
 
   const set = <K extends keyof StspFormState>(
@@ -147,16 +195,30 @@ const StspForm = ({ matter }: StspFormProps) => {
     value: StspFormState[K]
   ) => setState((prev) => ({ ...prev, [key]: value }));
 
-  // Sync company lookup to logged-in user's parent account.
+  // Sync company lookup to logged-in user's parent account. Edit mode keeps
+  // the saved company — the logged-in user may be a Reviewer/Verifier editing
+  // someone else's request, not the original requestor.
   useEffect(() => {
+    if (isEdit) return;
     if (!user?.companyAccountId) return;
-    if (state.companyId === user.companyAccountId) return;
-    setState((prev) => ({ ...prev, companyId: user.companyAccountId ?? '' }));
+    if (
+      state.companyId === user.companyAccountId &&
+      state.companyName === (user.company ?? '')
+    ) {
+      return;
+    }
+    setState((prev) => ({
+      ...prev,
+      companyId: user.companyAccountId ?? '',
+      companyName: user.company ?? '',
+    }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.companyAccountId]);
+  }, [user?.companyAccountId, user?.company, isEdit]);
 
-  // Sync requestor name + email when AuthContext hydrates.
+  // Sync requestor name + email when AuthContext hydrates. Edit mode keeps the
+  // original requestor's details (do not overwrite with the editing user).
   useEffect(() => {
+    if (isEdit) return;
     if (!user?.email) return;
     setState((prev) => {
       if (
@@ -173,7 +235,7 @@ const StspForm = ({ matter }: StspFormProps) => {
       };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.email, user?.name]);
+  }, [user?.email, user?.name, isEdit]);
 
   // Load active projects for the step 2 project dropdown.
   const [projects, setProjects] = useState<GcpProject[]>([]);
@@ -214,8 +276,15 @@ const StspForm = ({ matter }: StspFormProps) => {
     () => toSelectOptions(requestCategoryChoices),
     []
   );
-  const requestorOptions = user
-    ? [{ label: user.name, value: user.email }]
+  // Render from state (not `user`) so edit mode shows the saved requestor, not
+  // the editing user — see the identity rule in docs/edit-request-mode-plan.md.
+  const requestorOptions = state.requestorContactId
+    ? [
+        {
+          label: state.requestorName || state.requestorEmail,
+          value: state.requestorContactId,
+        },
+      ]
     : [];
   const projectOptions = useMemo(
     () =>
@@ -236,8 +305,8 @@ const StspForm = ({ matter }: StspFormProps) => {
     }));
   };
 
-  const companyOptions = user?.companyAccountId
-    ? [{ label: user.company || 'Loading…', value: user.companyAccountId }]
+  const companyOptions = state.companyId
+    ? [{ label: state.companyName || 'Loading…', value: state.companyId }]
     : [];
 
   const steps: StepDefinition[] = [
@@ -289,12 +358,12 @@ const StspForm = ({ matter }: StspFormProps) => {
               name="company"
               label="Company"
               options={companyOptions}
-              value={user?.companyAccountId ?? ''}
+              value={state.companyId}
               isRequired
               isReadOnly
               placeholder={
-                user?.companyAccountId
-                  ? user.company || 'Loading…'
+                state.companyId
+                  ? state.companyName || 'Loading…'
                   : 'No company linked'
               }
             />
@@ -346,11 +415,11 @@ const StspForm = ({ matter }: StspFormProps) => {
               name="company"
               label="Company Name"
               options={companyOptions}
-              value={user?.companyAccountId ?? ''}
+              value={state.companyId}
               isReadOnly
               placeholder={
-                user?.companyAccountId
-                  ? user.company || 'Loading…'
+                state.companyId
+                  ? state.companyName || 'Loading…'
                   : 'No company linked'
               }
             />
@@ -540,9 +609,21 @@ const StspForm = ({ matter }: StspFormProps) => {
       label: 'Document',
       render: () => (
         <Row className="g-3">
+          {/* Edit mode: existing documents on this record, each removable.
+              Removing a file detaches it from the record (drops the link); the
+              file itself remains in SharePoint. */}
+          {isEdit && existingDocs.length > 0 ? (
+            <Col xs={12}>
+              <label className="rtp-doc-label">Existing documents</label>
+              <DocumentStrip
+                documents={existingDocs}
+                onRemove={removeExistingDoc}
+              />
+            </Col>
+          ) : null}
           <Col xs={12}>
             <FileUpload
-              label="Attachments"
+              label={isEdit ? 'Add documents' : 'Attachments'}
               value={attachments}
               onChange={setAttachments}
               uploader={attachmentsUploader}
@@ -567,31 +648,51 @@ const StspForm = ({ matter }: StspFormProps) => {
     },
   ];
 
+  /** Collect SharePoint links from completed uploads, tagged with their field. */
+  const collectNewDocuments = () => {
+    const uploadedAt = new Date().toISOString();
+    return [
+      ...documentsFromUploads(
+        contractStructureFiles.map((f) => ({
+          name: f.file.name,
+          url: f.url,
+          id: f.remoteId,
+        })),
+        CONTRACT_STRUCTURE_FIELD,
+        uploadedAt
+      ),
+      ...documentsFromUploads(
+        attachments.map((f) => ({
+          name: f.file.name,
+          url: f.url,
+          id: f.remoteId,
+        })),
+        null,
+        uploadedAt
+      ),
+    ];
+  };
+
   const handleSubmit = async () => {
+    // Edit mode: delegate the PATCH to the caller, which has the record ids.
+    if (isEdit) {
+      if (!onEditSubmit) {
+        throw new Error('Edit mode requires an onEditSubmit handler.');
+      }
+      setSubmitting(true);
+      try {
+        // Final document set = kept existing docs (any the user didn't remove)
+        // + newly uploaded files, each tagged with its field.
+        const documents = [...existingDocs, ...collectNewDocuments()];
+        return await onEditSubmit(state, documents);
+      } finally {
+        setSubmitting(false);
+      }
+    }
+
     setSubmitting(true);
     try {
-      // Collect SharePoint links from completed uploads, tagged with their field.
-      const uploadedAt = new Date().toISOString();
-      const documents = [
-        ...documentsFromUploads(
-          contractStructureFiles.map((f) => ({
-            name: f.file.name,
-            url: f.url,
-            id: f.remoteId,
-          })),
-          CONTRACT_STRUCTURE_FIELD,
-          uploadedAt
-        ),
-        ...documentsFromUploads(
-          attachments.map((f) => ({
-            name: f.file.name,
-            url: f.url,
-            id: f.remoteId,
-          })),
-          null,
-          uploadedAt
-        ),
-      ];
+      const documents = collectNewDocuments();
 
       const result = await submitStspRequest(state, {
         requestorContactId: user?.contactId ?? null,
@@ -617,6 +718,15 @@ const StspForm = ({ matter }: StspFormProps) => {
       steps={steps}
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit}
+      submitLabel={isEdit ? 'Save Changes' : undefined}
+      successTitle={isEdit ? 'Changes saved' : undefined}
+      successMessage={
+        isEdit
+          ? 'Your changes have been saved. The request stays in Resubmit until it is moved forward in the workflow.'
+          : undefined
+      }
+      successActionLabel={isEdit ? 'Back to request' : undefined}
+      onSuccessAction={isEdit ? onEditSuccess : undefined}
     />
   );
 };

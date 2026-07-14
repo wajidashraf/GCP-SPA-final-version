@@ -123,7 +123,13 @@ export const listSignatoryMembers = async (
   _loginHint?: string
 ): Promise<SignatoryMemberDto[]> => {
   const res = await powerPagesFetch<unknown>(MEMBERS_ENDPOINT, { method: 'GET' });
-  return asMemberArray(unwrapPayload(res));
+  // TODO(debug): remove once signatory-list rendering is confirmed.
+  console.log('[signatoryApi] listMembers raw response:', res);
+  const unwrapped = unwrapPayload(res);
+  console.log('[signatoryApi] listMembers unwrapped payload:', unwrapped);
+  const members = asMemberArray(unwrapped);
+  console.log('[signatoryApi] listMembers final members:', members.length, members);
+  return members;
 };
 
 /** Add a member to a signatory group. Returns the updated member list. */

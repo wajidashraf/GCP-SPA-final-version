@@ -9,6 +9,7 @@
 import {
   extractRecordId,
   odataBind,
+  powerPagesFetch,
   powerPagesFetchResponse,
 } from '../powerPagesApi';
 import { DEFAULT_CAA_REQUEST_SELECT, mapGcpCaaRequest } from '../../types/caaRequest';
@@ -16,6 +17,7 @@ import type {
   CreateGcpCaaRequestInput,
   GcpCaaRequest,
   GcpCaaRequestEntity,
+  UpdateGcpCaaRequestInput,
 } from '../../types/caaRequest';
 import { makeListByParent } from './childRequestList';
 import type { ListChildOptions, ListChildResult } from './childRequestList';
@@ -91,6 +93,24 @@ const createCaaRequest = async (
   return { id };
 };
 
+// ── Update ──────────────────────────────────────────────────────────────────
+type UpdateCaaRequestOptions = {
+  lookups?: CaaRequestLookupBinds;
+};
+
+const updateCaaRequest = async (
+  id: string,
+  input: UpdateGcpCaaRequestInput,
+  options: UpdateCaaRequestOptions = {}
+): Promise<void> => {
+  const body = applyLookupBinds(input as CreateGcpCaaRequestInput, options.lookups);
+  await powerPagesFetch<void>(`${BASE_URL}(${id})`, {
+    method: 'PATCH',
+    json: body,
+    headers: { 'If-Match': '*' },
+  });
+};
+
 /** List CAA request rows belonging to a single parent gcp_request. */
 const listCaaRequestsByParent = makeListByParent<GcpCaaRequestEntity, GcpCaaRequest>({
   baseUrl: BASE_URL,
@@ -100,12 +120,14 @@ const listCaaRequestsByParent = makeListByParent<GcpCaaRequestEntity, GcpCaaRequ
 
 export {
   createCaaRequest,
+  updateCaaRequest,
   listCaaRequestsByParent,
   ENTITY_SET as CAA_REQUEST_ENTITY_SET,
 };
 export type {
   CreateCaaRequestOptions,
   CreateCaaRequestResult,
+  UpdateCaaRequestOptions,
   CaaRequestLookupBinds,
   ListChildOptions as ListCaaRequestsOptions,
   ListChildResult as ListCaaRequestsResult,

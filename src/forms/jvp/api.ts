@@ -9,12 +9,21 @@
 // in SharePoint by the upload Function; their links are persisted on the parent
 // request's gcp_documentsurl column, tagged with the field they belong to.
 
-import { createRequest } from '../../shared/services/requestService';
-import { createJvpRequest } from '../../shared/services/jvpRequestService';
+import {
+  createRequest,
+  updateRequest,
+} from '../../shared/services/requestService';
+import {
+  createJvpRequest,
+  updateJvpRequest,
+} from '../../shared/services/jvpRequestService';
 import { serializeDocuments } from '../../shared/documents';
 import type { DocumentLink } from '../../shared/documents';
-import type { CreateGcpRequestInput } from '../../types/request';
-import type { CreateGcpJvpRequestInput } from '../../types/jvpRequest';
+import type { CreateGcpRequestInput, GcpRequest } from '../../types/request';
+import type {
+  CreateGcpJvpRequestInput,
+  GcpJvpRequest,
+} from '../../types/jvpRequest';
 import type { SoaCodeValue } from '../../data/soaChoices';
 import type { JvpFormState } from './types';
 
@@ -119,5 +128,122 @@ const submitJvpRequest = async (
   };
 };
 
-export { submitJvpRequest };
-export type { SubmitResult, SubmitJvpOptions };
+// ── Edit mode ────────────────────────────────────────────────────────────────
+// Reverse of the create mapping above: hydrate the form state from a loaded
+// parent gcp_request + gcp_jvmrequest child, then PATCH the editable fields
+// back. Requestor/Company lookups are never rebound and gcp_requestoremail is
+// never PATCHed — the original requestor's identity must survive edits by
+// Reviewers/Verifiers. The Project lookup IS rebound (the Project select stays
+// editable in edit mode).
+
+/** Build JVP form state from the loaded parent + child records (edit prefill). */
+const loadJvpFormState = (
+  request: GcpRequest,
+  jvp: GcpJvpRequest
+): JvpFormState => ({
+  matterValue: request.matter as JvpFormState['matterValue'],
+  categoryValue: (request.category ?? 2) as JvpFormState['categoryValue'],
+  // Mirror new mode: the requestor select's value is the email, the label the name.
+  requestorContactId: request.requestorEmail ?? '',
+  requestorName: request.requestorName ?? '',
+  requestorEmail: request.requestorEmail ?? '',
+  companyId: request.companyId ?? '',
+  companyName: request.companyName ?? '',
+  projectId: jvp.projectId ?? '',
+  projectName: request.projectName ?? '',
+  projectCode: request.projectCode ?? '',
+
+  picTeamLeader: jvp.picTeamLeader ?? '',
+  picFinancialMatters: jvp.picFinancialMatters ?? '',
+  picTechnicalMatters: jvp.picTechnicalMatters ?? '',
+  picContractMatters: jvp.picContractMatters ?? '',
+  picProcurementMatters: jvp.picProcurementMatters ?? '',
+  picCostingEstimation: jvp.picCostingEstimation ?? '',
+  picImplementationStage: jvp.picImplementationStage ?? '',
+
+  backgroundOfCollaboration: jvp.backgroundOfCollaboration ?? '',
+  scopeOfCollaboration: jvp.scopeOfCollaboration ?? '',
+  proposedStructure: jvp.proposedStructure ?? '',
+
+  keyTerms: jvp.keyTerms ?? '',
+  financialOverview: jvp.financialOverview ?? '',
+  technicalCapabilitiesResources: jvp.technicalCapabilitiesResources ?? '',
+
+  workPackagesDivisionOfResponsibilities:
+    jvp.workPackagesDivisionOfResponsibilities ?? '',
+  resourceContribution: jvp.resourceContribution ?? '',
+  riskReviewMitigation: jvp.riskReviewMitigation ?? '',
+
+  acknowledged: request.acknowledged ?? false,
+});
+
+type UpdateJvpIds = {
+  /** Parent gcp_request GUID. */
+  requestId: string;
+  /** Child gcp_jvmrequest GUID. */
+  jvpRecordId: string;
+  /**
+   * Final document set to persist on gcp_request.gcp_documentsurl (kept
+   * existing links + new uploads). When omitted, the column is left untouched.
+   */
+  documents?: DocumentLink[];
+};
+
+/**
+ * Save edits: PATCH the editable fields on the parent request and the JVP
+ * child. Does NOT change gcp_requeststatus (stays RS / Resubmit) and never
+ * touches the Requestor/Company lookups or gcp_requestoremail.
+ */
+const updateJvpRequestFromState = async (
+  state: JvpFormState,
+  ids: UpdateJvpIds
+): Promise<void> => {
+  const projectId = state.projectId || null;
+
+  // Parent gcp_request — project fields + acknowledgement (+ documents).
+  await updateRequest(
+    ids.requestId,
+    {
+      gcp_project_name: state.projectName || null,
+      gcp_projectcode: state.projectCode || null,
+      gcp_acknowledgement: state.acknowledged,
+      ...(ids.documents
+        ? { gcp_documentsurl: serializeDocuments(ids.documents) }
+        : {}),
+    },
+    { lookups: { projectId } }
+  );
+
+  // Child gcp_jvmrequest — same editable column set as the create mapping.
+  await updateJvpRequest(
+    ids.jvpRecordId,
+    {
+      gcp_pic_team_leader: orNull(state.picTeamLeader),
+      gcp_picfinancialmatters: orNull(state.picFinancialMatters),
+      gcp_pictechnicalmatters: orNull(state.picTechnicalMatters),
+      gcp_piccontractmatters: orNull(state.picContractMatters),
+      gcp_picprocurementmatters: orNull(state.picProcurementMatters),
+      gcp_piccostingestimation: orNull(state.picCostingEstimation),
+      gcp_picimplementationstage: orNull(state.picImplementationStage),
+      gcp_backgroundofcollaboration: orNull(state.backgroundOfCollaboration),
+      gcp_scope_of_collaboration: orNull(state.scopeOfCollaboration),
+      gcp_proposed_structure: orNull(state.proposedStructure),
+      gcp_key_terms: orNull(state.keyTerms),
+      gcp_financialoverview: orNull(state.financialOverview),
+      gcp_technical_capabilities_resources: orNull(
+        state.technicalCapabilitiesResources
+      ),
+      gcp_workpackages_divisionofresponsibilities: orNull(
+        state.workPackagesDivisionOfResponsibilities
+      ),
+      gcp_resourcecontributionmanpowerdesigntoolset: orNull(
+        state.resourceContribution
+      ),
+      gcp_risk_review_mitigation: orNull(state.riskReviewMitigation),
+    },
+    { lookups: { projectId } }
+  );
+};
+
+export { submitJvpRequest, loadJvpFormState, updateJvpRequestFromState };
+export type { SubmitResult, SubmitJvpOptions, UpdateJvpIds };

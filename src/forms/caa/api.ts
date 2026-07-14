@@ -9,12 +9,21 @@
 // SharePoint by the upload Function and their links are persisted on the parent
 // request's gcp_documentsurl column, tagged with the field they belong to.
 
-import { createRequest } from '../../shared/services/requestService';
-import { createCaaRequest } from '../../shared/services/caaRequestService';
+import {
+  createRequest,
+  updateRequest,
+} from '../../shared/services/requestService';
+import {
+  createCaaRequest,
+  updateCaaRequest,
+} from '../../shared/services/caaRequestService';
 import { serializeDocuments } from '../../shared/documents';
 import type { DocumentLink } from '../../shared/documents';
-import type { CreateGcpRequestInput } from '../../types/request';
-import type { CreateGcpCaaRequestInput } from '../../types/caaRequest';
+import type { CreateGcpRequestInput, GcpRequest } from '../../types/request';
+import type {
+  CreateGcpCaaRequestInput,
+  GcpCaaRequest,
+} from '../../types/caaRequest';
 import type { SoaCodeValue } from '../../data/soaChoices';
 import type { CaaFormState } from './types';
 
@@ -163,5 +172,189 @@ const submitCaaRequest = async (
   };
 };
 
-export { submitCaaRequest };
-export type { SubmitResult, SubmitCaaOptions };
+// ── Edit mode ────────────────────────────────────────────────────────────────
+// Reverse of the create mapping above: hydrate the form state from a loaded
+// parent gcp_request + gcp_caarequest child, then PATCH the editable fields
+// back. Requestor/Company lookups are never rebound and gcp_requestoremail is
+// never PATCHed — the original requestor's identity must survive edits by
+// Reviewers/Verifiers. The Project lookup IS rebound (the Project select stays
+// editable in edit mode).
+
+/** Number column → form string (empty when null). */
+const numToStr = (value: number | null): string =>
+  value == null ? '' : String(value);
+
+/** Currency column → form string with the CurrencyField's fixed 2 decimals. */
+const currencyToStr = (value: number | null): string =>
+  value == null ? '' : value.toFixed(2);
+
+/** ISO datetime column → yyyy-mm-dd for a <input type="date"> field. */
+const dateToStr = (value: string | null): string =>
+  value ? value.slice(0, 10) : '';
+
+/** Build CAA form state from the loaded parent + child records (edit prefill). */
+const loadCaaFormState = (
+  request: GcpRequest,
+  caa: GcpCaaRequest
+): CaaFormState => ({
+  matterValue: request.matter as CaaFormState['matterValue'],
+  categoryValue: (request.category ?? 2) as CaaFormState['categoryValue'],
+  // Mirror new mode: the requestor select's value is the email, the label the name.
+  requestorContactId: request.requestorEmail ?? '',
+  requestorName: request.requestorName ?? '',
+  requestorEmail: request.requestorEmail ?? '',
+  companyId: request.companyId ?? '',
+  companyName: request.companyName ?? '',
+  projectId: caa.projectId ?? '',
+  projectName: request.projectName ?? caa.title ?? '',
+  projectCode: request.projectCode ?? caa.projectCode ?? '',
+
+  tenderProposalPrice: currencyToStr(caa.tenderProposalPrice),
+  finalContractAmount: currencyToStr(caa.finalContractAmount),
+  estimatedBudgetCost: currencyToStr(caa.estimatedBudgetCost),
+  estimatedMargin: numToStr(caa.estimatedMargin),
+  tenderProposalRefNo: caa.tenderProposalRefNo ?? '',
+  letterOfAwardDate: dateToStr(caa.letterOfAwardDate),
+  contractCommencementDate: dateToStr(caa.contractCommencementDate),
+  contractCompletionDate: dateToStr(caa.contractCompletionDate),
+  contractPeriodDays: numToStr(caa.contractPeriodDays),
+
+  performanceBond: caa.performanceBond ?? '',
+  stampDuty: numToStr(caa.stampDuty),
+  insurance: caa.insurance ?? '',
+  bumiputeraParticipation: caa.bumiputeraParticipation ?? '',
+  formationOfJvCompany: caa.formationOfJvCompany ?? '',
+  criticalActivitiesMilestones: caa.criticalActivitiesMilestones ?? '',
+  defectLiabilityPeriod: caa.defectLiabilityPeriod ?? '',
+
+  liquidatedDamagesRate: numToStr(caa.liquidatedDamagesRate),
+  paymentTerm: caa.paymentTerm ?? '',
+  typeOfContract: caa.typeOfContract ?? '',
+  formOfContract: caa.formOfContract ?? '',
+  projectDirector: caa.projectDirector ?? '',
+  contactPersonAtSite: caa.contactPersonAtSite ?? '',
+
+  claimApplicationProcess: caa.claimApplicationProcess ?? '',
+  claimCertificationProcess: caa.claimCertificationProcess ?? '',
+  variationOrderApplicationProcess: caa.variationOrderApplicationProcess ?? '',
+
+  extensionOfTimeApplicationProcess:
+    caa.extensionOfTimeApplicationProcess ?? '',
+  commissioningCompletionSystems: caa.commissioningCompletionSystems ?? '',
+  keyDeliveryMilestone: caa.keyDeliveryMilestone ?? '',
+
+  mandatoryTesting: caa.mandatoryTesting ?? '',
+  documentForContractualAcceptance:
+    caa.documentForContractualAcceptance ?? '',
+  prerequisiteDocumentsForDlp: caa.prerequisiteDocumentsForDlp ?? '',
+
+  acknowledged: request.acknowledged ?? caa.acknowledged ?? false,
+});
+
+type UpdateCaaIds = {
+  /** Parent gcp_request GUID. */
+  requestId: string;
+  /** Child gcp_caarequest GUID. */
+  caaRecordId: string;
+  /**
+   * Final document set to persist on gcp_request.gcp_documentsurl (kept
+   * existing links + new uploads). When omitted, the column is left untouched.
+   */
+  documents?: DocumentLink[];
+};
+
+/**
+ * Save edits: PATCH the editable fields on the parent request and the CAA
+ * child. Does NOT change gcp_requeststatus (stays RS / Resubmit) and never
+ * touches the Requestor/Company lookups or gcp_requestoremail.
+ */
+const updateCaaRequestFromState = async (
+  state: CaaFormState,
+  ids: UpdateCaaIds
+): Promise<void> => {
+  const projectId = state.projectId || null;
+
+  // Parent gcp_request — project fields + acknowledgement (+ documents).
+  await updateRequest(
+    ids.requestId,
+    {
+      gcp_project_name: state.projectName || null,
+      gcp_projectcode: orNull(state.projectCode),
+      gcp_acknowledgement: state.acknowledged,
+      ...(ids.documents
+        ? { gcp_documentsurl: serializeDocuments(ids.documents) }
+        : {}),
+    },
+    { lookups: { projectId } }
+  );
+
+  // Child gcp_caarequest — same editable column set as the create mapping.
+  // The Company lookup is deliberately NOT rebound (locked identity).
+  await updateCaaRequest(
+    ids.caaRecordId,
+    {
+      gcp_title: state.projectName || null,
+
+      gcp_tenderproposalpriceduringsubmissionoftend: orNum(
+        state.tenderProposalPrice
+      ),
+      gcp_finalcontractamount: orNum(state.finalContractAmount),
+      gcp_estimatedbudgetcost: orNum(state.estimatedBudgetCost),
+      gcp_estimatedmargin: orNum(state.estimatedMargin),
+      gcp_tenderproposalrefno: orNull(state.tenderProposalRefNo),
+      gcp_letterofawardloa: orDate(state.letterOfAwardDate),
+      gcp_contractcommencement: orDate(state.contractCommencementDate),
+      gcp_contractcompletiondate: orDate(state.contractCompletionDate),
+      gcp_contractperioddays: orNum(state.contractPeriodDays),
+
+      gcp_performancebondpbforproject: orNull(state.performanceBond),
+      gcp_stampdutyinclusiveoflegalcostandfees: orNum(state.stampDuty),
+      gcp_insurance: orNull(state.insurance),
+      gcp_bumiputeraparticipation: orNull(state.bumiputeraParticipation),
+      gcp_formationofjvcompany: orNull(state.formationOfJvCompany),
+      gcp_criticalactivitymilestone: orNull(state.criticalActivitiesMilestones),
+      gcp_defectliabilityperioddlp: orNull(state.defectLiabilityPeriod),
+
+      gcp_liquidateddamagesladrate: orNum(state.liquidatedDamagesRate),
+      gcp_paymentterm: orNull(state.paymentTerm),
+      gcp_typeofcontract: orNull(state.typeOfContract),
+      gcp_formofcontractconditionofcontract: orNull(state.formOfContract),
+      gcp_projectdirectorpd: orNull(state.projectDirector),
+      gcp_contactpersonatsitedesignationcontactno: orNull(
+        state.contactPersonAtSite
+      ),
+
+      gcp_claimmanagementclaimapplicationprocess: orNull(
+        state.claimApplicationProcess
+      ),
+      gcp_claimmanagementclaimcertificationprocess: orNull(
+        state.claimCertificationProcess
+      ),
+      gcp_changemanagementvariationorderapplicationpr: orNull(
+        state.variationOrderApplicationProcess
+      ),
+
+      gcp_changemanagementextensionoftimeapplication: orNull(
+        state.extensionOfTimeApplicationProcess
+      ),
+      gcp_commissioningandcompletionmanagementsystems: orNull(
+        state.commissioningCompletionSystems
+      ),
+      gcp_keydeliverymilestone: orNull(state.keyDeliveryMilestone),
+
+      gcp_mandatorytestingrequiredtocommission: orNull(state.mandatoryTesting),
+      gcp_documentrequiredforcontractualacceptanceofpr: orNull(
+        state.documentForContractualAcceptance
+      ),
+      gcp_prerequisitedocumentsforcompletionofdlp: orNull(
+        state.prerequisiteDocumentsForDlp
+      ),
+
+      gcp_acknowledgement: state.acknowledged,
+    },
+    { lookups: { projectId } }
+  );
+};
+
+export { submitCaaRequest, loadCaaFormState, updateCaaRequestFromState };
+export type { SubmitResult, SubmitCaaOptions, UpdateCaaIds };

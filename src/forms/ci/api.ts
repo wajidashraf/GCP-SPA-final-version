@@ -7,12 +7,21 @@
 //      `gcp_Request@odata.bind` plus the Project and Company lookups.
 //      gcp_company is REQUIRED on the child, so companyAccountId must be present.
 
-import { createRequest } from '../../shared/services/requestService';
-import { createCiRequest } from '../../shared/services/ciRequestService';
+import {
+  createRequest,
+  updateRequest,
+} from '../../shared/services/requestService';
+import {
+  createCiRequest,
+  updateCiRequest,
+} from '../../shared/services/ciRequestService';
 import { serializeDocuments } from '../../shared/documents';
 import type { DocumentLink } from '../../shared/documents';
-import type { CreateGcpRequestInput } from '../../types/request';
-import type { CreateGcpCiRequestInput } from '../../types/ciRequest';
+import type { CreateGcpRequestInput, GcpRequest } from '../../types/request';
+import type {
+  CreateGcpCiRequestInput,
+  GcpCiRequest,
+} from '../../types/ciRequest';
 import type { SoaCodeValue } from '../../data/soaChoices';
 import type { CiFormState } from './types';
 
@@ -109,5 +118,111 @@ const submitCiRequest = async (
   };
 };
 
-export { submitCiRequest };
-export type { SubmitResult, SubmitCiOptions };
+// ── Edit mode ────────────────────────────────────────────────────────────────
+// Reverse of the create mapping above: hydrate the form state from a loaded
+// parent gcp_request + gcp_requestcigcp child, then PATCH the editable fields
+// back. Requestor/Company lookups are never rebound and gcp_requestoremail is
+// never PATCHed — the original requestor's identity must survive edits by
+// Reviewers/Verifiers. The Project lookup IS rebound (the Project select stays
+// editable in edit mode). gcp_company is required on the child but a PATCH that
+// omits it leaves the existing value untouched.
+
+/** Build CI form state from the loaded parent + child records (edit prefill). */
+const loadCiFormState = (
+  request: GcpRequest,
+  ci: GcpCiRequest
+): CiFormState => ({
+  matterValue: request.matter as CiFormState['matterValue'],
+  categoryValue: (request.category ?? 2) as CiFormState['categoryValue'],
+  // Mirror new mode: the requestor select's value is the email, the label the name.
+  requestorContactId: request.requestorEmail ?? '',
+  requestorName: request.requestorName ?? '',
+  requestorEmail: request.requestorEmail ?? '',
+  companyId: request.companyId ?? '',
+  companyName: request.companyName ?? '',
+  projectId: ci.projectId ?? '',
+  projectName: request.projectName ?? ci.name ?? '',
+  projectCode: request.projectCode ?? ci.projectCode ?? '',
+  companyRole: ci.companyRole ?? '',
+
+  category: ci.category ?? '',
+  chronologyOfEventVo: ci.chronologyOfEventVo ?? '',
+  briefOfIssuesVo: ci.briefOfIssuesVo ?? '',
+  timeAndCostImpactVo: ci.timeAndCostImpactVo ?? '',
+  contractClause: ci.contractClause ?? '',
+  advisoryRequiredVo: ci.advisoryRequiredVo ?? '',
+
+  briefOfIssuesPayments: ci.briefOfIssuesPayments ?? '',
+  chronologyOfEventPayments: ci.chronologyOfEventPayments ?? '',
+  contractClausePayment: ci.contractClausePayment ?? '',
+  advisoryRequiredPayments: ci.advisoryRequiredPayments ?? '',
+
+  acknowledged: request.acknowledged ?? ci.acknowledged ?? false,
+});
+
+type UpdateCiIds = {
+  /** Parent gcp_request GUID. */
+  requestId: string;
+  /** Child gcp_requestcigcp GUID. */
+  ciRecordId: string;
+  /**
+   * Final document set to persist on gcp_request.gcp_documentsurl (kept existing
+   * links + new uploads). When omitted, the column is left untouched.
+   */
+  documents?: DocumentLink[];
+};
+
+/**
+ * Save edits: PATCH the editable fields on the parent request and the CI child.
+ * Does NOT change gcp_requeststatus (stays RS / Resubmit) and never touches the
+ * Requestor/Company lookups or gcp_requestoremail.
+ */
+const updateCiRequestFromState = async (
+  state: CiFormState,
+  ids: UpdateCiIds
+): Promise<void> => {
+  const projectId = state.projectId || null;
+
+  // Parent gcp_request — project fields + acknowledgement (+ documents).
+  await updateRequest(
+    ids.requestId,
+    {
+      gcp_project_name: state.projectName || null,
+      gcp_projectcode: orNull(state.projectCode),
+      gcp_acknowledgement: state.acknowledged,
+      ...(ids.documents
+        ? { gcp_documentsurl: serializeDocuments(ids.documents) }
+        : {}),
+    },
+    { lookups: { projectId } }
+  );
+
+  // Child gcp_requestcigcp — same editable column set as the create mapping.
+  await updateCiRequest(
+    ids.ciRecordId,
+    {
+      gcp_name: state.projectName || null,
+      gcp_projectcode: orNull(state.projectCode),
+      gcp_companyroleinthisissue:
+        state.companyRole === '' ? null : state.companyRole,
+
+      gcp_category: orNull(state.category),
+      gcp_chronologyofeventvo: orNull(state.chronologyOfEventVo),
+      gcp_briefofissuesvo: orNull(state.briefOfIssuesVo),
+      gcp_timeandcostimpactvo: orNull(state.timeAndCostImpactVo),
+      gcp_contractclause: orNull(state.contractClause),
+      gcp_advisoryrequiredfromgcpvo: orNull(state.advisoryRequiredVo),
+
+      gcp_briefofissuespayments: orNull(state.briefOfIssuesPayments),
+      gcp_chronologyofeventpayments: orNull(state.chronologyOfEventPayments),
+      gcp_contractclausepayment: orNull(state.contractClausePayment),
+      gcp_advisoryrequiredfromgcppayments: orNull(state.advisoryRequiredPayments),
+
+      gcp_acknowledgement: state.acknowledged,
+    },
+    { lookups: { projectId } }
+  );
+};
+
+export { submitCiRequest, loadCiFormState, updateCiRequestFromState };
+export type { SubmitResult, SubmitCiOptions, UpdateCiIds };

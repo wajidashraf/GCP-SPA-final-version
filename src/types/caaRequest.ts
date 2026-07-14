@@ -175,6 +175,8 @@ type CreateGcpCaaRequestInput = {
   'gcp_Request@odata.bind'?: string;
 };
 
+type UpdateGcpCaaRequestInput = Partial<CreateGcpCaaRequestInput>;
+
 const mapGcpCaaRequest = (e: GcpCaaRequestEntity): GcpCaaRequest => ({
   id: e.gcp_caarequestid ?? '',
   title: e.gcp_title ?? null,
@@ -271,4 +273,9 @@ const DEFAULT_CAA_REQUEST_SELECT: readonly string[] = [
 ];
 
 export { mapGcpCaaRequest, DEFAULT_CAA_REQUEST_SELECT };
-export type { GcpCaaRequest, GcpCaaRequestEntity, CreateGcpCaaRequestInput };
+export type {
+  GcpCaaRequest,
+  GcpCaaRequestEntity,
+  CreateGcpCaaRequestInput,
+  UpdateGcpCaaRequestInput,
+};

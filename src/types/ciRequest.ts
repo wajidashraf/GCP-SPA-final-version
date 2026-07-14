@@ -100,6 +100,10 @@ type CreateGcpCiRequestInput = {
   'gcp_Request@odata.bind'?: string;
 };
 
+// ── Input shape for update (PATCH) ──────────────────────────────────────────
+// All scalar fields optional; lookups are rebound via the service's lookup binds.
+type UpdateGcpCiRequestInput = Partial<CreateGcpCiRequestInput>;
+
 const mapGcpCiRequest = (e: GcpCiRequestEntity): GcpCiRequest => ({
   id: e.gcp_requestcigcpid ?? '',
   name: e.gcp_name ?? null,
@@ -147,4 +151,9 @@ const DEFAULT_CI_REQUEST_SELECT: readonly string[] = [
 ];
 
 export { mapGcpCiRequest, DEFAULT_CI_REQUEST_SELECT };
-export type { GcpCiRequest, GcpCiRequestEntity, CreateGcpCiRequestInput };
+export type {
+  GcpCiRequest,
+  GcpCiRequestEntity,
+  CreateGcpCiRequestInput,
+  UpdateGcpCiRequestInput,
+};

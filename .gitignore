@@ -5,3 +5,5 @@ dist
 .DS_Store
 src/**/*.js
 tsconfig.tsbuildinfo
+# Server Logic debugging runtime loader
+.vscode/server-logic-debug-runtime.cjs

@@ -9,6 +9,7 @@ type VapFormState = {
   requestorName: string;
   requestorEmail: string;
   companyId: string;
+  companyName: string;
 
   // Step 2 — Project Details (persisted on the parent gcp_request)
   projectId: string;

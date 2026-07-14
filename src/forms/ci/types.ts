@@ -10,6 +10,7 @@ type CiFormState = {
   requestorName: string;
   requestorEmail: string;
   companyId: string;
+  companyName: string;
 
   // Step 2 — Project Details (project/company persist on parent; company role on child)
   projectId: string;

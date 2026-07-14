@@ -128,6 +128,8 @@ type GcpRequest = {
   outcome: OutcomeValue | null;
   decisionCode: DecisionCodeValue | null;
 
+  /** GUID of the related gcp_project (from the _gcp_project_value lookup). */
+  projectId: string | null;
   projectName: string | null;
   projectCode: string | null;
   projectDescription: string | null;
@@ -225,6 +227,7 @@ const mapGcpRequest = (e: GcpRequestEntity): GcpRequest => ({
   outcome: (e.gcp_outcome ?? null) as OutcomeValue | null,
   decisionCode: (e.gcp_decisioncode ?? null) as DecisionCodeValue | null,
 
+  projectId: e['_gcp_project_value'] ?? null,
   projectName: e.gcp_project_name ?? null,
   projectCode: e.gcp_projectcode ?? null,
   projectDescription: e.gcp_projectdiscription ?? null,

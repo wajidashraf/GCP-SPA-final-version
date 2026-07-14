@@ -7,12 +7,21 @@
 //      `gcp_Request@odata.bind` plus the Project and Company lookups. Carries the
 //      acknowledgement bit and name.
 
-import { createRequest } from '../../shared/services/requestService';
-import { createRppRequest } from '../../shared/services/rppRequestService';
+import {
+  createRequest,
+  updateRequest,
+} from '../../shared/services/requestService';
+import {
+  createRppRequest,
+  updateRppRequest,
+} from '../../shared/services/rppRequestService';
 import { serializeDocuments } from '../../shared/documents';
 import type { DocumentLink } from '../../shared/documents';
-import type { CreateGcpRequestInput } from '../../types/request';
-import type { CreateGcpRppRequestInput } from '../../types/rppRequest';
+import type { CreateGcpRequestInput, GcpRequest } from '../../types/request';
+import type {
+  CreateGcpRppRequestInput,
+  GcpRppRequest,
+} from '../../types/rppRequest';
 import type { SoaCodeValue } from '../../data/soaChoices';
 import type { RppFormState } from './types';
 
@@ -91,5 +100,81 @@ const submitRppRequest = async (
   };
 };
 
-export { submitRppRequest };
-export type { SubmitResult, SubmitRppOptions };
+// ── Edit mode ────────────────────────────────────────────────────────────────
+// Reverse of the create mapping above: hydrate the form state from a loaded
+// parent gcp_request + gcp_rpprequest child, then PATCH the editable fields
+// back. Requestor/Company lookups are never rebound and gcp_requestoremail is
+// never PATCHed — the original requestor's identity must survive edits by
+// Reviewers/Verifiers. The Project lookup IS rebound (the Project select stays
+// editable in edit mode).
+
+/** Build R-PP form state from the loaded parent + child records (edit prefill). */
+const loadRppFormState = (
+  request: GcpRequest,
+  rpp: GcpRppRequest
+): RppFormState => ({
+  matterValue: request.matter as RppFormState['matterValue'],
+  categoryValue: (request.category ?? 2) as RppFormState['categoryValue'],
+  // Mirror new mode: the requestor select's value is the email, the label the name.
+  requestorContactId: request.requestorEmail ?? '',
+  requestorName: request.requestorName ?? '',
+  requestorEmail: request.requestorEmail ?? '',
+  companyId: request.companyId ?? '',
+  companyName: request.companyName ?? '',
+  projectId: rpp.projectId ?? request.projectId ?? '',
+  projectName: request.projectName ?? rpp.name ?? '',
+  projectCode: request.projectCode ?? rpp.projectCode ?? '',
+  acknowledged: request.acknowledged ?? rpp.acknowledged ?? false,
+});
+
+type UpdateRppIds = {
+  /** Parent gcp_request GUID. */
+  requestId: string;
+  /** Child gcp_rpprequest GUID. */
+  rppRecordId: string;
+  /**
+   * Final document set to persist on gcp_request.gcp_documentsurl (kept existing
+   * links + new uploads). When omitted, the column is left untouched.
+   */
+  documents?: DocumentLink[];
+};
+
+/**
+ * Save edits: PATCH the editable fields on the parent request and the R-PP child.
+ * Does NOT change gcp_requeststatus (stays RS / Resubmit) and never touches the
+ * Requestor/Company lookups or gcp_requestoremail.
+ */
+const updateRppRequestFromState = async (
+  state: RppFormState,
+  ids: UpdateRppIds
+): Promise<void> => {
+  const projectId = state.projectId || null;
+
+  // Parent gcp_request — project fields + acknowledgement (+ documents).
+  await updateRequest(
+    ids.requestId,
+    {
+      gcp_project_name: state.projectName || null,
+      gcp_projectcode: orNull(state.projectCode),
+      gcp_acknowledgement: state.acknowledged,
+      ...(ids.documents
+        ? { gcp_documentsurl: serializeDocuments(ids.documents) }
+        : {}),
+    },
+    { lookups: { projectId } }
+  );
+
+  // Child gcp_rpprequest — same editable column set as the create mapping.
+  await updateRppRequest(
+    ids.rppRecordId,
+    {
+      gcp_name: state.projectName || null,
+      gcp_projectcode: orNull(state.projectCode),
+      gcp_acknowledgement: state.acknowledged,
+    },
+    { lookups: { projectId } }
+  );
+};
+
+export { submitRppRequest, loadRppFormState, updateRppRequestFromState };
+export type { SubmitResult, SubmitRppOptions, UpdateRppIds };

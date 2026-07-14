@@ -9,6 +9,18 @@
  *
  * Table gcp_signatorymember1 (set: gcp_signatorymember1s).
  * gcp_group choice: 1 = prepared, 2 = confirmed; null = threshold sentinel row.
+ * NOTE: gcp_sortorder does NOT exist on this table — never select/order by it.
+ *
+ * Connector reference: https://learn.microsoft.com/power-pages/configure/server-objects
+ *   RetrieveMultipleRecords(entitySetName, options, skipCache) — EntitySetName
+ *   (plural), options WITHOUT a leading "?", third arg skips the read cache.
+ *
+ * ⚠️ Connector response is DOUBLE-ENCODED (verified 2026-07-14 on gcp-nexus):
+ *   the return value is a JSON STRING of the envelope
+ *   {StatusCode, Body, IsSuccessStatusCode, ReasonPhrase, ServerError, Headers},
+ *   and Body is ITSELF a JSON string of the OData payload ({value:[...]}).
+ *   readDv parses the string, then recurses to unwrap Body. Missing either
+ *   parse yields `.value === undefined` → an empty list with NO error.
  *
  * Return contract: JSON string { ok: true, data } on success, or
  * { ok: false, error } on failure — the client (signatoryApi.ts) unwraps it.
@@ -25,26 +37,71 @@ function respondError(message) {
   return JSON.stringify({ ok: false, error: message });
 }
 
-// Unwrap a Server.Connector.Dataverse response; throw on a non-2xx status,
-// surfacing the OData error message when present.
+// Safe message extraction — never re-throws if `err` is not an Error.
+function errMessage(err) {
+  if (err && err.message) return err.message;
+  return String(err);
+}
+
+// Unwrap a Server.Connector.Dataverse response to the parsed OData payload.
+// Handles the double-encoding described in the header: a JSON string of the
+// {StatusCode, Body, ...} envelope whose Body is another JSON string. Also
+// tolerates an object envelope (either casing) or a bare payload, in case the
+// runtime shape changes. Throws on a failure status or an OData error body.
 function readDv(res) {
-  if (res && typeof res === "object" && ("IsSuccessStatusCode" in res)) {
-    if (!res.IsSuccessStatusCode) {
-      let msg = res.ReasonPhrase || "Dataverse request failed";
-      if (res.Body) {
-        try {
-          const parsed = JSON.parse(res.Body);
-          if (parsed && parsed.error && parsed.error.message) {
-            msg = parsed.error.message;
-          }
-        } catch (e) { /* body was not JSON */ }
-      }
-      throw new Error(msg);
-    }
-    if (!res.Body) return null;
-    try { return JSON.parse(res.Body); } catch (e) { return res.Body; }
+  if (res === null || res === undefined) return res;
+
+  // JSON-string response: parse and unwrap the result (the envelope arrives
+  // as a string at runtime — recursion handles the parsed object).
+  if (typeof res === "string") {
+    let parsedStr;
+    try { parsedStr = JSON.parse(res); } catch (e) { return res; }
+    return readDv(parsedStr);
   }
-  return res;
+
+  if (typeof res !== "object") return res;
+
+  // Direct access on purpose: host-marshalled objects can fail `in` checks.
+  let successFlag = res.IsSuccessStatusCode;
+  if (successFlag === undefined) successFlag = res.isSuccessStatusCode;
+
+  let body = res.Body;
+  if (body === undefined) body = res.body;
+
+  if (successFlag === false) {
+    let msg = res.ReasonPhrase || res.reasonPhrase || "Dataverse request failed";
+    let errBody = body;
+    if (typeof errBody === "string") {
+      try { errBody = JSON.parse(errBody); } catch (e) { errBody = null; }
+    }
+    if (errBody && errBody.error && errBody.error.message) {
+      msg = errBody.error.message;
+    }
+    throw new Error(msg);
+  }
+
+  let payload = res;
+  if (body !== undefined && body !== null && body !== "") {
+    payload = body;
+    if (typeof payload === "string") {
+      try { payload = JSON.parse(payload); } catch (e) { return payload; }
+    }
+  }
+
+  // An OData error body can arrive even without an explicit failure flag.
+  if (payload && payload.error && payload.error.message) {
+    throw new Error(payload.error.message);
+  }
+  return payload;
+}
+
+// Pull the row array out of a parsed payload, whatever shape it uses.
+function extractRows(data) {
+  if (!data) return [];
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data.value)) return data.value;
+  if (Array.isArray(data.entities)) return data.entities;
+  return [];
 }
 
 function readBody() {
@@ -67,7 +124,6 @@ function isAdminUser() {
 }
 
 function requireAdmin() {
-  Server.Logger.Log("signatory roles: " + JSON.stringify(Server.User ? Server.User.Roles : null));
   if (!isAdminUser()) {
     throw new Error("You must be an administrator to manage signatories");
   }
@@ -75,21 +131,24 @@ function requireAdmin() {
 
 async function listMembers() {
   const options =
-    "$select=gcp_signatorymember1id,gcp_name,gcp_email,gcp_group,gcp_sortorder" +
-    "&$orderby=gcp_group asc,gcp_sortorder asc,gcp_name asc";
+    "$select=gcp_signatorymember1id,gcp_name,gcp_email,gcp_group" +
+    "&$orderby=gcp_group asc,gcp_name asc";
   // skipCache = true: always read fresh so a just-created row is visible.
   const data = readDv(await Server.Connector.Dataverse.RetrieveMultipleRecords(ENTITY_SET, options, true));
-  const rows = data && data.value ? data.value : [];
+  const rows = extractRows(data);
   const members = [];
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
-    if (r.gcp_group === 1 || r.gcp_group === 2) {
+    // Coerce the choice value; only 1/2 are real groups (null = sentinel,
+    // 100000000/100000001 = legacy seed values that must not display).
+    const g = Number(r.gcp_group);
+    if (g === 1 || g === 2) {
       members.push({
         id: r.gcp_signatorymember1id,
-        group: VALUE_GROUP[r.gcp_group],
+        group: VALUE_GROUP[g],
         name: r.gcp_name || "",
         email: r.gcp_email || "",
-        sortOrder: r.gcp_sortorder || 0
+        sortOrder: 0
       });
     }
   }
@@ -100,8 +159,8 @@ async function get() {
   try {
     return respondOk(await listMembers());
   } catch (err) {
-    Server.Logger.Error("signatorymembers GET failed: " + err.message);
-    return respondError(err.message);
+    Server.Logger.Error("signatorymembers GET failed: " + errMessage(err));
+    return respondError(errMessage(err));
   }
 }
 
@@ -120,14 +179,13 @@ async function post() {
     const payload = JSON.stringify({
       gcp_name: name,
       gcp_email: email,
-      gcp_group: group === "prepared" ? 1 : 2,
-      gcp_sortorder: 0
+      gcp_group: group === "prepared" ? 1 : 2
     });
     readDv(await Server.Connector.Dataverse.CreateRecord(ENTITY_SET, payload));
     return respondOk(await listMembers());
   } catch (err) {
-    Server.Logger.Error("signatorymembers POST failed: " + err.message);
-    return respondError(err.message);
+    Server.Logger.Error("signatorymembers POST failed: " + errMessage(err));
+    return respondError(errMessage(err));
   }
 }
 
@@ -139,8 +197,8 @@ async function del() {
     readDv(await Server.Connector.Dataverse.DeleteRecord(ENTITY_SET, id));
     return respondOk(await listMembers());
   } catch (err) {
-    Server.Logger.Error("signatorymembers DEL failed: " + err.message);
-    return respondError(err.message);
+    Server.Logger.Error("signatorymembers DEL failed: " + errMessage(err));
+    return respondError(errMessage(err));
   }
 }
 

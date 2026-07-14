@@ -7,12 +7,21 @@
 //      (1) via `gcp_Request@odata.bind` plus the Project and Company lookups.
 //      The child's acknowledgement column is `gcp_acknowledgementconfirmed`.
 
-import { createRequest } from '../../shared/services/requestService';
-import { createCprRequest } from '../../shared/services/cprRequestService';
+import {
+  createRequest,
+  updateRequest,
+} from '../../shared/services/requestService';
+import {
+  createCprRequest,
+  updateCprRequest,
+} from '../../shared/services/cprRequestService';
 import { serializeDocuments } from '../../shared/documents';
 import type { DocumentLink } from '../../shared/documents';
-import type { CreateGcpRequestInput } from '../../types/request';
-import type { CreateGcpCprRequestInput } from '../../types/cprRequest';
+import type { CreateGcpRequestInput, GcpRequest } from '../../types/request';
+import type {
+  CreateGcpCprRequestInput,
+  GcpCprRequest,
+} from '../../types/cprRequest';
 import type { SoaCodeValue } from '../../data/soaChoices';
 import type { CprFormState } from './types';
 
@@ -140,5 +149,146 @@ const submitCprRequest = async (
   };
 };
 
-export { submitCprRequest };
-export type { SubmitResult, SubmitCprOptions };
+// ── Edit mode ────────────────────────────────────────────────────────────────
+// Reverse of the create mapping above: hydrate the form state from a loaded
+// parent gcp_request + gcp_cprrequestgcp child, then PATCH the editable fields
+// back. Requestor/Company lookups are never rebound and gcp_requestoremail is
+// never PATCHed — the original requestor's identity must survive edits by
+// Reviewers/Verifiers. The Project lookup IS rebound (the Project select stays
+// editable in edit mode). The child's acknowledgement column is
+// gcp_acknowledgementconfirmed (not gcp_acknowledgement).
+
+/** Number column → form string (empty when null). */
+const numToStr = (value: number | null): string =>
+  value == null ? '' : String(value);
+
+/** ISO datetime column → yyyy-mm-dd for a <input type="date"> field. */
+const dateToStr = (value: string | null): string =>
+  value ? value.slice(0, 10) : '';
+
+/** Build CPR form state from the loaded parent + child records (edit prefill). */
+const loadCprFormState = (
+  request: GcpRequest,
+  cpr: GcpCprRequest
+): CprFormState => ({
+  matterValue: request.matter as CprFormState['matterValue'],
+  categoryValue: (request.category ?? 2) as CprFormState['categoryValue'],
+  // Mirror new mode: the requestor select's value is the email, the label the name.
+  requestorContactId: request.requestorEmail ?? '',
+  requestorName: request.requestorName ?? '',
+  requestorEmail: request.requestorEmail ?? '',
+  companyId: request.companyId ?? '',
+  companyName: request.companyName ?? '',
+  projectId: cpr.projectId ?? '',
+  projectName: request.projectName ?? cpr.name ?? '',
+  projectCode: request.projectCode ?? cpr.projectCode ?? '',
+
+  eotLatestNo: cpr.eotLatestNo ?? '',
+  eotLatestDate: dateToStr(cpr.eotLatestDate),
+  eotNewApplicationDate: dateToStr(cpr.eotNewApplicationDate),
+  eotNewCompletionDate: dateToStr(cpr.eotNewCompletionDate),
+  eotStatus: cpr.eotStatus ?? 1,
+  eotNewJustifications: cpr.eotNewJustifications ?? '',
+
+  voLatestNo: cpr.voLatestNo ?? '',
+  voLatestApprovedCumulativeAmount: numToStr(cpr.voLatestApprovedCumulativeAmount),
+  voNewApplicationAmount: numToStr(cpr.voNewApplicationAmount),
+  voNewApplicationNo: cpr.voNewApplicationNo ?? '',
+  voNewApplicationDate: dateToStr(cpr.voNewApplicationDate),
+  voStatus: cpr.voStatus ?? 2,
+  voNewJustification: cpr.voNewJustification ?? '',
+
+  cumulativeClaimApplicationAmount: numToStr(cpr.cumulativeClaimApplicationAmount),
+  cumulativeClaimCertifiedAmount: numToStr(cpr.cumulativeClaimCertifiedAmount),
+  pendingCertifiedAmount: numToStr(cpr.pendingCertifiedAmount),
+  noOfClaimsForPendingCertified: numToStr(cpr.noOfClaimsForPendingCertified),
+  newNetCertifiedAmount: numToStr(cpr.newNetCertifiedAmount),
+  dateOfClaimPendingCertified: dateToStr(cpr.dateOfClaimPendingCertified),
+
+  acknowledged: request.acknowledged ?? cpr.acknowledged ?? false,
+});
+
+type UpdateCprIds = {
+  /** Parent gcp_request GUID. */
+  requestId: string;
+  /** Child gcp_cprrequestgcp GUID. */
+  cprRecordId: string;
+  /**
+   * Final document set to persist on gcp_request.gcp_documentsurl (kept existing
+   * links + new uploads). When omitted, the column is left untouched.
+   */
+  documents?: DocumentLink[];
+};
+
+/**
+ * Save edits: PATCH the editable fields on the parent request and the CPR child.
+ * Does NOT change gcp_requeststatus (stays RS / Resubmit) and never touches the
+ * Requestor/Company lookups or gcp_requestoremail.
+ */
+const updateCprRequestFromState = async (
+  state: CprFormState,
+  ids: UpdateCprIds
+): Promise<void> => {
+  const projectId = state.projectId || null;
+
+  // Parent gcp_request — project fields + acknowledgement (+ documents).
+  await updateRequest(
+    ids.requestId,
+    {
+      gcp_project_name: state.projectName || null,
+      gcp_projectcode: orNull(state.projectCode),
+      gcp_acknowledgement: state.acknowledged,
+      ...(ids.documents
+        ? { gcp_documentsurl: serializeDocuments(ids.documents) }
+        : {}),
+    },
+    { lookups: { projectId } }
+  );
+
+  // Child gcp_cprrequestgcp — same editable column set as the create mapping.
+  await updateCprRequest(
+    ids.cprRecordId,
+    {
+      gcp_cprrequestgcp1: state.projectName || null,
+      gcp_projectcode: orNull(state.projectCode),
+
+      gcp_eotlatestno: orNull(state.eotLatestNo),
+      gcp_eotlatestdate: orDate(state.eotLatestDate),
+      gcp_eotnewapplicationdate: orDate(state.eotNewApplicationDate),
+      gcp_eotnewcompletiondate: orDate(state.eotNewCompletionDate),
+      gcp_statusofneweotapplication: state.eotStatus,
+      gcp_eotnewjustifications: orNull(state.eotNewJustifications),
+
+      gcp_volatestno: orNull(state.voLatestNo),
+      gcp_latestapprovedvocumulativeamount: orInt(
+        state.voLatestApprovedCumulativeAmount
+      ),
+      gcp_newvoapplicationamount: orInt(state.voNewApplicationAmount),
+      gcp_vonewapplicationno: orNull(state.voNewApplicationNo),
+      gcp_vonewapplicationdate: orDate(state.voNewApplicationDate),
+      gcp_statusofnewvoapplication: state.voStatus,
+      gcp_vonewjustification: orNull(state.voNewJustification),
+
+      gcp_cumulativeclaimapplicationamounttodate: orInt(
+        state.cumulativeClaimApplicationAmount
+      ),
+      gcp_cumulativeclaimcertifiedamounttodate: orInt(
+        state.cumulativeClaimCertifiedAmount
+      ),
+      gcp_pendingcertifiedamounttodate: orInt(state.pendingCertifiedAmount),
+      gcp_noofclaimsforpendingcertifiedamount: orInt(
+        state.noOfClaimsForPendingCertified
+      ),
+      gcp_newnetcertifiedamount: orInt(state.newNetCertifiedAmount),
+      gcp_dateofclaimpendingcertifiedamount: orDate(
+        state.dateOfClaimPendingCertified
+      ),
+
+      gcp_acknowledgementconfirmed: state.acknowledged,
+    },
+    { lookups: { projectId } }
+  );
+};
+
+export { submitCprRequest, loadCprFormState, updateCprRequestFromState };
+export type { SubmitResult, SubmitCprOptions, UpdateCprIds };

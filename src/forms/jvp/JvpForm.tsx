@@ -9,10 +9,12 @@ import RepeatableTextField from '../RepeatableTextField';
 import SelectField from '../SelectField';
 import TextField from '../TextField';
 import { MultiStepForm, useFormDraft } from '../multistep';
-import type { StepDefinition } from '../multistep';
+import type { StepDefinition, SubmitResult } from '../multistep';
 import type { TableData, UploadedFile } from '..';
 import { useAuth } from '../../context/AuthContext';
 import { notifyEvent } from '../../shared/notificationApi';
+import { DocumentStrip } from '../../components/detail/DocumentStrip';
+import type { DocumentLink } from '../../shared/documents';
 import { matterChoices, type MatterChoice } from '../../data/matterChoices';
 import { requestCategoryChoices } from '../../data/requestChoices';
 import { toSelectOptions } from '../../data/types';
@@ -23,7 +25,27 @@ import type { GcpProject } from '../../types/project';
 import { submitJvpRequest } from './api';
 import type { JvpFormState } from './types';
 
-type JvpFormProps = { matter: MatterChoice };
+type JvpFormProps = {
+  matter: MatterChoice;
+  /** 'new' (default) creates a request; 'edit' patches an existing one. */
+  mode?: 'new' | 'edit';
+  /** Pre-filled state for edit mode (loaded from the existing record). */
+  initialState?: JvpFormState;
+  /** Parent gcp_request id — present in edit mode. */
+  requestId?: string;
+  /** Existing documents on the record (edit mode) — parsed from gcp_documentsurl. */
+  initialDocuments?: DocumentLink[];
+  /**
+   * Edit-mode submit handler: receives the current form state plus the final
+   * document set (kept existing links + new uploads) to persist.
+   */
+  onEditSubmit?: (
+    state: JvpFormState,
+    documents: DocumentLink[]
+  ) => Promise<SubmitResult>;
+  /** Called by the success screen's primary button in edit mode (navigate back). */
+  onEditSuccess?: () => void;
+};
 
 const DRAFT_KEY = 'jvp:new';
 
@@ -49,21 +71,31 @@ const parseTableData = (value: string): TableData | undefined => {
   return undefined;
 };
 
-const JvpForm = ({ matter }: JvpFormProps) => {
+const JvpForm = ({
+  matter,
+  mode = 'new',
+  initialState,
+  requestId,
+  initialDocuments,
+  onEditSubmit,
+  onEditSuccess,
+}: JvpFormProps) => {
   const { user } = useAuth();
+  const isEdit = mode === 'edit';
 
   const defaultCategoryValue = useMemo(() => {
     const code = matter.channel.toUpperCase();
     return requestCategoryChoices.find((c) => c.label === code)?.value ?? 2;
   }, [matter.channel]);
 
-  const initial: JvpFormState = {
+  const initial: JvpFormState = initialState ?? {
     matterValue: matter.value,
     categoryValue: defaultCategoryValue,
     requestorContactId: user?.email ?? '',
     requestorName: user?.name ?? '',
     requestorEmail: user?.email ?? '',
     companyId: '',
+    companyName: user?.company ?? '',
     projectId: '',
     projectName: '',
     projectCode: '',
@@ -91,9 +123,12 @@ const JvpForm = ({ matter }: JvpFormProps) => {
     acknowledged: false,
   };
 
+  // Edit mode never touches the new-request draft (would clobber the loaded
+  // record / leak edits across records). New mode persists as before.
   const { state, setState, clearDraft } = useFormDraft<JvpFormState>(
     DRAFT_KEY,
-    initial
+    initial,
+    { persist: !isEdit }
   );
   const [isSubmitting, setSubmitting] = useState(false);
 
@@ -109,6 +144,15 @@ const JvpForm = ({ matter }: JvpFormProps) => {
   // Last-step general attachments (field: null — belongs to the request itself).
   const [attachments, setAttachments] = useState<UploadedFile[]>([]);
 
+  // Edit mode: every existing document on this record is shown and removable —
+  // request-level attachments and the per-field cashflow / cost-structure uploads
+  // alike — so none is hidden and re-uploading cannot silently duplicate a file.
+  const [existingDocs, setExistingDocs] = useState<DocumentLink[]>(() => [
+    ...(initialDocuments ?? []),
+  ]);
+  const removeExistingDoc = (doc: DocumentLink) =>
+    setExistingDocs((prev) => prev.filter((d) => d !== doc));
+
   // Stable draft id to fold this request's uploads into one SharePoint folder
   // before the request record exists.
   const draftId = useMemo(
@@ -119,51 +163,69 @@ const JvpForm = ({ matter }: JvpFormProps) => {
     []
   );
 
+  // In edit mode the request already exists — fold uploads into its real folder.
+  // In new mode the record doesn't exist yet, so use the stable draft id.
+  const uploadRequestId = isEdit && requestId ? requestId : draftId;
+
   const cashflowUploader = useMemo(
     () =>
       makeSharePointUploader({
         entityType: 'jvp',
-        requestId: draftId,
+        requestId: uploadRequestId,
         fieldName: CASHFLOW_FIELD,
         loginHint: user?.email,
       }),
-    [draftId, user?.email]
+    [uploadRequestId, user?.email]
   );
 
   const costStructureUploader = useMemo(
     () =>
       makeSharePointUploader({
         entityType: 'jvp',
-        requestId: draftId,
+        requestId: uploadRequestId,
         fieldName: COST_STRUCTURE_FIELD,
         loginHint: user?.email,
       }),
-    [draftId, user?.email]
+    [uploadRequestId, user?.email]
   );
 
   const attachmentsUploader = useMemo(
     () =>
       makeSharePointUploader({
         entityType: 'jvp',
-        requestId: draftId,
+        requestId: uploadRequestId,
         loginHint: user?.email,
       }),
-    [draftId, user?.email]
+    [uploadRequestId, user?.email]
   );
 
   const set = <K extends keyof JvpFormState>(key: K, value: JvpFormState[K]) =>
     setState((prev) => ({ ...prev, [key]: value }));
 
-  // Sync company lookup to logged-in user's parent account.
+  // Sync company lookup to logged-in user's parent account. Edit mode keeps
+  // the saved company — the logged-in user may be a Reviewer/Verifier editing
+  // someone else's request, not the original requestor.
   useEffect(() => {
+    if (isEdit) return;
     if (!user?.companyAccountId) return;
-    if (state.companyId === user.companyAccountId) return;
-    setState((prev) => ({ ...prev, companyId: user.companyAccountId ?? '' }));
+    if (
+      state.companyId === user.companyAccountId &&
+      state.companyName === (user.company ?? '')
+    ) {
+      return;
+    }
+    setState((prev) => ({
+      ...prev,
+      companyId: user.companyAccountId ?? '',
+      companyName: user.company ?? '',
+    }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.companyAccountId]);
+  }, [user?.companyAccountId, user?.company, isEdit]);
 
-  // Sync requestor name + email when AuthContext hydrates.
+  // Sync requestor name + email when AuthContext hydrates. Edit mode keeps the
+  // original requestor's details (do not overwrite with the editing user).
   useEffect(() => {
+    if (isEdit) return;
     if (!user?.email) return;
     setState((prev) => {
       if (
@@ -180,7 +242,7 @@ const JvpForm = ({ matter }: JvpFormProps) => {
       };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.email, user?.name]);
+  }, [user?.email, user?.name, isEdit]);
 
   // Load active projects for the step 1 project dropdown.
   const [projects, setProjects] = useState<GcpProject[]>([]);
@@ -221,8 +283,15 @@ const JvpForm = ({ matter }: JvpFormProps) => {
     () => toSelectOptions(requestCategoryChoices),
     []
   );
-  const requestorOptions = user
-    ? [{ label: user.name, value: user.email }]
+  // Render from state (not `user`) so edit mode shows the saved requestor, not
+  // the editing user — see the identity rule in docs/edit-request-mode-plan.md.
+  const requestorOptions = state.requestorContactId
+    ? [
+        {
+          label: state.requestorName || state.requestorEmail,
+          value: state.requestorContactId,
+        },
+      ]
     : [];
   const projectOptions = useMemo(
     () =>
@@ -323,21 +392,21 @@ const JvpForm = ({ matter }: JvpFormProps) => {
               name="company"
               label="Company"
               options={
-                user?.companyAccountId
+                state.companyId
                   ? [
                       {
-                        label: user.company || 'Loading…',
-                        value: user.companyAccountId,
+                        label: state.companyName || 'Loading…',
+                        value: state.companyId,
                       },
                     ]
                   : []
               }
-              value={user?.companyAccountId ?? ''}
+              value={state.companyId}
               isRequired
               isReadOnly
               placeholder={
-                user?.companyAccountId
-                  ? user.company || 'Loading…'
+                state.companyId
+                  ? state.companyName || 'Loading…'
                   : 'No company linked'
               }
             />
@@ -507,9 +576,21 @@ const JvpForm = ({ matter }: JvpFormProps) => {
       label: 'Document',
       render: () => (
         <Row className="g-3">
+          {/* Edit mode: existing documents on this record, each removable.
+              Removing a file detaches it from the record (drops the link); the
+              file itself remains in SharePoint. */}
+          {isEdit && existingDocs.length > 0 ? (
+            <Col xs={12}>
+              <label className="rtp-doc-label">Existing documents</label>
+              <DocumentStrip
+                documents={existingDocs}
+                onRemove={removeExistingDoc}
+              />
+            </Col>
+          ) : null}
           <Col xs={12}>
             <FileUpload
-              label="Attachments"
+              label={isEdit ? 'Add documents' : 'Attachments'}
               value={attachments}
               onChange={setAttachments}
               uploader={attachmentsUploader}
@@ -534,40 +615,60 @@ const JvpForm = ({ matter }: JvpFormProps) => {
     },
   ];
 
+  /** Collect SharePoint links from completed uploads, tagged with their field. */
+  const collectNewDocuments = () => {
+    const uploadedAt = new Date().toISOString();
+    return [
+      ...documentsFromUploads(
+        cashflowFiles.map((f) => ({
+          name: f.file.name,
+          url: f.url,
+          id: f.remoteId,
+        })),
+        CASHFLOW_FIELD,
+        uploadedAt
+      ),
+      ...documentsFromUploads(
+        costStructureFiles.map((f) => ({
+          name: f.file.name,
+          url: f.url,
+          id: f.remoteId,
+        })),
+        COST_STRUCTURE_FIELD,
+        uploadedAt
+      ),
+      ...documentsFromUploads(
+        attachments.map((f) => ({
+          name: f.file.name,
+          url: f.url,
+          id: f.remoteId,
+        })),
+        null,
+        uploadedAt
+      ),
+    ];
+  };
+
   const handleSubmit = async () => {
+    // Edit mode: delegate the PATCH to the caller, which has the record ids.
+    if (isEdit) {
+      if (!onEditSubmit) {
+        throw new Error('Edit mode requires an onEditSubmit handler.');
+      }
+      setSubmitting(true);
+      try {
+        // Final document set = kept existing docs (any the user didn't remove)
+        // + newly uploaded files, each tagged with its field.
+        const documents = [...existingDocs, ...collectNewDocuments()];
+        return await onEditSubmit(state, documents);
+      } finally {
+        setSubmitting(false);
+      }
+    }
+
     setSubmitting(true);
     try {
-      // Collect SharePoint links from completed uploads, tagged with their field.
-      const uploadedAt = new Date().toISOString();
-      const documents = [
-        ...documentsFromUploads(
-          cashflowFiles.map((f) => ({
-            name: f.file.name,
-            url: f.url,
-            id: f.remoteId,
-          })),
-          CASHFLOW_FIELD,
-          uploadedAt
-        ),
-        ...documentsFromUploads(
-          costStructureFiles.map((f) => ({
-            name: f.file.name,
-            url: f.url,
-            id: f.remoteId,
-          })),
-          COST_STRUCTURE_FIELD,
-          uploadedAt
-        ),
-        ...documentsFromUploads(
-          attachments.map((f) => ({
-            name: f.file.name,
-            url: f.url,
-            id: f.remoteId,
-          })),
-          null,
-          uploadedAt
-        ),
-      ];
+      const documents = collectNewDocuments();
 
       const result = await submitJvpRequest(state, {
         requestorContactId: user?.contactId ?? null,
@@ -593,6 +694,15 @@ const JvpForm = ({ matter }: JvpFormProps) => {
       steps={steps}
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit}
+      submitLabel={isEdit ? 'Save Changes' : undefined}
+      successTitle={isEdit ? 'Changes saved' : undefined}
+      successMessage={
+        isEdit
+          ? 'Your changes have been saved. The request stays in Resubmit until it is moved forward in the workflow.'
+          : undefined
+      }
+      successActionLabel={isEdit ? 'Back to request' : undefined}
+      onSuccessAction={isEdit ? onEditSuccess : undefined}
     />
   );
 };

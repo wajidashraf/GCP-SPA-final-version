@@ -127,6 +127,10 @@ type CreateGcpCprRequestInput = {
   'gcp_Request@odata.bind'?: string;
 };
 
+// ── Input shape for update (PATCH) ──────────────────────────────────────────
+// All scalar fields optional; lookups are rebound via the service's lookup binds.
+type UpdateGcpCprRequestInput = Partial<CreateGcpCprRequestInput>;
+
 const mapGcpCprRequest = (e: GcpCprRequestEntity): GcpCprRequest => ({
   id: e.gcp_cprrequestgcpid ?? '',
   name: e.gcp_cprrequestgcp1 ?? null,
@@ -194,4 +198,9 @@ const DEFAULT_CPR_REQUEST_SELECT: readonly string[] = [
 ];
 
 export { mapGcpCprRequest, DEFAULT_CPR_REQUEST_SELECT };
-export type { GcpCprRequest, GcpCprRequestEntity, CreateGcpCprRequestInput };
+export type {
+  GcpCprRequest,
+  GcpCprRequestEntity,
+  CreateGcpCprRequestInput,
+  UpdateGcpCprRequestInput,
+};

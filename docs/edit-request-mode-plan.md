@@ -1,7 +1,12 @@
 # Plan — Edit an RS request from the Request Detail page
 
-**Status:** approved approach, not yet implemented.
-**Author/date:** drafted 2026-06-18.
+**Status:** ✅ **complete — all 13 matter codes have edit support.**
+**Author/date:** drafted 2026-06-18; roll-out completed 2026-07-14.
+
+> **See [edit-mode-rollout.md](./edit-mode-rollout.md)** for the per-type
+> completion record (what each form maps, the reverse field mapping, and any
+> per-type quirks). The sections below are the original design; they remain
+> accurate as the recipe every type followed.
 
 ## Goal
 
@@ -235,20 +240,22 @@ existing update services. No optimistic-concurrency handling needed for v1.
 
 ---
 
-## Rollout order
+## Rollout order — ✅ done
 
-1. **Phase 0 — shared scaffolding:** Edit button + gating on RequestDetail,
-   `FORM_REGISTRY`, `/requests/:id/edit` route + `EditRequest` page + guards,
+1. **Phase 0 — shared scaffolding:** ✅ Edit button + gating on RequestDetail,
+   `editRegistry.ts`, `/requests/:id/edit` route + `EditRequest` page + guards,
    `useFormDraft` `persist` flag, `MultiStepForm` success-action override.
-2. **Phase 1 — PBL reference implementation** (most complex: has grandchild
-   bidders, so it proves the diff + DELETE path and the identity fix). Validate
-   end-to-end on dev. Enable PBL bidder `delete` permission.
-3. **Phase 2 — fan out** to the remaining 12 types using the recipe. Simple
-   types (no grandchildren) are quick; only collection-bearing types need the
-   diff/delete path and a permission change.
+2. **Phase 1 — RTP reference implementation** ✅ (then PBL, JVP, CAA, ST/SP).
+3. **Phase 2 — fan out** ✅ to the remaining types (PP, VAP, Others, CI, CPR,
+   PCCA, R-PCCA, R-PP), completed 2026-07-14 — see
+   [edit-mode-rollout.md](./edit-mode-rollout.md).
 
-Suggested PR strategy: Phase 0 + Phase 1 as one PR (validates the whole pattern),
-then one PR per type (or small batches) for Phase 2.
+**Note — no grandchild DELETE path was needed after all.** During fan-out we
+confirmed that every "collection" input across the remaining types
+(`DynamicRowFields` / `DynamicWorkItemFiled` on PCCA, R-PCCA, CAA) persists as a
+**JSON string in a single multiline-text column on the child record**, not as
+separate grandchild rows. PBL bidders are the only true grandchild collection.
+So Phase 2 needed no `delete: true` table-permission changes.
 
 ---
 

@@ -8,12 +8,21 @@
 // The two "from Contract BQ" sections are DynamicRowFields whose rows are already
 // JSON strings in form state, so they persist as-is into multiline-text columns.
 
-import { createRequest } from '../../shared/services/requestService';
-import { createPccaRequest } from '../../shared/services/pccaRequestService';
+import {
+  createRequest,
+  updateRequest,
+} from '../../shared/services/requestService';
+import {
+  createPccaRequest,
+  updatePccaRequest,
+} from '../../shared/services/pccaRequestService';
 import { serializeDocuments } from '../../shared/documents';
 import type { DocumentLink } from '../../shared/documents';
-import type { CreateGcpRequestInput } from '../../types/request';
-import type { CreateGcpPccaRequestInput } from '../../types/pccaRequest';
+import type { CreateGcpRequestInput, GcpRequest } from '../../types/request';
+import type {
+  CreateGcpPccaRequestInput,
+  GcpPccaRequest,
+} from '../../types/pccaRequest';
 import type { SoaCodeValue } from '../../data/soaChoices';
 import type { PccaFormState } from './types';
 
@@ -113,5 +122,107 @@ const submitPccaRequest = async (
   };
 };
 
-export { submitPccaRequest };
-export type { SubmitResult, SubmitPccaOptions };
+// ── Edit mode ────────────────────────────────────────────────────────────────
+// Reverse of the create mapping above: hydrate the form state from a loaded
+// parent gcp_request + gcp_pccarequest child, then PATCH the editable fields
+// back. Requestor/Company lookups are never rebound and gcp_requestoremail is
+// never PATCHed — the original requestor's identity must survive edits by
+// Reviewers/Verifiers. The Project lookup IS rebound (the Project select stays
+// editable in edit mode). The two BQ sections are JSON strings that seed
+// DynamicRowFields' initialRows and persist as-is.
+
+/** Number column → form string (empty when null). */
+const numToStr = (value: number | null): string =>
+  value == null ? '' : String(value);
+
+/** Build PCCA form state from the loaded parent + child records (edit prefill). */
+const loadPccaFormState = (
+  request: GcpRequest,
+  pcca: GcpPccaRequest
+): PccaFormState => ({
+  matterValue: request.matter as PccaFormState['matterValue'],
+  categoryValue: (request.category ?? 2) as PccaFormState['categoryValue'],
+  // Mirror new mode: the requestor select's value is the email, the label the name.
+  requestorContactId: request.requestorEmail ?? '',
+  requestorName: request.requestorName ?? '',
+  requestorEmail: request.requestorEmail ?? '',
+  companyId: request.companyId ?? '',
+  companyName: request.companyName ?? '',
+  projectId: pcca.projectId ?? '',
+  projectName: request.projectName ?? pcca.title ?? '',
+  projectCode: request.projectCode ?? '',
+
+  // JSON strings — seed DynamicRowFields via parseRowFieldData in the form.
+  priceRevenueFromContractBq: pcca.priceRevenueFromContractBq ?? '',
+  costFromContractBq: pcca.costFromContractBq ?? '',
+
+  // Totals are auto-summed from the BQ rows on mount; seed for first paint.
+  totalRevenue: numToStr(pcca.totalRevenue),
+  totalCost: numToStr(pcca.totalCost),
+  constructionCost: numToStr(pcca.constructionCost),
+  internalCost: numToStr(pcca.internalCost),
+  remarks: pcca.remarks ?? '',
+
+  acknowledged: request.acknowledged ?? pcca.acknowledged ?? false,
+});
+
+type UpdatePccaIds = {
+  /** Parent gcp_request GUID. */
+  requestId: string;
+  /** Child gcp_pccarequest GUID. */
+  pccaRecordId: string;
+  /**
+   * Final document set to persist on gcp_request.gcp_documentsurl (kept existing
+   * links + new uploads). When omitted, the column is left untouched.
+   */
+  documents?: DocumentLink[];
+};
+
+/**
+ * Save edits: PATCH the editable fields on the parent request and the PCCA
+ * child. Does NOT change gcp_requeststatus (stays RS / Resubmit) and never
+ * touches the Requestor/Company lookups or gcp_requestoremail.
+ */
+const updatePccaRequestFromState = async (
+  state: PccaFormState,
+  ids: UpdatePccaIds
+): Promise<void> => {
+  const projectId = state.projectId || null;
+
+  // Parent gcp_request — project fields + acknowledgement (+ documents).
+  await updateRequest(
+    ids.requestId,
+    {
+      gcp_project_name: state.projectName || null,
+      gcp_projectcode: orNull(state.projectCode),
+      gcp_acknowledgement: state.acknowledged,
+      ...(ids.documents
+        ? { gcp_documentsurl: serializeDocuments(ids.documents) }
+        : {}),
+    },
+    { lookups: { projectId } }
+  );
+
+  // Child gcp_pccarequest — same editable column set as the create mapping.
+  await updatePccaRequest(
+    ids.pccaRecordId,
+    {
+      gcp_occarequestname: state.projectName || null,
+
+      gcp_pricerevenuefromcontractbq: orNull(state.priceRevenueFromContractBq),
+      gcp_costfromcontractbq: orNull(state.costFromContractBq),
+
+      gcp_totalrevenuerm: orInt(state.totalRevenue),
+      gcp_totalcostrm: orInt(state.totalCost),
+      gcp_constructioncostrm: orInt(state.constructionCost),
+      gcp_internalcost: orInt(state.internalCost),
+      gcp_remarks: orNull(state.remarks),
+
+      gcp_acknowledgement: state.acknowledged,
+    },
+    { lookups: { projectId } }
+  );
+};
+
+export { submitPccaRequest, loadPccaFormState, updatePccaRequestFromState };
+export type { SubmitResult, SubmitPccaOptions, UpdatePccaIds };

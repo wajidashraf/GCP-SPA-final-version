@@ -7,12 +7,21 @@
 //      via `gcp_Requestlookup@odata.bind` plus the Project and Company lookups.
 //      Carries the description of matters + acknowledgement bit + name.
 
-import { createRequest } from '../../shared/services/requestService';
-import { createOtherRequest } from '../../shared/services/otherRequestService';
+import {
+  createRequest,
+  updateRequest,
+} from '../../shared/services/requestService';
+import {
+  createOtherRequest,
+  updateOtherRequest,
+} from '../../shared/services/otherRequestService';
 import { serializeDocuments } from '../../shared/documents';
 import type { DocumentLink } from '../../shared/documents';
-import type { CreateGcpRequestInput } from '../../types/request';
-import type { CreateGcpOtherRequestInput } from '../../types/otherRequest';
+import type { CreateGcpRequestInput, GcpRequest } from '../../types/request';
+import type {
+  CreateGcpOtherRequestInput,
+  GcpOtherRequest,
+} from '../../types/otherRequest';
 import type { SoaCodeValue } from '../../data/soaChoices';
 import type { OthersFormState } from './types';
 
@@ -94,5 +103,84 @@ const submitOtherRequest = async (
   };
 };
 
-export { submitOtherRequest };
-export type { SubmitResult, SubmitOthersOptions };
+// ── Edit mode ────────────────────────────────────────────────────────────────
+// Reverse of the create mapping above: hydrate the form state from a loaded
+// parent gcp_request + gcp_otherrequests child, then PATCH the editable fields
+// back. Requestor/Company lookups are never rebound and gcp_requestoremail is
+// never PATCHed — the original requestor's identity must survive edits by
+// Reviewers/Verifiers. The Project lookup IS rebound (the Project select stays
+// editable in edit mode). matterValue is preserved from the parent so a GCP
+// (13) vs GCPC (9) request keeps its channel.
+
+/** Build Others form state from the loaded parent + child records (edit prefill). */
+const loadOthersFormState = (
+  request: GcpRequest,
+  other: GcpOtherRequest
+): OthersFormState => ({
+  matterValue: request.matter as OthersFormState['matterValue'],
+  categoryValue: (request.category ?? 2) as OthersFormState['categoryValue'],
+  // Mirror new mode: the requestor select's value is the email, the label the name.
+  requestorContactId: request.requestorEmail ?? '',
+  requestorName: request.requestorName ?? '',
+  requestorEmail: request.requestorEmail ?? '',
+  companyId: request.companyId ?? '',
+  companyName: request.companyName ?? '',
+  projectId: other.projectId ?? '',
+  projectName: request.projectName ?? other.name ?? '',
+  projectCode: request.projectCode ?? other.projectCode ?? '',
+  descriptionOfMatters: other.descriptionOfMatters ?? '',
+  acknowledged: request.acknowledged ?? other.acknowledged ?? false,
+});
+
+type UpdateOthersIds = {
+  /** Parent gcp_request GUID. */
+  requestId: string;
+  /** Child gcp_otherrequests GUID. */
+  otherRecordId: string;
+  /**
+   * Final document set to persist on gcp_request.gcp_documentsurl (kept existing
+   * links + new uploads). When omitted, the column is left untouched.
+   */
+  documents?: DocumentLink[];
+};
+
+/**
+ * Save edits: PATCH the editable fields on the parent request and the Others
+ * child. Does NOT change gcp_requeststatus (stays RS / Resubmit) and never
+ * touches the Requestor/Company lookups or gcp_requestoremail.
+ */
+const updateOtherRequestFromState = async (
+  state: OthersFormState,
+  ids: UpdateOthersIds
+): Promise<void> => {
+  const projectId = state.projectId || null;
+
+  // Parent gcp_request — project fields + acknowledgement (+ documents).
+  await updateRequest(
+    ids.requestId,
+    {
+      gcp_project_name: state.projectName || null,
+      gcp_projectcode: orNull(state.projectCode),
+      gcp_acknowledgement: state.acknowledged,
+      ...(ids.documents
+        ? { gcp_documentsurl: serializeDocuments(ids.documents) }
+        : {}),
+    },
+    { lookups: { projectId } }
+  );
+
+  // Child gcp_otherrequests — same editable column set as the create mapping.
+  await updateOtherRequest(
+    ids.otherRecordId,
+    {
+      gcp_requestname: state.projectName || null,
+      gcp_descriptionofmatters: orNull(state.descriptionOfMatters),
+      gcp_projectcode: orNull(state.projectCode),
+      gcp_acknowledgement: state.acknowledged,
+    },
+    { lookups: { projectId } }
+  );
+};
+
+export { submitOtherRequest, loadOthersFormState, updateOtherRequestFromState };
+export type { SubmitResult, SubmitOthersOptions, UpdateOthersIds };

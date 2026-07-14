@@ -10,12 +10,21 @@
 // form state, so it persists as-is into the multiline-text column
 // gcp_workitementry.
 
-import { createRequest } from '../../shared/services/requestService';
-import { createRpccaRequest } from '../../shared/services/rpccaRequestService';
+import {
+  createRequest,
+  updateRequest,
+} from '../../shared/services/requestService';
+import {
+  createRpccaRequest,
+  updateRpccaRequest,
+} from '../../shared/services/rpccaRequestService';
 import { serializeDocuments } from '../../shared/documents';
 import type { DocumentLink } from '../../shared/documents';
-import type { CreateGcpRequestInput } from '../../types/request';
-import type { CreateGcpRpccaRequestInput } from '../../types/rpccaRequest';
+import type { CreateGcpRequestInput, GcpRequest } from '../../types/request';
+import type {
+  CreateGcpRpccaRequestInput,
+  GcpRpccaRequest,
+} from '../../types/rpccaRequest';
 import type { SoaCodeValue } from '../../data/soaChoices';
 import type { RpccaFormState } from './types';
 
@@ -95,5 +104,85 @@ const submitRpccaRequest = async (
   };
 };
 
-export { submitRpccaRequest };
-export type { SubmitResult, SubmitRpccaOptions };
+// ── Edit mode ────────────────────────────────────────────────────────────────
+// Reverse of the create mapping above: hydrate the form state from a loaded
+// parent gcp_request + gcp_rpccarequestgcp child, then PATCH the editable fields
+// back. Requestor/Company lookups are never rebound and gcp_requestoremail is
+// never PATCHed — the original requestor's identity must survive edits by
+// Reviewers/Verifiers. The Project lookup IS rebound on the parent (the Project
+// select stays editable in edit mode); the child has no project/company lookup.
+// The Work Item Entry grid is a JSON string that seeds DynamicWorkItemFiled's
+// initialRows and persists as-is.
+
+/** Build R-PCCA form state from the loaded parent + child records (edit prefill). */
+const loadRpccaFormState = (
+  request: GcpRequest,
+  rpcca: GcpRpccaRequest
+): RpccaFormState => ({
+  matterValue: request.matter as RpccaFormState['matterValue'],
+  categoryValue: (request.category ?? 2) as RpccaFormState['categoryValue'],
+  // Mirror new mode: the requestor select's value is the email, the label the name.
+  requestorContactId: request.requestorEmail ?? '',
+  requestorName: request.requestorName ?? '',
+  requestorEmail: request.requestorEmail ?? '',
+  companyId: request.companyId ?? '',
+  companyName: request.companyName ?? '',
+  projectId: request.projectId ?? '',
+  projectName: request.projectName ?? rpcca.name ?? '',
+  projectCode: request.projectCode ?? '',
+
+  // JSON string — seeds DynamicWorkItemFiled via parseWorkItems in the form.
+  workItemEntry: rpcca.workItemEntry ?? '',
+  remarks: rpcca.remarks ?? '',
+
+  acknowledged: request.acknowledged ?? false,
+});
+
+type UpdateRpccaIds = {
+  /** Parent gcp_request GUID. */
+  requestId: string;
+  /** Child gcp_rpccarequestgcp GUID. */
+  rpccaRecordId: string;
+  /**
+   * Final document set to persist on gcp_request.gcp_documentsurl (kept existing
+   * links + new uploads). When omitted, the column is left untouched.
+   */
+  documents?: DocumentLink[];
+};
+
+/**
+ * Save edits: PATCH the editable fields on the parent request and the R-PCCA
+ * child. Does NOT change gcp_requeststatus (stays RS / Resubmit) and never
+ * touches the Requestor/Company lookups or gcp_requestoremail.
+ */
+const updateRpccaRequestFromState = async (
+  state: RpccaFormState,
+  ids: UpdateRpccaIds
+): Promise<void> => {
+  const projectId = state.projectId || null;
+
+  // Parent gcp_request — project fields + acknowledgement (+ documents).
+  await updateRequest(
+    ids.requestId,
+    {
+      gcp_project_name: state.projectName || null,
+      gcp_projectcode: orNull(state.projectCode),
+      gcp_acknowledgement: state.acknowledged,
+      ...(ids.documents
+        ? { gcp_documentsurl: serializeDocuments(ids.documents) }
+        : {}),
+    },
+    { lookups: { projectId } }
+  );
+
+  // Child gcp_rpccarequestgcp — same editable column set as the create mapping.
+  // (This child has no project/company lookup, so none is rebound.)
+  await updateRpccaRequest(ids.rpccaRecordId, {
+    gcp_rpccarequestname: state.projectName || null,
+    gcp_workitementry: orNull(state.workItemEntry),
+    gcp_remarks: orNull(state.remarks),
+  });
+};
+
+export { submitRpccaRequest, loadRpccaFormState, updateRpccaRequestFromState };
+export type { SubmitResult, SubmitRpccaOptions, UpdateRpccaIds };
