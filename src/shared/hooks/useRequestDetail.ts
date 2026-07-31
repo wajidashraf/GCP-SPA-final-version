@@ -5,7 +5,7 @@
 // isolated: a permission/Web-API failure on the child surfaces as `childError`
 // without blanking the parent record.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getRequestById } from '../services/requestService';
 import { listRtpRequestsByParent } from '../services/rtpRequestService';
 import { listPblRequestsByParent } from '../services/pblRequestService';
@@ -189,24 +189,36 @@ const useRequestDetail = (id: string | null | undefined): UseRequestDetailState 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [childError, setChildError] = useState<string | null>(null);
+  const loadGeneration = useRef(0);
 
   const load = useCallback(async () => {
+    const generation = ++loadGeneration.current;
+    const isCurrentLoad = () => loadGeneration.current === generation;
+
     if (!id) {
       setRequest(null);
       setChild(null);
+      setIsLoading(false);
+      setError(null);
+      setChildError(null);
       return;
     }
     setIsLoading(true);
     setError(null);
     setChildError(null);
+    setRequest(null);
     setChild(null);
     try {
       const parent = await getRequestById(id, { withFormattedValues: true });
+      if (!isCurrentLoad()) return;
       setRequest(parent);
       if (!parent) return;
       try {
-        setChild(await loadChild(parent));
+        const loadedChild = await loadChild(parent);
+        if (!isCurrentLoad()) return;
+        setChild(loadedChild);
       } catch (childErr) {
+        if (!isCurrentLoad()) return;
         setChildError(
           childErr instanceof Error
             ? childErr.message
@@ -214,14 +226,20 @@ const useRequestDetail = (id: string | null | undefined): UseRequestDetailState 
         );
       }
     } catch (err) {
+      if (!isCurrentLoad()) return;
       setError(err instanceof Error ? err.message : 'Failed to load request.');
     } finally {
-      setIsLoading(false);
+      if (isCurrentLoad()) {
+        setIsLoading(false);
+      }
     }
   }, [id]);
 
   useEffect(() => {
     void load();
+    return () => {
+      loadGeneration.current += 1;
+    };
   }, [load]);
 
   return { request, child, isLoading, error, childError, refetch: load };

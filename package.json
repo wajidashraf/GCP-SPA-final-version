@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:edit-policy": "node --test tests/requestEditPolicy.test.ts"
   },
   "dependencies": {
     "@azure/msal-browser": "^3.30.0",

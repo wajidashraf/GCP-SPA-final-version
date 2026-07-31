@@ -68,6 +68,14 @@ const verifyPlaceholders: readonly Placeholder[] = [
   { token: 'verifyDate', label: 'Verification Date', sample: '13 June 2026, 10:20 AM (MYT)' },
 ] as const;
 
+const resubmissionPlaceholders: readonly Placeholder[] = [
+  {
+    token: 'resubmissionDate',
+    label: 'Resubmission Date',
+    sample: '18 June 2026, 11:30 AM (MYT)',
+  },
+] as const;
+
 const reviewPlaceholders: readonly Placeholder[] = [
   { token: 'reviewerName', label: 'Reviewer Name', sample: 'Priya Nair' },
   { token: 'decisionCode', label: 'Decision Code', sample: 'Code 1 (Proceed)' },
@@ -98,6 +106,13 @@ const emailEvents = [
     description: 'Sent after a verifier completes verification.',
     recipientRoles: ['reviewer', 'requester'],
     placeholders: [...commonPlaceholders, ...verifyPlaceholders],
+  },
+  {
+    key: 'request_resubmitted',
+    label: 'Request Resubmitted',
+    description: 'Sent after updated RS request details are submitted for re-review.',
+    recipientRoles: ['reviewer'],
+    placeholders: [...commonPlaceholders, ...resubmissionPlaceholders],
   },
   {
     key: 'request_reviewed',

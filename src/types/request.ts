@@ -5,11 +5,12 @@
 // Choice value-union types are imported from src/data/*Choices.ts as required by
 // CLAUDE.md — do NOT redefine choice integers here.
 
-import type {
-  DecisionCodeValue,
-  OutcomeValue,
-  RequestCategoryValue,
-  RequestStatusValue,
+import {
+  outcomeChoices,
+  type DecisionCodeValue,
+  type OutcomeValue,
+  type RequestCategoryValue,
+  type RequestStatusValue,
 } from '../data/requestChoices';
 import type { MatterChoice } from '../data/matterChoices';
 import type { SoaCodeValue } from '../data/soaChoices';
@@ -29,6 +30,7 @@ type GcpRequestEntity = {
   gcp_mattertype?: MatterValue | null;
   gcp_soacode?: SoaCodeValue | null;
   gcp_outcome?: OutcomeValue | null;
+  'gcp_outcome@OData.Community.Display.V1.FormattedValue'?: string;
   gcp_decisioncode?: DecisionCodeValue | null;
   gcp_routedecision?: number | null;
   gcp_type?: number | null;
@@ -154,6 +156,8 @@ type GcpRequest = {
   endorsementLetterText: string | null;
 
   submittedOn: string | null;
+  /** Most recent successful RS edit submission (gcp_lastupdateddate). */
+  lastUpdatedDate: string | null;
   acknowledgementDate: string | null;
   acceptanceDate: string | null;
   endorsementDate: string | null;
@@ -195,6 +199,7 @@ type CreateGcpRequestInput = {
 type UpdateGcpRequestInput = Partial<CreateGcpRequestInput> & {
   gcp_outcome?: OutcomeValue | null;
   gcp_decisioncode?: DecisionCodeValue | null;
+  gcp_lastupdateddate?: string | null;
   gcp_reviewdate?: string | null;
   gcp_acknowledgementdate?: string | null;
   gcp_acceptancedate?: string | null;
@@ -207,6 +212,16 @@ type UpdateGcpRequestInput = Partial<CreateGcpRequestInput> & {
 };
 
 // ── Entity → domain mapper ──────────────────────────────────────────────────
+const getOutcomeValue = (e: GcpRequestEntity): OutcomeValue | null => {
+  if (e.gcp_outcome != null) return e.gcp_outcome;
+
+  const formatted =
+    e['gcp_outcome@OData.Community.Display.V1.FormattedValue']?.trim();
+  return (
+    outcomeChoices.find((choice) => choice.label === formatted)?.value ?? null
+  );
+};
+
 const mapGcpRequest = (e: GcpRequestEntity): GcpRequest => ({
   id: e.gcp_requestid ?? '',
   title: e.gcp_requesttitle ?? null,
@@ -224,7 +239,7 @@ const mapGcpRequest = (e: GcpRequestEntity): GcpRequest => ({
   category: (e.gcp_category ?? null) as RequestCategoryValue | null,
   matter: (e.gcp_mattertype ?? null) as MatterValue | null,
   soaCode: (e.gcp_soacode ?? null) as SoaCodeValue | null,
-  outcome: (e.gcp_outcome ?? null) as OutcomeValue | null,
+  outcome: getOutcomeValue(e),
   decisionCode: (e.gcp_decisioncode ?? null) as DecisionCodeValue | null,
 
   projectId: e['_gcp_project_value'] ?? null,
@@ -248,6 +263,7 @@ const mapGcpRequest = (e: GcpRequestEntity): GcpRequest => ({
   endorsementLetterText: e.gcp_endorselettertextcontent ?? null,
 
   submittedOn: e.gcp_submittedon ?? null,
+  lastUpdatedDate: e.gcp_lastupdateddate ?? null,
   acknowledgementDate: e.gcp_acknowledgementdate ?? null,
   acceptanceDate: e.gcp_acceptancedate ?? null,
   endorsementDate: e.gcp_endorsementdate ?? null,
@@ -274,6 +290,7 @@ const DEFAULT_REQUEST_SELECT: readonly string[] = [
   'gcp_projectdiscription',
   'gcp_documentsurl',
   'gcp_submittedon',
+  'gcp_lastupdateddate',
   'gcp_acknowledgement',
   'gcp_confidential',
   'gcp_documentsok',

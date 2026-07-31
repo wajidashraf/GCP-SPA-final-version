@@ -8,6 +8,7 @@ import PblForm from './PblForm';
 import { loadPblFormState, updatePblRequestFromState } from './api';
 import type { PblFormState } from './types';
 import type { EditFormProps } from '../editRegistry';
+import { getEditSubmissionCopy } from '../../shared/requestEditPolicy';
 
 /**
  * Edit-mode adapter for PBL requests. Resolves the matter, hydrates form state
@@ -16,7 +17,15 @@ import type { EditFormProps } from '../editRegistry';
  * so it carries the current (possibly changed) form state; the loaded bidder
  * rows are kept here as the diff baseline.
  */
-const PblEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
+const PblEditForm = ({
+  request,
+  child,
+  editPurpose,
+  onSaved,
+  onResubmitted,
+  onCancel,
+}: EditFormProps) => {
+  const editCopy = getEditSubmissionCopy(editPurpose);
   const matter = useMemo(
     () => matterChoices.find((m) => m.value === request.matter) ?? null,
     [request.matter]
@@ -68,9 +77,12 @@ const PblEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
       originalBidders: bidders,
       documents,
     });
+    if (editPurpose === 'resubmission') {
+      await onResubmitted();
+    }
     return {
       reference: request.title ?? request.id.slice(0, 8),
-      toast: { message: 'Changes saved.', tone: 'success' },
+      toast: { message: editCopy.toastMessage, tone: 'success' },
     };
   };
 
@@ -78,6 +90,7 @@ const PblEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
     <PblForm
       matter={matter}
       mode="edit"
+      editPurpose={editPurpose}
       initialState={initialState}
       requestId={request.id}
       initialDocuments={initialDocuments}

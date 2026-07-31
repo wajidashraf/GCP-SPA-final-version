@@ -8,6 +8,7 @@ import RtpForm from './RtpForm';
 import { loadRtpFormState, updateRtpRequestFromState } from './api';
 import type { RtpFormState } from './types';
 import type { EditFormProps } from '../editRegistry';
+import { getEditSubmissionCopy } from '../../shared/requestEditPolicy';
 
 /**
  * Edit-mode adapter for RTP requests. Resolves the matter, hydrates form state
@@ -15,7 +16,15 @@ import type { EditFormProps } from '../editRegistry';
  * PATCH is delegated through RtpForm's onEditSubmit so it carries the current
  * (possibly changed) form state.
  */
-const RtpEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
+const RtpEditForm = ({
+  request,
+  child,
+  editPurpose,
+  onSaved,
+  onResubmitted,
+  onCancel,
+}: EditFormProps) => {
+  const editCopy = getEditSubmissionCopy(editPurpose);
   const matter = useMemo(
     () => matterChoices.find((m) => m.value === request.matter) ?? null,
     [request.matter]
@@ -55,9 +64,12 @@ const RtpEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
       rtpRecordId: rtp.id,
       documents,
     });
+    if (editPurpose === 'resubmission') {
+      await onResubmitted();
+    }
     return {
       reference: request.title ?? request.id.slice(0, 8),
-      toast: { message: 'Changes saved.', tone: 'success' },
+      toast: { message: editCopy.toastMessage, tone: 'success' },
     };
   };
 
@@ -65,6 +77,7 @@ const RtpEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
     <RtpForm
       matter={matter}
       mode="edit"
+      editPurpose={editPurpose}
       initialState={initialState}
       requestId={request.id}
       initialDocuments={initialDocuments}

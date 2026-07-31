@@ -8,6 +8,7 @@ import PpForm from './PpForm';
 import { loadPpFormState, updatePpRequestFromState } from './api';
 import type { PpFormState } from './types';
 import type { EditFormProps } from '../editRegistry';
+import { getEditSubmissionCopy } from '../../shared/requestEditPolicy';
 
 /**
  * Edit-mode adapter for PP (Procurement Plan) requests. Resolves the matter,
@@ -15,7 +16,15 @@ import type { EditFormProps } from '../editRegistry';
  * mode. The actual PATCH is delegated through PpForm's onEditSubmit so it carries
  * the current (possibly changed) form state.
  */
-const PpEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
+const PpEditForm = ({
+  request,
+  child,
+  editPurpose,
+  onSaved,
+  onResubmitted,
+  onCancel,
+}: EditFormProps) => {
+  const editCopy = getEditSubmissionCopy(editPurpose);
   const matter = useMemo(
     () => matterChoices.find((m) => m.value === request.matter) ?? null,
     [request.matter]
@@ -55,9 +64,12 @@ const PpEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
       ppRecordId: pp.id,
       documents,
     });
+    if (editPurpose === 'resubmission') {
+      await onResubmitted();
+    }
     return {
       reference: request.title ?? request.id.slice(0, 8),
-      toast: { message: 'Changes saved.', tone: 'success' },
+      toast: { message: editCopy.toastMessage, tone: 'success' },
     };
   };
 
@@ -65,6 +77,7 @@ const PpEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
     <PpForm
       matter={matter}
       mode="edit"
+      editPurpose={editPurpose}
       initialState={initialState}
       requestId={request.id}
       initialDocuments={initialDocuments}

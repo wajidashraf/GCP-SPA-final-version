@@ -44,7 +44,11 @@ import type { FieldDef, RenderedField, SectionDef } from "../components/detail";
 import { useRequestDetail } from "../shared/hooks/useRequestDetail";
 import type { ChildData } from "../shared/hooks/useRequestDetail";
 import { groupDocuments, parseDocuments } from "../shared/documents";
-import { getVerifierInfo } from "../shared/services/requestService";
+import { canEditRequest } from "../shared/requestEditPolicy";
+import {
+  getVerifierInfo,
+  isRequestResubmittedForReview,
+} from "../shared/services/requestService";
 import type { VerifierInfo } from "../shared/services/requestService";
 import { listSuggestionsForRequest } from "../shared/services/suggestionService";
 import type { GcpSuggestion } from "../shared/services/suggestionService";
@@ -52,6 +56,7 @@ import { getChoiceLabel } from "../data/types";
 import {
   decisionCodeChoices,
   decisionCodeDescriptions,
+  outcomeChoices,
   registrationTypeChoices,
   requestCategoryChoices,
   requestStatusChoices,
@@ -332,6 +337,10 @@ export default function RequestDetail() {
       request.status != null
         ? (getChoiceLabel(requestStatusChoices, request.status) ?? null)
         : null;
+    const outcomeLabel =
+      request.outcome != null
+        ? (getChoiceLabel(outcomeChoices, request.outcome) ?? null)
+        : null;
     return {
       matterLabel: matter?.label ?? "Request",
       matterCode: matter?.code ?? null,
@@ -340,21 +349,38 @@ export default function RequestDetail() {
       soaLabel,
       statusLabel,
       statusCls: statusLabel ? (statusClass[statusLabel] ?? "status-new") : "",
+      outcomeLabel,
+      outcomeCls: outcomeLabel
+        ? (statusClass[outcomeLabel] ?? "status-new")
+        : "",
     };
   }, [request]);
 
-  // Edit gate — show the Edit button only when the request is in RS (16), the
-  // viewer may edit (owner / Reviewer / Verifier / admin), and an edit form is
-  // registered for this matter type. Authoritative checks are the table
-  // permissions + the EditRequest page's own guards; this is UX only.
+  const isResubmittedForReview = request
+    ? isRequestResubmittedForReview(request)
+    : false;
+  // Code 1 has a mapped Dataverse outcome for downstream workflow processing,
+  // but the Detail page intentionally shows Outcome only for Code 2/3/4/W.
+  const showOutcome =
+    request?.decisionCode !== 1 && meta?.outcomeLabel != null;
+
+  // Edit gate — New, R, and RS are editable by the original requestor,
+  // Reviewer, Verifier, or admin when the matter has a registered edit form.
+  // Authoritative checks remain the table permissions + EditRequest guards.
   const canEdit = useMemo(() => {
     if (!request || authLoading) return false;
-    if (request.status !== 16) return false;
     if (!hasEditForm(meta?.matterCode)) return false;
-    const isOwner =
-      !!user?.contactId && request.requestorContactId === user.contactId;
-    return (
-      isOwner || isAdmin() || hasRole("Reviewer") || hasRole("Verifier")
+    return canEditRequest(
+      {
+        status: request.status,
+        requestorContactId: request.requestorContactId,
+      },
+      {
+        contactId: user?.contactId,
+        isAdmin: isAdmin(),
+        isReviewer: hasRole("Reviewer"),
+        isVerifier: hasRole("Verifier"),
+      },
     );
   }, [request, authLoading, user, meta]);
 
@@ -499,6 +525,19 @@ export default function RequestDetail() {
                     )}
                   </dd>
                 </div>
+                {showOutcome ? (
+                  <div className="rd-hero-stat">
+                    <dt>
+                      <ClipboardCheck size={13} aria-hidden="true" /> Outcome
+                    </dt>
+                    <dd>
+                      <span className={`rq-status-pill ${meta.outcomeCls}`}>
+                        <span className="rq-status-dot" />
+                        {meta.outcomeLabel}
+                      </span>
+                    </dd>
+                  </div>
+                ) : null}
               </dl>
             </header>
 
@@ -543,6 +582,35 @@ export default function RequestDetail() {
                 </button>
               ) : null}
             </div>
+
+            {Number(request.status) === 16 &&
+            Number(request.outcome) === 4 ? (
+              <InlineMessage
+                tone={isResubmittedForReview ? "info" : "warning"}
+                title={
+                  isResubmittedForReview
+                    ? "Resubmitted — awaiting review"
+                    : "Changes required"
+                }
+                className="mb-3"
+              >
+                {isResubmittedForReview ? (
+                  <>
+                    Changes were submitted
+                    {request.lastUpdatedDate
+                      ? ` on ${new Date(request.lastUpdatedDate).toLocaleString()}`
+                      : ""}
+                    . A reviewer can now complete the re-review. The request
+                    remains editable while its status is RS.
+                  </>
+                ) : (
+                  <>
+                    The reviewer selected Code 2. Update the request and submit
+                    the changes for re-review.
+                  </>
+                )}
+              </InlineMessage>
+            ) : null}
 
             {childError ? (
               <InlineMessage
@@ -729,8 +797,9 @@ export default function RequestDetail() {
               </div>
             ) : null}
 
-            {/* Status R → Reviewer (or admin) records a decision + comment on the request. */}
-            {isReview && (isAdmin() || hasRole("Reviewer")) ? (
+            {/* Initial R or a submitted RS edit → Reviewer/Admin records a decision. */}
+            {(isReview || isResubmittedForReview) &&
+            (isAdmin() || hasRole("Reviewer")) ? (
               <div className="rd-actions">
                 <button
                   type="button"
@@ -748,7 +817,9 @@ export default function RequestDetail() {
                   }}
                 >
                   <ClipboardCheck size={16} aria-hidden="true" />
-                  Review Request
+                  {isResubmittedForReview
+                    ? "Review Resubmission"
+                    : "Review Request"}
                 </button>
               </div>
             ) : null}

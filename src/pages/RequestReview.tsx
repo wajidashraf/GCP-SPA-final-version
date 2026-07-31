@@ -2,16 +2,16 @@
 // Reviewer decision screen. Reached from:
 //   - "Review Request" button (status R = 3): initial review
 //   - "Edit Review" button in SuggestionsViewModal (status Draft Review = 4): editing
+//   - "Review Resubmission" button (status/outcome RS): re-review after an edit
 //
 // Buttons:
-//   Save              — patches reviewer fields, no status change
-//   Submit to Pending Review — patches fields + sets status 5
+//   Submit Review     — Code 1 sets status 5; Codes 2–W use mapped status/outcome
 
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import Modal from 'react-bootstrap/Modal';
-import { ArrowLeft, ClipboardCheck, Loader2, Save, Send } from 'lucide-react';
+import { ArrowLeft, ClipboardCheck, Loader2, Send } from 'lucide-react';
 import {
   RadioGroupField,
   ReviewCommentEditor,
@@ -24,9 +24,11 @@ import { InlineMessage, LoadingState } from '../components/ui';
 import { useRequestDetail } from '../shared/hooks/useRequestDetail';
 import { useAuth } from '../context/AuthContext';
 import {
+  deriveReviewTargets,
+  getRequestById,
   getReviewFields,
-  saveReviewDraft,
-  updateRequest,
+  isRequestResubmittedForReview,
+  reviewRequest,
   pollRequestStatus,
 } from '../shared/services/requestService';
 import { notifyEvent } from '../shared/notificationApi';
@@ -34,16 +36,20 @@ import { getChoiceLabel } from '../data/types';
 import {
   decisionCodeChoices,
   decisionCodeDescriptions,
+  outcomeChoices,
+  requestStatusChoices,
 } from '../data/requestChoices';
 import type { DecisionCodeValue } from '../data/requestChoices';
 import { soaCodeChoices } from '../data/soaChoices';
 import { matterChoices } from '../data/matterChoices';
+import type { MatterChoice } from '../data/matterChoices';
 
 // Matter types that capture an editable "Info and Criteria for Review" field:
 // PCCA (6), PP (7), R-PCCA (10), R-PP (14).
 const INFO_CRITERIA_MATTERS = new Set<number>([6, 7, 10, 14]);
 // The waiver decision code (W = 5) only applies to ST/SP (matter 4).
 const WAIVER_MATTER = 4;
+type ReviewMode = 'initial' | 'draft' | 'resubmission' | 'invalid';
 
 export default function RequestReview() {
   const { id } = useParams<{ id: string }>();
@@ -53,8 +59,9 @@ export default function RequestReview() {
   const { user } = useAuth();
 
   // Matter type / SOA code: prefer the loaded record, fall back to query params.
-  const matterType =
-    request?.matter ?? (Number(searchParams.get('type')) || null);
+  const matterType = (
+    request?.matter ?? (Number(searchParams.get('type')) || null)
+  ) as MatterChoice['value'] | null;
   const soaCode =
     request?.soaCode ?? (Number(searchParams.get('soacode')) || null);
 
@@ -69,6 +76,24 @@ export default function RequestReview() {
 
   const showInfoCriteria =
     matterType != null && INFO_CRITERIA_MATTERS.has(matterType);
+
+  const reviewMode = useMemo<ReviewMode | null>(() => {
+    if (!request) return null;
+    if (request.status === 3) return 'initial';
+    if (request.status === 4) return 'draft';
+    if (isRequestResubmittedForReview(request)) return 'resubmission';
+    return 'invalid';
+  }, [request]);
+  const isResubmissionReview = reviewMode === 'resubmission';
+
+  useEffect(() => {
+    if (!request || reviewMode !== 'invalid') return;
+    const timer = setTimeout(
+      () => navigate(`/requests/${request.id}`, { replace: true }),
+      2500,
+    );
+    return () => clearTimeout(timer);
+  }, [navigate, request, reviewMode]);
 
   // Decision codes: Code 1–4 always; the waiver code (W) only for ST/SP.
   const decisionOptions = useMemo<RadioOption[]>(
@@ -93,53 +118,70 @@ export default function RequestReview() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Prefill decision / comments / info from the stored review fields.
+  // Draft/initial review keeps the existing prefill behavior. A resubmission
+  // starts a clean decision/comment set without displaying the previous review.
   useEffect(() => {
-    if (!id) return;
+    if (!id || !request || !reviewMode || reviewMode === 'invalid') return;
     let cancelled = false;
+    setDecisionCode('');
+    setBlocks([]);
+    setInfoCriteria('');
     getReviewFields(id).then((fields) => {
       if (cancelled) return;
-      if (fields.decisionCode != null) setDecisionCode(String(fields.decisionCode));
-      setBlocks(parseReviewComments(fields.reviewerComments));
+      if (reviewMode !== 'resubmission') {
+        if (fields.decisionCode != null) {
+          setDecisionCode(String(fields.decisionCode));
+        }
+        setBlocks(parseReviewComments(fields.reviewerComments));
+      }
       setInfoCriteria(fields.infoAndCriteria ?? '');
     });
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, request, reviewMode]);
 
-  const buildDraftInput = () => ({
+  const buildReviewInput = () => ({
     decisionCode: decisionCode ? (Number(decisionCode) as DecisionCodeValue) : null,
     reviewerComments: serializeReviewComments(blocks),
     infoAndCriteria: showInfoCriteria ? infoCriteria.trim() : undefined,
     reviewedByContactId: user?.contactId,
   });
 
-  // ── Save (no status change) ─────────────────────────────────────────────
-  const handleSave = async () => {
-    if (!id) return;
-    setFormError(null);
-    setSubmitError(null);
-    setSubmitting(true);
-    try {
-      await saveReviewDraft(id, buildDraftInput());
-      navigate(`/requests/${id}`);
-    } catch (err) {
-      setSubmitError(
-        err instanceof Error
-          ? `Failed to save: ${err.message}`
-          : 'Failed to save. Please try again.',
-      );
-      setSubmitting(false);
-    }
-  };
+  const selectedDecisionCode = decisionCode
+    ? (Number(decisionCode) as DecisionCodeValue)
+    : null;
 
-  // ── Submit to Pending Review (status 5) ────────────────────────────────
-  const handleSubmitToPendingReview = (e: FormEvent<HTMLFormElement>) => {
+  // Code 1 continues to Pending Review. Codes 2–W use their mapped statuses.
+  // All decisions persist the outcome selected by deriveReviewTargets.
+  const submissionTargets = useMemo(() => {
+    if (selectedDecisionCode == null) return null;
+    return deriveReviewTargets(
+      selectedDecisionCode,
+      request?.category ?? null,
+      matterType,
+    );
+  }, [matterType, request?.category, selectedDecisionCode]);
+
+  const submissionStatusLabel = submissionTargets
+    ? getChoiceLabel(requestStatusChoices, submissionTargets.status) ??
+      `Status ${submissionTargets.status}`
+    : null;
+  const submissionOutcomeLabel = submissionTargets
+    ? getChoiceLabel(outcomeChoices, submissionTargets.outcome) ??
+      `Outcome ${submissionTargets.outcome}`
+    : null;
+
+  // ── Submit review (Code 1 → status 5; Codes 2–W → mapped targets) ─────
+  const handleSubmitReview = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setFormError(null);
     if (!decisionCode) {
       setFormError('Please select a decision code before submitting.');
+      return;
+    }
+    if (!submissionTargets) {
+      setFormError('The selected decision code has no configured status/outcome mapping.');
       return;
     }
     setSubmitError(null);
@@ -147,17 +189,42 @@ export default function RequestReview() {
   };
 
   const handleConfirm = async () => {
-    if (!id) {
-      setSubmitError('Missing request ID. Cannot submit the review.');
+    if (!id || selectedDecisionCode == null || !submissionTargets) {
+      setSubmitError('Missing request details. Cannot submit the review.');
       setShowConfirm(false);
       return;
     }
     setSubmitting(true);
     setShowConfirm(false);
     try {
-      await saveReviewDraft(id, buildDraftInput());
-      await updateRequest(id, { gcp_requeststatus: 5 });
-      await pollRequestStatus(id, 5);
+      if (isResubmissionReview) {
+        const latest = await getRequestById(id);
+        if (!latest || !isRequestResubmittedForReview(latest)) {
+          setSubmitError(
+            'This request is no longer waiting for a resubmission review. Reload the latest request before submitting.',
+          );
+          setSubmitting(false);
+          return;
+        }
+        if (latest.lastUpdatedDate !== request?.lastUpdatedDate) {
+          setSubmitError(
+            'This request was updated while you were reviewing it. Reload the latest version before submitting.',
+          );
+          setSubmitting(false);
+          return;
+        }
+      }
+
+      const draft = buildReviewInput();
+      await reviewRequest(id, {
+        decisionCode: selectedDecisionCode,
+        status: submissionTargets.status,
+        outcome: submissionTargets.outcome,
+        reviewerComments: draft.reviewerComments,
+        infoAndCriteria: draft.infoAndCriteria,
+        reviewedByContactId: draft.reviewedByContactId,
+      });
+      await pollRequestStatus(id, submissionTargets.status);
       void notifyEvent(id, 'request_reviewed', user?.email);
       navigate(`/requests/${id}`);
     } catch (err) {
@@ -183,6 +250,12 @@ export default function RequestReview() {
       helpText="Select one review decision code."
     />
   );
+
+  const decisionResult = submissionTargets ? (
+    <InlineMessage tone="info" title="Automatic review result">
+      Outcome: {submissionOutcomeLabel} · Status: {submissionStatusLabel}
+    </InlineMessage>
+  ) : null;
 
   const commentsField = (
     <ReviewCommentEditor
@@ -237,14 +310,27 @@ export default function RequestReview() {
           </InlineMessage>
         ) : null}
 
-        {request ? (
+        {request && reviewMode === 'invalid' ? (
+          <InlineMessage tone="info" title="This request is not ready for review">
+            Review is available for an initial R request, a Draft Review, or an
+            RS request whose changes were submitted after the last review.
+            Redirecting you back to the request…{' '}
+            <Link to={`/requests/${request.id}`}>Go now.</Link>
+          </InlineMessage>
+        ) : null}
+
+        {request && reviewMode !== 'invalid' ? (
           <div className="vd-card">
             <header className="vd-card-head">
               <span className="vd-card-icon" aria-hidden="true">
                 <ClipboardCheck size={20} />
               </span>
               <div>
-                <h1 className="vd-card-title">Review Request</h1>
+                <h1 className="vd-card-title">
+                  {isResubmissionReview
+                    ? 'Review Resubmitted Request'
+                    : 'Review Request'}
+                </h1>
                 <p className="vd-card-sub">
                   {matterLabel}
                   {soaLabel ? ` · ${soaLabel}` : ''}
@@ -253,17 +339,19 @@ export default function RequestReview() {
               </div>
             </header>
 
-            <form className="vd-card-body" onSubmit={handleSubmitToPendingReview} noValidate>
+            <form className="vd-card-body" onSubmit={handleSubmitReview} noValidate>
               {/* Special matter types lead with Info → Comments → Decision. */}
               {showInfoCriteria ? (
                 <>
                   {infoField}
                   {commentsField}
                   {decisionField}
+                  {decisionResult}
                 </>
               ) : (
                 <>
                   {decisionField}
+                  {decisionResult}
                   {commentsField}
                 </>
               )}
@@ -289,33 +377,20 @@ export default function RequestReview() {
                 >
                   Cancel
                 </button>
-                <button
-                  type="button"
-                  className="vd-btn-secondary"
-                  onClick={() => void handleSave()}
-                  disabled={submitting}
-                >
-                  {submitting ? (
-                    <Loader2 size={16} className="rq-spinner" aria-hidden="true" />
-                  ) : (
-                    <Save size={16} aria-hidden="true" />
-                  )}
-                  Save
-                </button>
                 <button type="submit" className="rd-verify-btn" disabled={submitting}>
                   {submitting ? (
                     <Loader2 size={16} className="rq-spinner" aria-hidden="true" />
                   ) : (
                     <Send size={16} aria-hidden="true" />
                   )}
-                  Submit to Pending Review
+                  {isResubmissionReview ? 'Submit Re-review' : 'Submit Review'}
                 </button>
               </div>
             </form>
           </div>
         ) : null}
 
-        {/* ── Confirm: Submit to Pending Review ─────────────────────────── */}
+        {/* ── Confirm review submission ────────────────────────────────── */}
         <Modal
           show={showConfirm}
           onHide={() => setShowConfirm(false)}
@@ -329,8 +404,18 @@ export default function RequestReview() {
             </Modal.Title>
           </Modal.Header>
           <Modal.Body>
-            Are you sure you want to submit this review? This saves your decision
-            and moves the request to Pending Review.
+            Are you sure you want to submit this{' '}
+            {isResubmissionReview ? 're-review' : 'review'}? This saves your
+            decision
+            {submissionTargets ? (
+              <>
+                {' '}
+                with outcome <strong>{submissionOutcomeLabel}</strong> and moves the
+                request to <strong>{submissionStatusLabel}</strong>.
+              </>
+            ) : (
+              '.'
+            )}
           </Modal.Body>
           <Modal.Footer>
             <button

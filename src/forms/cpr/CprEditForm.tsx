@@ -8,6 +8,7 @@ import CprForm from './CprForm';
 import { loadCprFormState, updateCprRequestFromState } from './api';
 import type { CprFormState } from './types';
 import type { EditFormProps } from '../editRegistry';
+import { getEditSubmissionCopy } from '../../shared/requestEditPolicy';
 
 /**
  * Edit-mode adapter for CPR (Contract Progress Report) requests. Resolves the
@@ -15,7 +16,15 @@ import type { EditFormProps } from '../editRegistry';
  * in edit mode. The actual PATCH is delegated through CprForm's onEditSubmit so
  * it carries the current (possibly changed) form state.
  */
-const CprEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
+const CprEditForm = ({
+  request,
+  child,
+  editPurpose,
+  onSaved,
+  onResubmitted,
+  onCancel,
+}: EditFormProps) => {
+  const editCopy = getEditSubmissionCopy(editPurpose);
   const matter = useMemo(
     () => matterChoices.find((m) => m.value === request.matter) ?? null,
     [request.matter]
@@ -55,9 +64,12 @@ const CprEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
       cprRecordId: cpr.id,
       documents,
     });
+    if (editPurpose === 'resubmission') {
+      await onResubmitted();
+    }
     return {
       reference: request.title ?? request.id.slice(0, 8),
-      toast: { message: 'Changes saved.', tone: 'success' },
+      toast: { message: editCopy.toastMessage, tone: 'success' },
     };
   };
 
@@ -65,6 +77,7 @@ const CprEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
     <CprForm
       matter={matter}
       mode="edit"
+      editPurpose={editPurpose}
       initialState={initialState}
       requestId={request.id}
       initialDocuments={initialDocuments}

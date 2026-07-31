@@ -14,6 +14,7 @@ import { uploadConfig } from './uploadConfig';
 // Event keys must match src/data/emailTemplateEvents.ts and the send-side Function.
 export type NotificationEventKey =
   | 'request_submitted'
+  | 'request_resubmitted'
   | 'request_verified'
   | 'request_reviewed';
 

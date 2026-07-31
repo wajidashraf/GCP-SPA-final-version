@@ -8,6 +8,7 @@ import PccaForm from './PccaForm';
 import { loadPccaFormState, updatePccaRequestFromState } from './api';
 import type { PccaFormState } from './types';
 import type { EditFormProps } from '../editRegistry';
+import { getEditSubmissionCopy } from '../../shared/requestEditPolicy';
 
 /**
  * Edit-mode adapter for PCCA (Project Cost Control Analysis) requests. Resolves
@@ -15,7 +16,15 @@ import type { EditFormProps } from '../editRegistry';
  * PccaForm in edit mode. The actual PATCH is delegated through PccaForm's
  * onEditSubmit so it carries the current (possibly changed) form state.
  */
-const PccaEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
+const PccaEditForm = ({
+  request,
+  child,
+  editPurpose,
+  onSaved,
+  onResubmitted,
+  onCancel,
+}: EditFormProps) => {
+  const editCopy = getEditSubmissionCopy(editPurpose);
   const matter = useMemo(
     () => matterChoices.find((m) => m.value === request.matter) ?? null,
     [request.matter]
@@ -55,9 +64,12 @@ const PccaEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
       pccaRecordId: pcca.id,
       documents,
     });
+    if (editPurpose === 'resubmission') {
+      await onResubmitted();
+    }
     return {
       reference: request.title ?? request.id.slice(0, 8),
-      toast: { message: 'Changes saved.', tone: 'success' },
+      toast: { message: editCopy.toastMessage, tone: 'success' },
     };
   };
 
@@ -65,6 +77,7 @@ const PccaEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
     <PccaForm
       matter={matter}
       mode="edit"
+      editPurpose={editPurpose}
       initialState={initialState}
       requestId={request.id}
       initialDocuments={initialDocuments}

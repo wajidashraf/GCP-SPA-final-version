@@ -8,6 +8,7 @@ import RpccaForm from './RpccaForm';
 import { loadRpccaFormState, updateRpccaRequestFromState } from './api';
 import type { RpccaFormState } from './types';
 import type { EditFormProps } from '../editRegistry';
+import { getEditSubmissionCopy } from '../../shared/requestEditPolicy';
 
 /**
  * Edit-mode adapter for R-PCCA (Revised Project Cost Control Analysis) requests.
@@ -15,7 +16,15 @@ import type { EditFormProps } from '../editRegistry';
  * renders RpccaForm in edit mode. The actual PATCH is delegated through
  * RpccaForm's onEditSubmit so it carries the current (possibly changed) state.
  */
-const RpccaEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
+const RpccaEditForm = ({
+  request,
+  child,
+  editPurpose,
+  onSaved,
+  onResubmitted,
+  onCancel,
+}: EditFormProps) => {
+  const editCopy = getEditSubmissionCopy(editPurpose);
   const matter = useMemo(
     () => matterChoices.find((m) => m.value === request.matter) ?? null,
     [request.matter]
@@ -55,9 +64,12 @@ const RpccaEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => 
       rpccaRecordId: rpcca.id,
       documents,
     });
+    if (editPurpose === 'resubmission') {
+      await onResubmitted();
+    }
     return {
       reference: request.title ?? request.id.slice(0, 8),
-      toast: { message: 'Changes saved.', tone: 'success' },
+      toast: { message: editCopy.toastMessage, tone: 'success' },
     };
   };
 
@@ -65,6 +77,7 @@ const RpccaEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => 
     <RpccaForm
       matter={matter}
       mode="edit"
+      editPurpose={editPurpose}
       initialState={initialState}
       requestId={request.id}
       initialDocuments={initialDocuments}

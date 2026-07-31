@@ -8,6 +8,7 @@ import OthersForm from './OthersForm';
 import { loadOthersFormState, updateOtherRequestFromState } from './api';
 import type { OthersFormState } from './types';
 import type { EditFormProps } from '../editRegistry';
+import { getEditSubmissionCopy } from '../../shared/requestEditPolicy';
 
 /**
  * Edit-mode adapter for "Others" requests (shared by GCPC matter 9 and GCP
@@ -15,7 +16,15 @@ import type { EditFormProps } from '../editRegistry';
  * child, and renders OthersForm in edit mode. The actual PATCH is delegated
  * through OthersForm's onEditSubmit so it carries the current form state.
  */
-const OthersEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
+const OthersEditForm = ({
+  request,
+  child,
+  editPurpose,
+  onSaved,
+  onResubmitted,
+  onCancel,
+}: EditFormProps) => {
+  const editCopy = getEditSubmissionCopy(editPurpose);
   const matter = useMemo(
     () => matterChoices.find((m) => m.value === request.matter) ?? null,
     [request.matter]
@@ -55,9 +64,12 @@ const OthersEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) =>
       otherRecordId: other.id,
       documents,
     });
+    if (editPurpose === 'resubmission') {
+      await onResubmitted();
+    }
     return {
       reference: request.title ?? request.id.slice(0, 8),
-      toast: { message: 'Changes saved.', tone: 'success' },
+      toast: { message: editCopy.toastMessage, tone: 'success' },
     };
   };
 
@@ -65,6 +77,7 @@ const OthersEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) =>
     <OthersForm
       matter={matter}
       mode="edit"
+      editPurpose={editPurpose}
       initialState={initialState}
       requestId={request.id}
       initialDocuments={initialDocuments}

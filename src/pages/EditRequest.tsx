@@ -7,29 +7,48 @@ import { useAuth } from '../context/AuthContext';
 import { isAdmin, hasRole } from '../utils/authorization';
 import { matterChoices } from '../data/matterChoices';
 import { EDIT_FORM_REGISTRY } from '../forms/editRegistry';
-
-// gcp_requeststatus value for RS (Resubmit) — the only status an edit is allowed in.
-const STATUS_RS = 16;
+import {
+  canRenderEditRequest,
+  getEditPurpose,
+  isAuthorizedRequestEditor,
+  isEditableRequestStatus,
+} from '../shared/requestEditPolicy';
+import { markRequestResubmitted } from '../shared/services/requestService';
+import { notifyEvent } from '../shared/notificationApi';
 
 export default function EditRequest() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { request, child, isLoading, error, childError } = useRequestDetail(id);
   const { user, isLoading: authLoading } = useAuth();
+  const canRenderEdit = canRenderEditRequest({
+    authLoading,
+    requestLoading: isLoading,
+    routeId: id,
+    requestId: request?.id,
+  });
 
   const backToDetail = () => navigate(`/requests/${id}`);
+  const handleResubmitted = async () => {
+    if (!id) throw new Error('Missing request ID.');
+    await markRequestResubmitted(id);
+    void notifyEvent(id, 'request_resubmitted', user?.email);
+  };
 
   // Who may edit: the requestor (owner), a Reviewer, a Verifier, or an admin.
   // All guards wait for auth + record load to resolve (never redirect while loading).
   const accessDenied = useMemo(() => {
     if (!request || authLoading) return false;
-    if (isAdmin() || hasRole('Reviewer') || hasRole('Verifier')) return false;
-    const isOwner =
-      !!user?.contactId && request.requestorContactId === user.contactId;
-    return !isOwner;
+    return !isAuthorizedRequestEditor(request.requestorContactId, {
+      contactId: user?.contactId,
+      isAdmin: isAdmin(),
+      isReviewer: hasRole('Reviewer'),
+      isVerifier: hasRole('Verifier'),
+    });
   }, [request, authLoading, user]);
 
-  const isRS = request?.status === STATUS_RS;
+  const isEditableStatus = isEditableRequestStatus(request?.status);
+  const editPurpose = getEditPurpose(request?.status);
 
   const matterCode = useMemo(
     () =>
@@ -41,21 +60,21 @@ export default function EditRequest() {
   const EditForm = matterCode ? EDIT_FORM_REGISTRY[matterCode] : undefined;
 
   // Redirect away from records the user can't edit (no access) or that are no
-  // longer in RS — re-checked from the freshly loaded record.
+  // longer in New, R, or RS — re-checked from the freshly loaded record.
   useEffect(() => {
-    if (!request) return;
+    if (!canRenderEdit || !request) return;
     if (accessDenied) {
       const t = setTimeout(() => navigate('/requests', { replace: true }), 2500);
       return () => clearTimeout(t);
     }
-    if (!isRS) {
+    if (!isEditableStatus) {
       const t = setTimeout(
         () => navigate(`/requests/${id}`, { replace: true }),
         2500
       );
       return () => clearTimeout(t);
     }
-  }, [request, accessDenied, isRS, id, navigate]);
+  }, [canRenderEdit, request, accessDenied, isEditableStatus, id, navigate]);
 
   return (
     <section className="rd-page">
@@ -71,24 +90,24 @@ export default function EditRequest() {
           </button>
         </div>
 
-        {(isLoading || authLoading) && !request ? (
+        {isLoading || authLoading ? (
           <LoadingState message="Loading request…" size="lg" />
         ) : null}
 
-        {error ? (
+        {!authLoading && error ? (
           <InlineMessage tone="error" title="Couldn’t load this request">
             {error}
           </InlineMessage>
         ) : null}
 
-        {!isLoading && !error && !request ? (
+        {!isLoading && !authLoading && !error && !request ? (
           <InlineMessage tone="warning" title="Request not found">
             We couldn’t find a request with this ID.{' '}
             <Link to="/requests">Return to the requests list.</Link>
           </InlineMessage>
         ) : null}
 
-        {request && accessDenied ? (
+        {canRenderEdit && request && accessDenied ? (
           <InlineMessage
             tone="warning"
             title="You don’t have access to edit this request"
@@ -98,15 +117,19 @@ export default function EditRequest() {
           </InlineMessage>
         ) : null}
 
-        {request && !accessDenied && !isRS ? (
+        {canRenderEdit && request && !accessDenied && !isEditableStatus ? (
           <InlineMessage tone="info" title="This request can no longer be edited">
-            Editing is only available while a request is in <strong>RS</strong>{' '}
-            (Resubmit). Redirecting you back…{' '}
+            Editing is only available while a request is in <strong>New</strong>,{' '}
+            <strong>R</strong>, or <strong>RS</strong>. Redirecting you back…{' '}
             <Link to={`/requests/${id}`}>Go now.</Link>
           </InlineMessage>
         ) : null}
 
-        {request && !accessDenied && isRS && !EditForm ? (
+        {canRenderEdit &&
+        request &&
+        !accessDenied &&
+        isEditableStatus &&
+        !EditForm ? (
           <InlineMessage
             tone="info"
             title="Editing isn’t available for this request type yet"
@@ -117,7 +140,12 @@ export default function EditRequest() {
           </InlineMessage>
         ) : null}
 
-        {request && !accessDenied && isRS && EditForm ? (
+        {canRenderEdit &&
+        request &&
+        !accessDenied &&
+        isEditableStatus &&
+        editPurpose &&
+        EditForm ? (
           <>
             <header className="rd-hero">
               <div className="rd-hero-main">
@@ -139,7 +167,9 @@ export default function EditRequest() {
               <EditForm
                 request={request}
                 child={child}
+                editPurpose={editPurpose}
                 onSaved={backToDetail}
+                onResubmitted={handleResubmitted}
                 onCancel={backToDetail}
               />
             ) : isLoading ? (

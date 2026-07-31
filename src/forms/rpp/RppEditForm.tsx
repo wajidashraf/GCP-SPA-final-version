@@ -8,6 +8,7 @@ import RppForm from './RppForm';
 import { loadRppFormState, updateRppRequestFromState } from './api';
 import type { RppFormState } from './types';
 import type { EditFormProps } from '../editRegistry';
+import { getEditSubmissionCopy } from '../../shared/requestEditPolicy';
 
 /**
  * Edit-mode adapter for R-PP (Revised Procurement Plan) requests. Resolves the
@@ -15,7 +16,15 @@ import type { EditFormProps } from '../editRegistry';
  * in edit mode. The actual PATCH is delegated through RppForm's onEditSubmit so
  * it carries the current (possibly changed) form state.
  */
-const RppEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
+const RppEditForm = ({
+  request,
+  child,
+  editPurpose,
+  onSaved,
+  onResubmitted,
+  onCancel,
+}: EditFormProps) => {
+  const editCopy = getEditSubmissionCopy(editPurpose);
   const matter = useMemo(
     () => matterChoices.find((m) => m.value === request.matter) ?? null,
     [request.matter]
@@ -55,9 +64,12 @@ const RppEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
       rppRecordId: rpp.id,
       documents,
     });
+    if (editPurpose === 'resubmission') {
+      await onResubmitted();
+    }
     return {
       reference: request.title ?? request.id.slice(0, 8),
-      toast: { message: 'Changes saved.', tone: 'success' },
+      toast: { message: editCopy.toastMessage, tone: 'success' },
     };
   };
 
@@ -65,6 +77,7 @@ const RppEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
     <RppForm
       matter={matter}
       mode="edit"
+      editPurpose={editPurpose}
       initialState={initialState}
       requestId={request.id}
       initialDocuments={initialDocuments}

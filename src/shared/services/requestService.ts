@@ -33,11 +33,17 @@ import type {
   RequestStatusValue,
 } from '../../data/requestChoices';
 import type { MatterChoice } from '../../data/matterChoices';
+import {
+  getResubmissionFields,
+  getRsVerificationFields,
+} from '../requestEditPolicy';
 
 type MatterValue = MatterChoice['value'];
 
 const ENTITY_SET = 'gcp_requests';
 const BASE_URL = `/_api/${ENTITY_SET}`;
+const STATUS_RS: RequestStatusValue = 16;
+const OUTCOME_RS: OutcomeValue = 4;
 
 const GUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
@@ -209,6 +215,36 @@ const updateRequest = async (
   });
 };
 
+type ResubmissionStateRequest = Pick<
+  GcpRequest,
+  'status' | 'outcome' | 'lastUpdatedDate'
+>;
+
+/**
+ * True after an RS edit has been submitted for re-review. A completed review
+ * clears lastUpdatedDate; the next successful edit submission stamps it again.
+ * Status and outcome deliberately remain RS throughout this substate.
+ */
+const isRequestResubmittedForReview = (
+  request: ResubmissionStateRequest,
+): boolean => {
+  if (
+    Number(request.status) !== STATUS_RS ||
+    Number(request.outcome) !== OUTCOME_RS
+  ) {
+    return false;
+  }
+  return Boolean(request.lastUpdatedDate);
+};
+
+/** Stamp a fully saved RS edit as ready for reviewer attention. */
+const markRequestResubmitted = async (id: string): Promise<void> => {
+  await updateRequest(
+    id,
+    getResubmissionFields(new Date().toISOString()),
+  );
+};
+
 // ── Verify (status decision + verifier audit fields) ────────────────────────
 type VerifyRequestInput = {
   /** Target gcp_requeststatus choice value. */
@@ -228,6 +264,7 @@ const verifyRequest = async (
     gcp_requeststatus: input.status,
     gcp_verifier_comment: input.comment.trim(),
     gcp_verifydate: new Date().toISOString(),
+    ...getRsVerificationFields(input.status),
   };
   if (isGuid(input.verifiedByContactId)) {
     body['gcp_Verified_by@odata.bind'] = odataBind('contacts', input.verifiedByContactId);
@@ -262,9 +299,9 @@ const deriveReviewTargets = (
   const isOthers = matter != null && OTHERS_MATTERS.has(matter);
   const isGcpc = category === 2;
   switch (decisionCode) {
-    case 1: // Proceed → Draft Review; outcome FA (Others) / ACK (GCP) / E (GCPC)
+    case 1: // Proceed → Pending Review; outcome FA (Others) / ACK (GCP) / E (GCPC)
       return {
-        status: 4,
+        status: 5,
         outcome: isOthers ? 1 : isGcpc ? 3 : 2,
       };
     case 2: // Resubmission
@@ -329,39 +366,10 @@ const reviewRequest = async (
     gcp_outcome: input.outcome,
     gcp_reviewercomments: input.reviewerComments ?? '',
     gcp_reviewdate: new Date().toISOString(),
+    // A review consumes the current resubmission marker. If the reviewer
+    // selects Code 2 again, the next edit submission stamps a fresh marker.
+    gcp_lastupdateddate: null,
   };
-  if (input.infoAndCriteria !== undefined) {
-    body.gcp_infoandcriteriaforreview = input.infoAndCriteria;
-  }
-  if (isGuid(input.reviewedByContactId)) {
-    body['gcp_Reviewedby@odata.bind'] = odataBind('contacts', input.reviewedByContactId);
-  }
-  await powerPagesFetch<void>(`${BASE_URL}(${id})`, {
-    method: 'PATCH',
-    json: body,
-    headers: { 'If-Match': '*' },
-  });
-};
-
-type SaveReviewDraftInput = {
-  decisionCode?: DecisionCodeValue | null;
-  reviewerComments?: string | null;
-  infoAndCriteria?: string | null;
-  reviewedByContactId?: string | null;
-};
-
-/** Patch reviewer fields only — does not change request status (used when editing a draft review). */
-const saveReviewDraft = async (
-  id: string,
-  input: SaveReviewDraftInput,
-): Promise<void> => {
-  const body: Record<string, unknown> = {
-    gcp_reviewercomments: input.reviewerComments ?? '',
-    gcp_reviewdate: new Date().toISOString(),
-  };
-  if (input.decisionCode != null) {
-    body.gcp_decisioncode = input.decisionCode;
-  }
   if (input.infoAndCriteria !== undefined) {
     body.gcp_infoandcriteriaforreview = input.infoAndCriteria;
   }
@@ -528,11 +536,12 @@ export {
   getRequestById,
   createRequest,
   updateRequest,
+  isRequestResubmittedForReview,
+  markRequestResubmitted,
   verifyRequest,
   deriveReviewTargets,
   getReviewFields,
   reviewRequest,
-  saveReviewDraft,
   getVerifierComment,
   getVerifierInfo,
   pollRequestStatus,
@@ -548,6 +557,7 @@ export type {
   CreateRequestResult,
   UpdateRequestOptions,
   RequestLookupBinds,
+  ResubmissionStateRequest,
   VerifyRequestInput,
   VerifierInfo,
   ReviewTargets,

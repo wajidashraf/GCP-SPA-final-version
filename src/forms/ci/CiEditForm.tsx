@@ -8,6 +8,7 @@ import CiForm from './CiForm';
 import { loadCiFormState, updateCiRequestFromState } from './api';
 import type { CiFormState } from './types';
 import type { EditFormProps } from '../editRegistry';
+import { getEditSubmissionCopy } from '../../shared/requestEditPolicy';
 
 /**
  * Edit-mode adapter for CI (Contractual Issue) requests. Resolves the matter,
@@ -15,7 +16,15 @@ import type { EditFormProps } from '../editRegistry';
  * mode. The actual PATCH is delegated through CiForm's onEditSubmit so it
  * carries the current (possibly changed) form state.
  */
-const CiEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
+const CiEditForm = ({
+  request,
+  child,
+  editPurpose,
+  onSaved,
+  onResubmitted,
+  onCancel,
+}: EditFormProps) => {
+  const editCopy = getEditSubmissionCopy(editPurpose);
   const matter = useMemo(
     () => matterChoices.find((m) => m.value === request.matter) ?? null,
     [request.matter]
@@ -55,9 +64,12 @@ const CiEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
       ciRecordId: ci.id,
       documents,
     });
+    if (editPurpose === 'resubmission') {
+      await onResubmitted();
+    }
     return {
       reference: request.title ?? request.id.slice(0, 8),
-      toast: { message: 'Changes saved.', tone: 'success' },
+      toast: { message: editCopy.toastMessage, tone: 'success' },
     };
   };
 
@@ -65,6 +77,7 @@ const CiEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
     <CiForm
       matter={matter}
       mode="edit"
+      editPurpose={editPurpose}
       initialState={initialState}
       requestId={request.id}
       initialDocuments={initialDocuments}

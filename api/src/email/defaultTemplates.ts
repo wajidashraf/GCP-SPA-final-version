@@ -127,6 +127,35 @@ export const DEFAULT_TEMPLATES: readonly DefaultTemplate[] = [
   },
 
   // ──────────────────────────────────────────────────────────────────────────
+  // request_resubmitted
+  // ──────────────────────────────────────────────────────────────────────────
+  {
+    eventKey: 'request_resubmitted',
+    recipientRole: 'reviewer',
+    subject: 'Request Resubmitted for Review: {{requestName}}',
+    blocks: [
+      { type: 'heading', text: 'Request Resubmitted for Review' },
+      {
+        type: 'paragraph',
+        text: 'Updated request details have been submitted and are ready for your re-review.',
+      },
+      {
+        type: 'fields',
+        rows: [
+          { label: 'Reference', value: '{{requestNumber}}' },
+          { label: 'Request', value: '{{requestName}}' },
+          { label: 'Category', value: '{{requestCategory}}' },
+          { label: 'Submitted by', value: '{{requestorName}}' },
+          { label: 'Status', value: '{{requestStatus}}' },
+          { label: 'Resubmitted on', value: '{{resubmissionDate}}' },
+        ],
+      },
+      { type: 'divider' },
+      { type: 'button', label: 'Review Resubmission', href: '{{viewLink}}' },
+    ],
+  },
+
+  // ──────────────────────────────────────────────────────────────────────────
   // request_reviewed
   // ──────────────────────────────────────────────────────────────────────────
   {

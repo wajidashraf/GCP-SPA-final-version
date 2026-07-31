@@ -10,6 +10,7 @@
 import type { ComponentType } from 'react';
 import type { GcpRequest } from '../types/request';
 import type { ChildData } from '../shared/hooks/useRequestDetail';
+import type { EditPurpose } from '../shared/requestEditPolicy';
 import { RtpEditForm } from './rtp/RtpEditForm';
 import { PblEditForm } from './pbl/PblEditForm';
 import { JvpEditForm } from './jvp/JvpEditForm';
@@ -26,12 +27,16 @@ import { RppEditForm } from './rpp/RppEditForm';
 
 /** Props every edit-form wrapper receives from the EditRequest page. */
 type EditFormProps = {
-  /** The loaded parent request (guaranteed present, status RS). */
+  /** The loaded parent request (guaranteed present, status New, R, or RS). */
   request: GcpRequest;
   /** The loaded child detail for this request's matter type. */
   child: ChildData;
+  /** Standard save for New/R, resubmission behavior for RS. */
+  editPurpose: EditPurpose;
   /** Called after a successful save — navigate back to the detail page. */
   onSaved: () => void;
+  /** Stamps the completed RS edit and notifies reviewers. */
+  onResubmitted: () => Promise<void>;
   /** Called to abandon the edit — navigate back to the detail page. */
   onCancel: () => void;
 };

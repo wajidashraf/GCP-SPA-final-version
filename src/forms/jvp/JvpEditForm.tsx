@@ -8,6 +8,7 @@ import JvpForm from './JvpForm';
 import { loadJvpFormState, updateJvpRequestFromState } from './api';
 import type { JvpFormState } from './types';
 import type { EditFormProps } from '../editRegistry';
+import { getEditSubmissionCopy } from '../../shared/requestEditPolicy';
 
 /**
  * Edit-mode adapter for JVP requests. Resolves the matter, hydrates form state
@@ -15,7 +16,15 @@ import type { EditFormProps } from '../editRegistry';
  * PATCH is delegated through JvpForm's onEditSubmit so it carries the current
  * (possibly changed) form state.
  */
-const JvpEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
+const JvpEditForm = ({
+  request,
+  child,
+  editPurpose,
+  onSaved,
+  onResubmitted,
+  onCancel,
+}: EditFormProps) => {
+  const editCopy = getEditSubmissionCopy(editPurpose);
   const matter = useMemo(
     () => matterChoices.find((m) => m.value === request.matter) ?? null,
     [request.matter]
@@ -55,9 +64,12 @@ const JvpEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
       jvpRecordId: jvp.id,
       documents,
     });
+    if (editPurpose === 'resubmission') {
+      await onResubmitted();
+    }
     return {
       reference: request.title ?? request.id.slice(0, 8),
-      toast: { message: 'Changes saved.', tone: 'success' },
+      toast: { message: editCopy.toastMessage, tone: 'success' },
     };
   };
 
@@ -65,6 +77,7 @@ const JvpEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
     <JvpForm
       matter={matter}
       mode="edit"
+      editPurpose={editPurpose}
       initialState={initialState}
       requestId={request.id}
       initialDocuments={initialDocuments}

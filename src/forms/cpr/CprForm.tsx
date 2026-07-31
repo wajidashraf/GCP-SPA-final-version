@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
+import { getEditSubmissionCopy } from '../../shared/requestEditPolicy';
+import type { EditPurpose } from '../../shared/requestEditPolicy';
 import type { ReactNode } from 'react';
 import Col from 'react-bootstrap/Col';
 import Row from 'react-bootstrap/Row';
@@ -34,6 +36,7 @@ type CprFormProps = {
   matter: MatterChoice;
   /** 'new' (default) creates a request; 'edit' patches an existing one. */
   mode?: 'new' | 'edit';
+  editPurpose?: EditPurpose;
   /** Pre-filled state for edit mode (loaded from the existing record). */
   initialState?: CprFormState;
   /** Parent gcp_request id — present in edit mode. */
@@ -63,6 +66,7 @@ const HalfCol = ({ children }: { children: ReactNode }) => (
 const CprForm = ({
   matter,
   mode = 'new',
+  editPurpose = 'standard',
   initialState,
   requestId,
   initialDocuments,
@@ -71,6 +75,7 @@ const CprForm = ({
 }: CprFormProps) => {
   const { user } = useAuth();
   const isEdit = mode === 'edit';
+  const editCopy = getEditSubmissionCopy(editPurpose);
 
   const defaultCategoryValue = useMemo(() => {
     const code = matter.channel.toUpperCase();
@@ -682,13 +687,9 @@ const CprForm = ({
       steps={steps}
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit}
-      submitLabel={isEdit ? 'Save Changes' : undefined}
-      successTitle={isEdit ? 'Changes saved' : undefined}
-      successMessage={
-        isEdit
-          ? 'Your changes have been saved. The request stays in Resubmit until it is moved forward in the workflow.'
-          : undefined
-      }
+      submitLabel={isEdit ? editCopy.submitLabel : undefined}
+      successTitle={isEdit ? editCopy.successTitle : undefined}
+      successMessage={isEdit ? editCopy.successMessage : undefined}
       successActionLabel={isEdit ? 'Back to request' : undefined}
       onSuccessAction={isEdit ? onEditSuccess : undefined}
     />

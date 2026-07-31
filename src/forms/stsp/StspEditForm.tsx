@@ -8,6 +8,7 @@ import StspForm from './StspForm';
 import { loadStspFormState, updateStspRequestFromState } from './api';
 import type { StspFormState } from './types';
 import type { EditFormProps } from '../editRegistry';
+import { getEditSubmissionCopy } from '../../shared/requestEditPolicy';
 
 /**
  * Edit-mode adapter for ST/SP requests. Resolves the matter, hydrates form
@@ -15,7 +16,15 @@ import type { EditFormProps } from '../editRegistry';
  * actual PATCH is delegated through StspForm's onEditSubmit so it carries the
  * current (possibly changed) form state.
  */
-const StspEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
+const StspEditForm = ({
+  request,
+  child,
+  editPurpose,
+  onSaved,
+  onResubmitted,
+  onCancel,
+}: EditFormProps) => {
+  const editCopy = getEditSubmissionCopy(editPurpose);
   const matter = useMemo(
     () => matterChoices.find((m) => m.value === request.matter) ?? null,
     [request.matter]
@@ -55,9 +64,12 @@ const StspEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
       stspRecordId: stsp.id,
       documents,
     });
+    if (editPurpose === 'resubmission') {
+      await onResubmitted();
+    }
     return {
       reference: request.title ?? request.id.slice(0, 8),
-      toast: { message: 'Changes saved.', tone: 'success' },
+      toast: { message: editCopy.toastMessage, tone: 'success' },
     };
   };
 
@@ -65,6 +77,7 @@ const StspEditForm = ({ request, child, onSaved, onCancel }: EditFormProps) => {
     <StspForm
       matter={matter}
       mode="edit"
+      editPurpose={editPurpose}
       initialState={initialState}
       requestId={request.id}
       initialDocuments={initialDocuments}
