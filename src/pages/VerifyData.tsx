@@ -61,11 +61,6 @@ const buildStatusOptions = (
     list = list.filter((v) => v === 0);
     addCurrent();
   }
-  // CAA (matter type 5): only FR (0), RS (16), New (1) — plus current if different.
-  if (mt === 5) {
-    list = [0, 16, 1];
-    addCurrent();
-  }
 
   return list.map((value) => ({
     label:

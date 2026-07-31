@@ -208,12 +208,46 @@ Used to schedule a formal engagement (meeting) between the reviewer and the requ
 
 ---
 
-### 3.3 Review Request — Status: R
+### 3.3 Edit Requests — Status: New, R, or RS
 
-**Button:** Review Request (clipboard-check icon)
+**Button:** Edit
+
+**URL:** `/requests/:id/edit`
+
+The original requestor, a Verifier, a Reviewer, or an Administrator can edit a
+request while its status is **New**, **R**, or **RS**. Edit is hidden at all
+other statuses.
+
+For New and R, the final action is **Save Changes**. The save preserves the
+request's current status and outcome, does not set `gcp_lastupdateddate`, and
+does not send a re-review notification.
+
+Code 2 keeps both request status and outcome at **RS**. For RS, the final action
+is **Submit Changes for Re-review**. After every
+parent, child, document, and related-record update succeeds, the request's
+outcome is set to RS, `gcp_lastupdateddate` is stamped, and Reviewers are
+notified. The status remains RS.
+
+Each submitted review clears that marker. Once the next successful edit stamps
+it again, Request Detail shows **Resubmitted — awaiting review** and Reviewers see the
+**Review Resubmission** action. It appears only when status and outcome are both
+RS and the resubmission timestamp exists. The Edit action remains available
+while status is RS.
+
+---
+
+### 3.4 Review Request — Status: R or resubmitted RS
+
+**Button:** Review Request or Review Resubmission (clipboard-check icon)
+
 **URL:** `/requests/:id/review?type=<matter>&soacode=<soa>`
 
 Used by the reviewer to record a **formal decision** on the request after the engagement session has taken place. This is the core review decision screen.
+
+For an RS resubmission, the title changes to **Review Resubmitted Request**.
+The resubmission timestamp and previous Code 2 review are not displayed; the new
+decision and comments start blank. There is no review-draft Save action; the
+available actions are **Cancel** and **Submit Re-review**.
 
 #### Layout
 
@@ -258,12 +292,41 @@ A free-text textarea prefilled from the existing record value. Edit as needed be
 
 After clicking **Submit Review**, a confirmation modal appears. Click **Confirm** to proceed or **Cancel** to go back and adjust.
 
+Before a re-review is finally submitted, the application checks whether another
+RS edit was submitted after the reviewer opened the form. If so, submission is
+stopped and the reviewer must reload the latest request.
+
 #### What happens on submit
 
 1. The decision code, reviewer comments, review date, and reviewer name are saved to the request record.
 2. The request status and outcome are updated according to the decision code (see [Decision Code Reference](#5-decision-code-reference)).
 3. The **Scheduled** engagement linked to this request (if any) is automatically marked **Completed**.
 4. The page polls until Dataverse confirms the new status, then returns to the detail page.
+
+---
+
+### 3.5 Review Acceptance — Status: Complete Review
+
+**Button:** HOC Acceptance
+
+**URL:** `/requests/:id/hoc-acceptance`
+
+The HOC for the requesting company, or an administrator, records the company's
+acceptance of the completed Summary Review. Direct access is restricted to
+those roles, and a company-scoped HOC can act only on its own company's request.
+
+1. Select the applicable conclusion: Code 1(a) or 1(b) for a Code 1 review;
+   otherwise Code 2 or 3.
+2. Code 1(b) requires at least one exception or mitigation.
+3. Draw a signature or upload a valid PNG/JPEG image of 5 MB or less.
+4. Review the image preview, then save the signature.
+5. Click **Submit Signed Acceptance** and confirm the irreversible action.
+
+Saving the signature does not complete or lock the form. If the session is
+interrupted, return to the same page and submit the already-signed acceptance.
+The document becomes read-only only after submission advances a GCP request to
+Pending Ack (`9`) or a GCPC request to Pending Endorse (`11`). Completed
+acceptance documents remain printable.
 
 ---
 
@@ -274,7 +337,7 @@ After clicking **Submit Review**, a confirmation modal appears. Click **Confirm*
 | New | 1 | Blue | Request submitted, awaiting data verification. |
 | Ready for Engagement | 2 | Gold | Verification passed; awaiting engagement booking. |
 | R | 3 | Amber | Engagement complete; awaiting reviewer decision. |
-| Draft Review | 4 | Purple | Review submitted (Code 1); pending internal acceptance. |
+| Draft Review | 4 | Purple | Review draft is being edited before final submission. |
 | Pending Review | 5 | Purple | Queued for further review. |
 | Complete Review | 6 | Purple | Review fully completed. |
 | Pending Acceptance | 7 | Purple | Awaiting HOC acceptance signature. |
@@ -286,7 +349,7 @@ After clicking **Submit Review**, a confirmation modal appears. Click **Confirm*
 | Submitted | 13 | Blue | Re-submitted after rework. |
 | Under Verification | 14 | Blue | Currently being re-verified. |
 | Scheduled | 15 | Blue | Engagement session scheduled. |
-| RS | 16 | Amber | Resubmission required (Code 2 outcome). |
+| RS | 16 | Amber | Resubmission required (Code 2 outcome). Status and outcome remain RS while edits and re-review repeat. |
 | NC3 | 17 | Red | Non-compliant (Code 3 — GCPC). |
 | NC4 | 18 | Red | Non-compliant (Code 4 — no review requested). |
 | W | 19 | Grey | Compliant with waiver (Code W). |
@@ -300,13 +363,18 @@ The decision code chosen on the Review Request page determines the **request sta
 
 | Code | GCP outcome | GCPC outcome | "Others" type outcome | Status set |
 |---|---|---|---|---|
-| **Code 1** | ACK | E | FA | Draft Review (4) |
+| **Code 1** | ACK | E | FA | Pending Review (5) |
 | **Code 2** | RS | RS | RS | RS (16) |
 | **Code 3** | NC | NC3 | NC / NC3 | NC3 (17) |
 | **Code 4** | NC4 | NC4 | NC4 | NC4 (18) |
 | **Code W** *(ST/SP only)* | W | W | W | W (19) |
 
 **"Others" types** = GCP-Others (matter 13) and GCPC Others Form (matter 9). These receive outcome **FA** (For Action) on Code 1.
+
+After Code 2, submitting edited request details does not use the separate
+Submitted (13) status. The request remains RS/RS; the review clears
+`gcp_lastupdateddate`, and the next successful edit stamps it to identify that
+the request is ready for re-review.
 
 ---
 
@@ -342,7 +410,7 @@ Submit request
                     │  Reviewer records decision code
                     │  and structured comments
                     │
-                    ├─── Code 1 ──► Draft Review (4)  +  outcome ACK / E / FA
+                    ├─── Code 1 ──► Pending Review (5)  +  outcome ACK / E / FA
                     │               (engagement auto-marked Completed)
                     │
                     ├─── Code 2 ──► RS (16)  +  outcome RS

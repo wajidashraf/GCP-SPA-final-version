@@ -2,12 +2,15 @@
 // CRUD service for the gcp_signatures table.
 //
 // Power Pages site settings: Webapi/gcp_signature/enabled = true
-// Table permissions: Authenticated Users / Admin / Reviewer must have Read;
-//   Signatory members must have Create/Read on gcp_signatures.
+// Table permissions: Authenticated users may read signatures. Configured
+// signatories may create through the Working GCPC, Reviewer, Verifier, or
+// Administrators web roles; the UI also matches the signed-in email to the
+// configured signatory member before offering the signing action.
 
 import {
   buildODataQuery,
   extractRecordId,
+  includeFormattedValues,
   odataBind,
   powerPagesFetch,
   powerPagesFetchResponse,
@@ -22,11 +25,13 @@ type GcpSignatureEntity = {
   gcp_name: string | null;
   gcp_signurl: string | null;
   createdon: string | null;
+  '_gcp_signatory_value@OData.Community.Display.V1.FormattedValue'?: string | null;
 };
 
 type GcpSignature = {
   id: string;
   signatoryEmail: string | null;
+  signatoryName: string | null;
   signUrl: string | null;
   createdOn: string | null;
 };
@@ -46,6 +51,8 @@ const isGuid = (v: string | null | undefined): v is string =>
 const mapSignature = (e: GcpSignatureEntity): GcpSignature => ({
   id: e.gcp_signatureid,
   signatoryEmail: e.gcp_name ?? null,
+  signatoryName:
+    e['_gcp_signatory_value@OData.Community.Display.V1.FormattedValue'] ?? null,
   signUrl: e.gcp_signurl ?? null,
   createdOn: e.createdon ?? null,
 });
@@ -56,13 +63,19 @@ const listSignaturesForRequest = async (
   requestId: string,
 ): Promise<GcpSignature[]> => {
   const query = buildODataQuery({
-    select: ['gcp_signatureid', 'gcp_name', 'gcp_signurl', 'createdon'],
+    select: [
+      'gcp_signatureid',
+      'gcp_name',
+      'gcp_signurl',
+      'createdon',
+      '_gcp_signatory_value',
+    ],
     filter: `_gcp_request_value eq ${requestId}`,
     orderby: 'createdon asc',
   });
   const res = await powerPagesFetch<ODataListResponse<GcpSignatureEntity>>(
     `${BASE_URL}${query}`,
-    { method: 'GET' },
+    { method: 'GET', headers: includeFormattedValues() },
   );
   return (res?.value ?? []).map(mapSignature);
 };

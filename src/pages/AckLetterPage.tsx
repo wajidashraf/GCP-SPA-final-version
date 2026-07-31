@@ -188,7 +188,7 @@ export default function AckLetterPage() {
         ) : null}
 
         {request && ctx ? (
-          <div className="vd-card lp-card">
+          <div className="vd-card lp-card lp-letter-card">
             <header className="vd-card-head no-print">
               <span className="vd-card-icon" aria-hidden="true">
                 <FileText size={20} />
@@ -215,13 +215,6 @@ export default function AckLetterPage() {
             </header>
 
             <div className="vd-card-body lp-body">
-              {isEditing ? (
-                <InlineMessage tone="info" className="no-print mb-2">
-                  Highlighted fields are filled from the request. Fill in the
-                  remaining boxes, you can edit any text before submitting.
-                </InlineMessage>
-              ) : null}
-
               <LetterDocument
                 template={template}
                 ctx={ctx}

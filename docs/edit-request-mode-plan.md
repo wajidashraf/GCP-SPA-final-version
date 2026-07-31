@@ -1,4 +1,4 @@
-# Plan — Edit an RS request from the Request Detail page
+# Plan — Edit a request from the Request Detail page
 
 **Status:** ✅ **complete — all 13 matter codes have edit support.**
 **Author/date:** drafted 2026-06-18; roll-out completed 2026-07-14.
@@ -10,21 +10,53 @@
 
 ## Goal
 
-When a request's status is **RS** (Resubmit, `gcp_requeststatus = 16`), show an
-**Edit** button on the Request Detail page — on the right side of the
+When a request's status is **New** (`1`), **R** (`3`), or **RS** (Resubmit,
+`16`), show an **Edit** button on the Request Detail page — on the right side of the
 `.rd-recordbar` strip, directly below the `.rd-hero` header. Clicking it opens the
 **same multi-step form** the request was created with, pre-filled with the saved
-data, so the user can correct it and save.
+data.
 
-**Who can edit:** the **Requestor** (owner of the record), **Reviewer**, and
-**Verifier**.
+### Edit visibility and RS side-effect refinement — 2026-07-31
+
+- Edit is available only at request statuses New (`1`), R (`3`), and RS (`16`).
+  It is hidden at every other status, including the states produced by review
+  Codes 1, 3, 4, and W.
+- The original requestor, Reviewer, Verifier, and Administrator can edit while
+  the request is in one of those three statuses.
+- New/R edits preserve the current status and outcome. They use ordinary
+  **Save Changes** copy and do not stamp `gcp_lastupdateddate` or send the
+  `request_resubmitted` notification.
+- RS edits preserve status RS, repair outcome to RS (`gcp_outcome = 4`), stamp
+  `gcp_lastupdateddate` after all request writes succeed, and notify Reviewers.
+- Verifier selection RS and Reviewer Code 2 both set status RS plus outcome RS.
+- **Review Resubmission** requires RS status, RS outcome, and a non-empty
+  resubmission timestamp.
+
+### RS re-review refinement — 2026-07-24
+
+- Code 2 keeps both status and outcome at RS.
+- The Edit button remains available while status is RS, including after changes
+  are submitted for re-review.
+- A submitted review clears `gcp_lastupdateddate`. After all subsequent edit
+  writes succeed, it is stamped again; a non-empty value while status/outcome
+  are RS means the request is ready for re-review.
+- Reviewers see **Review Resubmission**. The re-review page does not display the
+  resubmission timestamp or previous Code 2 review, and the new
+  decision/comments start blank.
+- Review drafts are not supported: the review page has no Save button and no
+  `saveReviewDraft()` service.
+- Final re-review submission checks whether `gcp_lastupdateddate` changed after
+  the reviewer opened the page and stops on a conflict.
+
+**Who can edit:** the **Requestor** (owner of the record), **Reviewer**,
+**Verifier**, and **Administrator**, subject to the New/R/RS status gate.
 
 ## Decisions (locked)
 
 | Decision | Choice |
 |---|---|
 | Approach | **A — navigate to the existing form in "edit mode"** (not inline editing on the detail page) |
-| Status after save | **Stays RS (16).** Saving does not advance the workflow; a separate step moves it forward. |
+| Status after save | **Preserved.** New stays New, R stays R, and RS stays RS. Only an RS edit creates the timestamped re-review substate. |
 | Removed grandchild rows (e.g. PBL bidders) | **Enable `delete: true`** on the affected table permission(s); removed rows are hard-deleted. |
 | Scope | **All matter types**, delivered as: shared scaffolding + **PBL reference implementation first**, then fan out to the other 12 types using a fixed recipe. |
 
@@ -151,10 +183,10 @@ The success screen's primary button hardcodes navigation to the requests list
 (lines ~136–148). For edit, we want to return to `/requests/:id`. Add optional
 props (backward compatible):
 
-- `submitLabel` (already exists) → set to `"Save Changes"`.
+- `submitLabel` (already exists) → set to `"Submit Changes for Re-review"`.
 - `onSuccessAction?: () => void` (or `successHref?: string`) → when provided, the
   success button calls it instead of the default list navigation.
-- Optionally `successTitle="Changes saved"` / tailored `successMessage`.
+- Set `successTitle="Changes submitted"` with RS/re-review-specific copy.
 
 ---
 
@@ -192,14 +224,17 @@ On save, reconcile the collection against what was loaded:
 
 Requires `delete: true` on that table's permission (see deployment).
 
-### Save flow (all types)
+### Resubmission flow (all types)
 
 1. PATCH parent `gcp_request` (changed fields) via `updateRequest`.
 2. PATCH child `gcp_<type>request`.
 3. Diff grandchildren if any.
 4. **Do not change `gcp_requeststatus`** — it stays RS (16).
-5. On success: navigate back to `/requests/${id}` and trigger a refetch (the
-   detail page already exposes `refetch`). Show a "Changes saved" toast.
+5. Stamp `gcp_lastupdateddate` only after all preceding writes succeed. The
+   next submitted review clears it so another Code 2 cycle requires a fresh edit.
+6. Notify the Reviewer with the `request_resubmitted` event.
+7. On success: navigate back to `/requests/${id}` and trigger a refetch (the
+   detail page already exposes `refetch`). Show a "Changes submitted" toast.
 
 ---
 
@@ -221,8 +256,11 @@ trust the referring page.
 | Direct/deep-link to `/requests/:id/edit` | Same guards apply; nothing depends on having come from the detail page. |
 | Navigating away mid-edit (optional) | Optional unsaved-changes prompt via a router blocker / `beforeunload`. Nice-to-have, not required for v1. |
 
-Concurrency: PATCH uses `If-Match: '*'` (last-write-wins), consistent with the
-existing update services. No optimistic-concurrency handling needed for v1.
+Edit PATCH operations use `If-Match: '*'` (last-write-wins), consistent with
+the existing update services. Because Edit remains available throughout RS,
+the Review Request page compares the current `gcp_lastupdateddate` with the
+value loaded when review began and stops final submission if a newer edit exists.
+Submitting the review clears that marker.
 
 ---
 

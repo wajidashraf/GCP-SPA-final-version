@@ -159,15 +159,28 @@ export default function LetterDocument({
     const current = values[v.key] ?? '';
     if (editing) {
       if (v.multiline) {
+        const fieldId = `letter-${template.key}-${v.key}`;
         return (
-          <textarea
-            className="lp-var-input lp-var-textarea"
-            rows={8}
-            value={current}
-            placeholder={v.placeholder ?? v.label}
-            aria-label={v.label}
-            onChange={(e) => onChange(v.key, e.target.value)}
-          />
+          <span className="lp-field-block">
+            <label className="lp-var-label" htmlFor={fieldId}>
+              {v.label}
+              {v.isRequired ? (
+                <span className="lp-required-mark" aria-label="required">
+                  *
+                </span>
+              ) : null}
+            </label>
+            <textarea
+              id={fieldId}
+              className="lp-var-input lp-var-textarea"
+              rows={8}
+              value={current}
+              placeholder={v.placeholder ?? v.label}
+              aria-required={v.isRequired || undefined}
+              required={v.isRequired}
+              onChange={(e) => onChange(v.key, e.target.value)}
+            />
+          </span>
         );
       }
       return (
@@ -177,6 +190,8 @@ export default function LetterDocument({
           value={current}
           placeholder={v.placeholder ?? v.label}
           aria-label={v.label}
+          aria-required={v.isRequired || undefined}
+          required={v.isRequired}
           onChange={(e) => onChange(v.key, e.target.value)}
         />
       );
@@ -194,9 +209,13 @@ export default function LetterDocument({
   const kindWord = template.kind === 'ACK' ? 'ACKNOWLEDGEMENT' : 'ENDORSEMENT';
 
   return (
-    <article className="lp-doc">
+    <article
+      className={`lp-doc lp-letter-doc${editing ? ' lp-letter-doc--editing' : ''}`}
+      aria-label={`${titlePrefix(template)} ${template.documentTitle}`}
+    >
       {/* ── Document title ───────────────────────────────────────────── */}
       <header className="lp-doc-header">
+        <p className="lp-letter-doc-kicker">GCP NEXUS · CONTROLLED DOCUMENT</p>
         <h2 className="lp-doc-title">{titlePrefix(template)}</h2>
         <p className="lp-doc-sub">({template.documentTitle})</p>
       </header>
@@ -205,7 +224,7 @@ export default function LetterDocument({
       <table className="lp-info-table">
         <thead>
           <tr>
-            <th className="lp-info-bar" colSpan={2}>
+            <th className="lp-info-bar" colSpan={2} scope="colgroup">
               {kindWord} NO.: {letterNumber || '—'}
             </th>
           </tr>
@@ -216,7 +235,14 @@ export default function LetterDocument({
             if (!v) return null;
             return (
               <tr key={key}>
-                <th>{v.label}</th>
+                <th scope="row">
+                  {v.label}
+                  {v.isRequired ? (
+                    <span className="lp-required-mark" aria-label="required">
+                      *
+                    </span>
+                  ) : null}
+                </th>
                 <td>{renderVar(key)}</td>
               </tr>
             );

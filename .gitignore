@@ -5,5 +5,12 @@ dist
 .DS_Store
 src/**/*.js
 tsconfig.tsbuildinfo
+
+# Local environment and assistant state
+.env.local
+CLAUDE.local.md
+.claude/settings.local.json
+.playwright-mcp/
+
 # Server Logic debugging runtime loader
 .vscode/server-logic-debug-runtime.cjs

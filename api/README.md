@@ -1,5 +1,16 @@
 # GCP Nexus — SharePoint Upload Function
 
+> **Documentation status (2026-07-24):** the sections below that describe the
+> SPA acquiring an Entra/MSAL access token are historical and must not be used
+> to reconfigure caller authentication. The active SPA acquires a Power Pages
+> portal token in `src/shared/portalToken.ts`, and the Function validates it in
+> `api/src/auth/validateToken.ts`. MSAL's hidden-iframe flow was retired because
+> it fails inside the sandboxed Power Pages iframe. See
+> [`../AGENTS.md`](../AGENTS.md) and
+> [`../PROJECT_CONTEXT_REPORT.md`](../PROJECT_CONTEXT_REPORT.md) for the current
+> architecture. Function-to-Graph application credentials described here still
+> apply. A complete README rewrite remains follow-up work.
+
 Azure Functions (Node.js + TypeScript) backend that receives files from the
 Power Pages SPA and stores them in a SharePoint document library via Microsoft
 Graph.

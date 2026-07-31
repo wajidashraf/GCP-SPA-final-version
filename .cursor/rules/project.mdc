@@ -1,0 +1,14 @@
+---
+description: Canonical GCP Nexus repository instructions and project context
+globs:
+alwaysApply: true
+---
+
+Read and follow @AGENTS.md before proposing or making repository changes.
+
+Use `PROJECT_CONTEXT_REPORT.md` for architecture, integration boundaries, prior
+decisions, validation limits, and current caveats. For Dataverse/form work, also
+read `mapping.md`.
+
+Do not duplicate project rules in Cursor-specific files. Update AGENTS.md when
+durable repository guidance changes.

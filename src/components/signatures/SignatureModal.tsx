@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Modal from 'react-bootstrap/Modal';
 import { Loader2, PenLine, Upload, X } from 'lucide-react';
 import { InlineMessage } from '../ui';
 import { uploadFileToSharePoint } from '../../shared/uploadApi';
 import { uploadConfig } from '../../shared/uploadConfig';
 import { createSignature } from '../../shared/services/signatureService';
+import { toSharePointDownloadUrl } from '../../shared/sharePointUrl';
 
 type Tab = 'draw' | 'upload';
 
@@ -21,6 +22,8 @@ type SignatureModalProps = {
 
 const CANVAS_W = 520;
 const CANVAS_H = 200;
+const MAX_SIGNATURE_BYTES = 5 * 1024 * 1024;
+const SIGNATURE_TYPES = new Set(['image/png', 'image/jpeg']);
 
 const SignatureModal = ({
   show,
@@ -35,6 +38,7 @@ const SignatureModal = ({
   const [activeTab, setActiveTab] = useState<Tab>('draw');
   const [hasDrawn, setHasDrawn] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadImageReady, setUploadImageReady] = useState(false);
   const [saving, setSaving] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +53,7 @@ const SignatureModal = ({
       setActiveTab('draw');
       setHasDrawn(false);
       setUploadFile(null);
+      setUploadImageReady(false);
       setSaving(false);
       setProgress(0);
       setError(null);
@@ -65,6 +70,18 @@ const SignatureModal = ({
     ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
     setHasDrawn(false);
   }, [show, activeTab]);
+
+  const uploadPreviewUrl = useMemo(
+    () => (uploadFile ? URL.createObjectURL(uploadFile) : null),
+    [uploadFile],
+  );
+
+  useEffect(
+    () => () => {
+      if (uploadPreviewUrl) URL.revokeObjectURL(uploadPreviewUrl);
+    },
+    [uploadPreviewUrl],
+  );
 
   const getCanvasPoint = (
     e: React.MouseEvent | React.TouchEvent,
@@ -136,21 +153,50 @@ const SignatureModal = ({
 
   const canSubmit =
     !saving &&
-    (activeTab === 'draw' ? hasDrawn : uploadFile !== null);
+    (activeTab === 'draw' ? hasDrawn : uploadFile !== null && uploadImageReady);
 
-  const getSignatureBlob = async (): Promise<Blob> => {
+  const getSignatureFile = async (): Promise<File> => {
     if (activeTab === 'upload') {
       if (!uploadFile) throw new Error('No file selected.');
-      return uploadFile;
+      const extension = uploadFile.type === 'image/jpeg' ? 'jpg' : 'png';
+      const fileName = `${memberEmail.replace(/[^a-zA-Z0-9]/g, '_')}-signature.${extension}`;
+      return new File([uploadFile], fileName, { type: uploadFile.type });
     }
     const canvas = canvasRef.current;
     if (!canvas) throw new Error('Canvas not available.');
-    return new Promise<Blob>((resolve, reject) => {
+    const blob = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(
         (blob) => (blob ? resolve(blob) : reject(new Error('Canvas is empty.'))),
         'image/png',
       );
     });
+    const fileName = `${memberEmail.replace(/[^a-zA-Z0-9]/g, '_')}-signature.png`;
+    return new File([blob], fileName, { type: 'image/png' });
+  };
+
+  const chooseUploadFile = (file: File | null) => {
+    setError(null);
+    setUploadImageReady(false);
+    if (!file) {
+      setUploadFile(null);
+      return;
+    }
+    if (!SIGNATURE_TYPES.has(file.type)) {
+      setUploadFile(null);
+      setError('Choose a valid PNG or JPEG signature image.');
+      return;
+    }
+    if (file.size === 0) {
+      setUploadFile(null);
+      setError('The selected image is empty.');
+      return;
+    }
+    if (file.size > MAX_SIGNATURE_BYTES) {
+      setUploadFile(null);
+      setError('The signature image must be 5 MB or smaller.');
+      return;
+    }
+    setUploadFile(file);
   };
 
   const handleSubmit = async () => {
@@ -164,9 +210,7 @@ const SignatureModal = ({
           'File upload is not configured. Contact your administrator.',
         );
       }
-      const blob = await getSignatureBlob();
-      const fileName = `${memberEmail.replace(/[^a-zA-Z0-9]/g, '_')}-signature.png`;
-      const file = new File([blob], fileName, { type: 'image/png' });
+      const file = await getSignatureFile();
 
       const uploaded = await uploadFileToSharePoint(
         file,
@@ -178,7 +222,7 @@ const SignatureModal = ({
         requestId,
         signatoryEmail: memberEmail,
         signatoryContactId: contactId,
-        signUrl: uploaded.webUrl,
+        signUrl: toSharePointDownloadUrl(uploaded.webUrl),
       });
 
       onSaved();
@@ -275,13 +319,26 @@ const SignatureModal = ({
             <label className="sig-modal-upload-label" htmlFor="sig-file-input">
               {uploadFile ? (
                 <span className="sig-modal-file-chosen">
-                  {uploadFile.name}
+                  {uploadPreviewUrl ? (
+                    <img
+                      src={uploadPreviewUrl}
+                      alt="Selected signature preview"
+                      className="sig-modal-upload-preview"
+                      onLoad={() => setUploadImageReady(true)}
+                      onError={() => {
+                        setUploadImageReady(false);
+                        setError('This image is corrupted or cannot be displayed. Choose another file.');
+                      }}
+                    />
+                  ) : null}
+                  <span>{uploadFile.name}</span>
                   <button
                     type="button"
                     className="sig-modal-clear-btn ms-2"
                     onClick={(e) => {
                       e.preventDefault();
                       setUploadFile(null);
+                      setUploadImageReady(false);
                     }}
                     disabled={saving}
                   >
@@ -305,7 +362,7 @@ const SignatureModal = ({
               disabled={saving}
               onChange={(e) => {
                 const f = e.target.files?.[0] ?? null;
-                setUploadFile(f);
+                chooseUploadFile(f);
                 e.target.value = '';
               }}
             />

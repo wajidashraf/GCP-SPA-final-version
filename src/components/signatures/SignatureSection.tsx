@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, ClipboardCheck, Loader2, PenLine } from 'lucide-react';
 import { InlineMessage, LoadingState } from '../ui';
 import { SignatureModal } from './SignatureModal';
+import { SignatureImage } from './SignatureImage';
 import { listSignaturesForRequest, completeReview } from '../../shared/services/signatureService';
 import type { GcpSignature } from '../../shared/services/signatureService';
 import {
@@ -41,7 +42,7 @@ const SignatureBox = ({ member, signature, canSign, onSign }: SignatureBoxProps)
     <div className={`sig-box${hasSig ? ' sig-box--signed' : ''}`}>
       <div className="sig-img-wrapper">
         {hasSig ? (
-          <img
+          <SignatureImage
             src={signature.signUrl!}
             alt={`Signature of ${member.name}`}
             className="sig-img"

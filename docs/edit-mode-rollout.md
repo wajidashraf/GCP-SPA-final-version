@@ -1,16 +1,20 @@
 # Edit-mode roll-out — per-type completion record
 
-**Status:** ✅ complete — every matter type has RS-edit support.
+**Status:** ✅ complete — every matter type has New/R/RS edit support.
 **Completed:** 2026-07-14. Companion to
 [edit-request-mode-plan.md](./edit-request-mode-plan.md) (the design/recipe).
 
 Editing opens the original multi-step form in `mode="edit"` at
-`/requests/:id/edit`, pre-filled from the saved record, and PATCHes on save. It
-is gated to **status RS (Resubmit, `gcp_requeststatus = 16`)** and to the
+`/requests/:id/edit`, pre-filled from the saved record, and PATCHes on submit. It
+is gated to **status New (`1`), R (`3`), or RS (Resubmit, `16`)** and to the
 **requestor / Reviewer / Verifier / admin** — see
 [EditRequest.tsx](../src/pages/EditRequest.tsx) and
-[editRegistry.ts](../src/forms/editRegistry.ts). Saving does **not** change the
-status (stays RS).
+[editRegistry.ts](../src/forms/editRegistry.ts). Submitting changes preserves
+the current workflow status. New/R edits also preserve outcome and perform no
+re-review side effects. RS edits enforce outcome RS, then stamp
+`gcp_lastupdateddate` after all request writes succeed and send the
+`request_resubmitted` notification. A submitted review clears that marker.
+Edit is hidden at every status other than New, R, and RS.
 
 ## Coverage — 13 matter codes (14 matter values)
 
@@ -46,12 +50,13 @@ For type `<T>` in `src/forms/<t>/`, five edits (no Dataverse schema changes):
    of the create mapping) and `update<T>RequestFromState(state, ids)` (PATCH
    parent `gcp_request` project fields + acknowledgement + documents, then PATCH
    the child). Rebinds only the **Project** lookup; never the Requestor/Company.
-5. **`src/forms/<t>/<T>Form.tsx`** — add edit-mode props (`mode`, `initialState`,
+5. **`src/forms/<t>/<T>Form.tsx`** — add edit-mode props (`mode`, `editPurpose`, `initialState`,
    `requestId`, `initialDocuments`, `onEditSubmit`, `onEditSuccess`);
    `isEdit = mode === 'edit'`; `useFormDraft(…, { persist: !isEdit })`; gate both
    `user → state` sync effects with `if (isEdit) return;`; source the Company +
    Requestor selects from `state`; add the existing-documents strip; branch
-   `handleSubmit` to call `onEditSubmit`; pass the edit success-screen props.
+   `handleSubmit` to call `onEditSubmit`; pass ordinary save copy for New/R and
+   re-review copy for RS.
 6. **New `<T>EditForm.tsx`** + **register** in `editRegistry.ts`.
 
 The single behavioural rule (from the plan): **field rendering is identical

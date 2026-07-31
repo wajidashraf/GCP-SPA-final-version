@@ -73,7 +73,14 @@ export default function App() {
           }
         />
         <Route path="/requests/:id/engagement" element={<Engagement />} />
-        <Route path="/requests/:id/hoc-acceptance" element={<HocAcceptance />} />
+        <Route
+          path="/requests/:id/hoc-acceptance"
+          element={
+            <RequireRole roles={['Administrators', 'HOC']} fallback={<Navigate to="/requests" replace />}>
+              <HocAcceptance />
+            </RequireRole>
+          }
+        />
         <Route path="/requests/:id/ack-letter" element={<AckLetterPage />} />
         <Route path="/requests/:id/endorsement-letter" element={<EndorsementLetterPage />} />
         {/* Admin section — Administrators only. Reviewer/Verifier/Working GCPC

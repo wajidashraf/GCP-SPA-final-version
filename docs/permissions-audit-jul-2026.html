@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Permissions Audit — gcp-nexus</title>
+<style>
+:root {
+  --bg:#faf9f8; --surface:#ffffff; --surface2:#f3f2f1; --surface3:#edebe9;
+  --border:#e1dfdd; --border-light:#c8c6c4;
+  --text:#323130; --text-dim:#605e5c; --text-bright:#201f1e;
+  --accent:#0078d4; --accent-bg:#0078d40a; --accent-border:#0078d425;
+  --critical:#d13438; --critical-bg:#d134380a; --critical-border:#d1343825;
+  --warning:#ca5010; --warning-bg:#ca50100a; --warning-border:#ca501025;
+  --pass:#107c10; --pass-bg:#107c100a; --pass-border:#107c1025;
+  --info:#0078d4; --info-bg:#0078d40a; --info-border:#0078d425;
+  --purple:#8764b8; --purple-bg:#8764b80a; --purple-border:#8764b825;
+  --mono:'Cascadia Code','Consolas',monospace;
+  --sans:'Segoe UI','Segoe UI Web (West European)',-apple-system,system-ui,sans-serif;
+  --radius:8px; --radius-sm:4px;
+  --shadow-4:0 1.6px 3.6px 0 rgba(0,0,0,0.132),0 0.3px 0.9px 0 rgba(0,0,0,0.108);
+  --shadow-8:0 3.2px 7.2px 0 rgba(0,0,0,0.132),0 0.6px 1.8px 0 rgba(0,0,0,0.108);
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);font-size:14px;line-height:1.6;}
+
+
+/* Top Bar */
+.topbar{z-index:100;background:var(--surface);box-shadow:var(--shadow-4);padding:14px 28px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;}
+.topbar-left{display:flex;align-items:center;gap:14px;}
+.logo{width:36px;height:36px;object-fit:contain;display:block;flex-shrink:0;}
+.topbar-title{font-size:16px;font-weight:700;color:var(--text-bright);}
+.topbar-sub{font-size:11px;color:var(--text-dim);margin-top:1px;}
+
+/* Layout */
+.layout{display:flex;min-height:calc(100vh - 61px);}
+
+/* Sidebar */
+.sidebar{width:200px;background:var(--surface);border-right:1px solid var(--border);padding:20px 0;flex-shrink:0;}
+.nav-btn{display:flex;align-items:center;gap:10px;width:100%;padding:11px 22px;background:none;border:none;border-left:2px solid transparent;color:var(--text-dim);font-size:13px;font-weight:500;cursor:pointer;font-family:var(--sans);text-align:left;transition:all 0.15s;position:relative;}
+.nav-btn:hover{color:var(--text);background:var(--surface2);}
+.nav-btn.active{color:var(--accent);font-weight:600;border-left-color:var(--accent);background:var(--accent-bg);}
+.nav-btn .nav-icon{font-size:15px;opacity:0.5;width:18px;text-align:center;}
+.nav-btn.active .nav-icon{opacity:0.9;}
+.nav-badge{position:absolute;right:14px;font-size:10px;font-family:var(--mono);padding:1px 6px;border-radius:8px;font-weight:700;}
+
+/* Content */
+.content{flex:1;padding:32px 40px;max-width:960px;}
+.section{display:none;}
+.section.active{display:block;animation:fadeIn 0.3s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+
+h2{font-size:21px;font-weight:800;color:var(--text-bright);letter-spacing:-0.3px;margin-bottom:5px;}
+.section-desc{font-size:13px;color:var(--text-dim);margin-bottom:20px;}
+h3{font-size:15px;font-weight:700;color:var(--text-bright);margin-top:24px;margin-bottom:12px;}
+
+/* Cards */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:10px;transition:box-shadow 0.2s;}
+.card:hover{box-shadow:var(--shadow-4);}
+
+/* Stats Grid */
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px;}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 16px;text-align:center;position:relative;overflow:hidden;box-shadow:var(--shadow-4);}
+.stat-card::after{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:40px;height:2px;border-radius:0 0 2px 2px;}
+.stat-num{font-size:28px;font-weight:800;font-family:var(--mono);line-height:1;}
+.stat-label{font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin-top:6px;}
+
+/* Severity badges */
+.severity{font-size:9px;font-weight:700;padding:3px 8px;border-radius:3px;font-family:var(--mono);display:inline-block;text-transform:uppercase;letter-spacing:0.5px;}
+.severity-critical{color:var(--critical);background:var(--critical-bg);border:1px solid var(--critical-border);}
+.severity-warning{color:var(--warning);background:var(--warning-bg);border:1px solid var(--warning-border);}
+.severity-info{color:var(--info);background:var(--info-bg);border:1px solid var(--info-border);}
+.severity-pass{color:var(--pass);background:var(--pass-bg);border:1px solid var(--pass-border);}
+
+/* Finding cards */
+.finding-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:12px;transition:box-shadow 0.2s;overflow:hidden;}
+.finding-card:hover{box-shadow:var(--shadow-4);}
+.finding-header{display:flex;align-items:flex-start;gap:12px;padding:16px 20px;cursor:pointer;-webkit-user-select:none;user-select:none;}
+.finding-header:hover{background:var(--surface2);}
+.finding-title{font-size:14px;font-weight:600;color:var(--text-bright);flex:1;}
+.finding-table{font-size:11px;color:var(--accent);background:var(--accent-bg);padding:1px 6px;border-radius:3px;border:1px solid var(--accent-border);font-family:var(--mono);}
+.finding-chevron{color:var(--text-dim);font-size:12px;transition:transform 0.2s;flex-shrink:0;margin-top:3px;}
+.finding-card.expanded .finding-chevron{transform:rotate(90deg);}
+.finding-body{display:none;padding:0 20px 16px;border-top:1px solid var(--border);}
+.finding-card.expanded .finding-body{display:block;animation:fadeIn 0.2s ease;}
+
+/* Field label */
+.field-label{font-size:11px;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;}
+
+/* Reasoning & fix blocks */
+.reasoning-block{background:var(--surface2);border-left:2px solid var(--accent);border-radius:var(--radius-sm);padding:10px 14px;margin-top:10px;font-size:12px;color:var(--text);line-height:1.7;}
+.fix-block{background:var(--pass-bg);border-left:2px solid var(--pass);border-radius:var(--radius-sm);padding:10px 14px;margin-top:8px;font-size:12px;color:var(--text);line-height:1.7;}
+.fix-block strong{color:var(--pass);}
+
+/* Scope Tags */
+.scope-tag{font-size:10px;font-weight:700;padding:2px 8px;border-radius:3px;font-family:var(--mono);display:inline-block;text-align:center;min-width:58px;}
+.scope-Global{color:var(--critical);background:var(--critical-bg);border:1px solid var(--critical-border);}
+.scope-Contact{color:var(--pass);background:var(--pass-bg);border:1px solid var(--pass-border);}
+.scope-Account{color:var(--accent);background:var(--accent-bg);border:1px solid var(--accent-border);}
+.scope-Parent{color:var(--purple);background:var(--purple-bg);border:1px solid var(--purple-border);}
+.scope-Self{color:var(--text-dim);background:var(--surface2);border:1px solid var(--border);}
+
+/* Privilege Chips */
+.priv{font-size:9px;font-weight:700;padding:2px 5px;border-radius:3px;font-family:var(--mono);}
+.priv-on{color:var(--pass);background:var(--pass-bg);}
+.priv-off{color:var(--text-dim);background:var(--surface2);opacity:0.5;}
+
+/* Inventory table */
+.inv-table{width:100%;border-collapse:collapse;font-size:13px;margin:10px 0;}
+.inv-table th{text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-dim);padding:10px 12px;border-bottom:2px solid var(--border);}
+.inv-table td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:top;}
+.inv-table tr:last-child td{border-bottom:none;}
+.inv-table tr:hover td{background:var(--surface2);}
+
+/* Filter buttons */
+.filter-bar{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;}
+.filter-btn{padding:5px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text-dim);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--sans);transition:all 0.15s;}
+.filter-btn:hover{border-color:var(--border-light);color:var(--text);}
+.filter-btn.active{background:var(--accent-bg);border-color:var(--accent-border);color:var(--accent);}
+.filter-count{font-family:var(--mono);font-size:10px;margin-left:4px;opacity:0.7;}
+
+/* Responsive */
+@media(max-width:768px){
+  .sidebar{display:none;}
+  .content{padding:20px 16px;}
+  .stats-grid{grid-template-columns:repeat(2,1fr);}
+}
+</style>
+</head>
+<body>
+
+<div id="mainApp">
+  <div class="topbar">
+    <div class="topbar-left">
+      <img class="logo" src="./power-pages-icon.png" alt="Power Pages" />
+      <div>
+        <div class="topbar-title">Permissions Audit Report</div>
+        <div class="topbar-sub">gcp-nexus</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div class="sidebar">
+      <button class="nav-btn active" data-tab="overview"><span class="nav-icon">&#9673;</span> Overview</button>
+      <button class="nav-btn" data-tab="findings"><span class="nav-icon">&#9888;</span> Findings
+        <span class="nav-badge" id="navFindingsCount" style="background:var(--critical-bg);color:var(--critical);"></span>
+      </button>
+      <button class="nav-btn" data-tab="inventory"><span class="nav-icon">&#9638;</span> Inventory</button>
+    </div>
+
+    <div class="content">
+
+      <!-- OVERVIEW -->
+      <div class="section active" id="tab-overview">
+        <h2>Audit Overview</h2>
+        <p class="section-desc">Pre-deployment security audit of Power Pages table permissions and Web API metadata for GCP-Developer.</p>
+
+        <div class="stats-grid">
+          <div class="stat-card" style="--accent-color:var(--critical)"><div class="stat-num" style="color:var(--critical)" id="statCritical">0</div><div class="stat-label">Critical</div></div>
+          <div class="stat-card"><div class="stat-num" style="color:var(--warning)" id="statWarning">0</div><div class="stat-label">Warning</div></div>
+          <div class="stat-card"><div class="stat-num" style="color:var(--info)" id="statInfo">0</div><div class="stat-label">Info</div></div>
+          <div class="stat-card"><div class="stat-num" style="color:var(--pass)" id="statPassed">0</div><div class="stat-label">Passed</div></div>
+        </div>
+
+        <h3>Audit Summary</h3>
+        <div class="card" id="summaryBox" style="line-height:1.75;">The audit found 7 critical findings that should be fixed before upload: four invalid metadata UUIDs, a gcp_project permission attached to the wrong logical table name, and missing append grants on gcp_request and gcp_signatorymember1 that can block suggestion and signature associations. Five warnings identify broad Global write access and development-only diagnostics. Live Dataverse lookup and relationship checks were attempted but skipped because Azure CLI is not installed; local schema, code-operation, role, parent-chain, and Web API setting checks completed.</div>
+
+      </div>
+
+      <!-- FINDINGS -->
+      <div class="section" id="tab-findings">
+        <h2>Findings</h2>
+        <p class="section-desc" id="findingsDesc"></p>
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+          <div class="filter-bar" id="filterBar" style="margin-bottom:0;"></div>
+          <button class="filter-btn" id="expandAllBtn" style="white-space:nowrap;">Expand All</button>
+        </div>
+        <div id="findingsContainer" style="margin-top:16px;"></div>
+      </div>
+
+      <!-- INVENTORY -->
+      <div class="section" id="tab-inventory">
+        <h2>Permissions Inventory</h2>
+        <p class="section-desc" id="invDesc"></p>
+
+        <h3>Legend</h3>
+        <div class="card" style="margin-bottom:16px;">
+          <div style="display:flex;gap:32px;flex-wrap:wrap;">
+            <div>
+              <div class="field-label" style="margin-bottom:6px;">Scope</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                <span class="scope-tag scope-Global">Global</span>
+                <span class="scope-tag scope-Contact">Contact</span>
+                <span class="scope-tag scope-Account">Account</span>
+                <span class="scope-tag scope-Parent">Parent</span>
+                <span class="scope-tag scope-Self">Self</span>
+              </div>
+              <div style="font-size:11px;color:var(--text-dim);margin-top:6px;line-height:1.6;">
+                <strong>Global</strong> — all records &nbsp;|&nbsp;
+                <strong>Contact</strong> — user's contact &nbsp;|&nbsp;
+                <strong>Account</strong> — user's account &nbsp;|&nbsp;
+                <strong>Parent</strong> — via parent table &nbsp;|&nbsp;
+                <strong>Self</strong> — own record only
+              </div>
+            </div>
+            <div>
+              <div class="field-label" style="margin-bottom:6px;">Privileges</div>
+              <div style="display:flex;flex-direction:column;gap:4px;font-size:12px;">
+                <div style="display:flex;align-items:center;gap:6px;"><span class="priv priv-on">R</span><strong style="color:var(--text-bright);">Read</strong><span style="color:var(--text-dim);">— Retrieve and view records</span></div>
+                <div style="display:flex;align-items:center;gap:6px;"><span class="priv priv-on">C</span><strong style="color:var(--text-bright);">Create</strong><span style="color:var(--text-dim);">— Add new records</span></div>
+                <div style="display:flex;align-items:center;gap:6px;"><span class="priv priv-on">W</span><strong style="color:var(--text-bright);">Write</strong><span style="color:var(--text-dim);">— Update existing records (includes file uploads via PATCH)</span></div>
+                <div style="display:flex;align-items:center;gap:6px;"><span class="priv priv-on">D</span><strong style="color:var(--text-bright);">Delete</strong><span style="color:var(--text-dim);">— Remove records</span></div>
+                <div style="display:flex;align-items:center;gap:6px;"><span class="priv priv-on">A</span><strong style="color:var(--text-bright);">Append</strong><span style="color:var(--text-dim);">— Attach this record to another via a lookup</span></div>
+                <div style="display:flex;align-items:center;gap:6px;"><span class="priv priv-on">AT</span><strong style="color:var(--text-bright);">AppendTo</strong><span style="color:var(--text-dim);">— Allow other records to reference this one via a lookup</span></div>
+              </div>
+              <div style="font-size:11px;color:var(--text-dim);margin-top:8px;">
+                <span class="priv priv-on" style="font-size:8px;">R</span> enabled &nbsp;
+                <span class="priv priv-off" style="font-size:8px;">R</span> disabled
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="invContainer"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// Data populated by the audit-permissions skill
+const SITE_NAME = "gcp-nexus";
+
+const FINDINGS = [{"id":"c1","severity":"critical","title":"Invalid UUID on Request - Admin Global Access","table":"gcp_request","scope":"Global","permission":"Request - Admin Global Access","reasoning":"The shared schema validator rejects id 2a7c3b58-4d9e-4fa2-c6b1-7e3a0d8f4c25 because its UUID variant is invalid. Invalid component IDs can make the Power Pages upload reject or mis-handle this permission.","fix":"Replace the id with a newly generated RFC 4122 UUID while preserving the permission name, role, scope, and flags.","details":".powerpages-site/table-permissions/Request-Admin-Global-Access.tablepermission.yml:9"},{"id":"c2","severity":"critical","title":"Invalid UUID on SignatoryMember1 - Admin Write","table":"gcp_signatorymember1","scope":"Global","permission":"SignatoryMember1 - Admin Write","reasoning":"The shared schema validator rejects id 6a4b78c9-1d5e-4f26-ea07-8b9c3d4e5f6a because its UUID variant is invalid.","fix":"Replace the id with a newly generated RFC 4122 UUID.","details":".powerpages-site/table-permissions/SignatoryMember1-Admin-Write.tablepermission.yml:9"},{"id":"c3","severity":"critical","title":"Invalid UUID on SignatoryMember1 - Global Read","table":"gcp_signatorymember1","scope":"Global","permission":"SignatoryMember1 - Global Read","reasoning":"The shared schema validator rejects id 5f3a67b8-0c4d-4e15-d9f6-7a8b2c3d4e5f because its UUID variant is invalid.","fix":"Replace the id with a newly generated RFC 4122 UUID.","details":".powerpages-site/table-permissions/SignatoryMember1-Global-Read.tablepermission.yml:10"},{"id":"c4","severity":"critical","title":"Invalid UUID on signatory-member Web API fields setting","table":"gcp_signatorymember1","scope":null,"permission":null,"reasoning":"The shared schema validator rejects site-setting id 4e2f56a7-9b3c-4d04-c8e5-6f7a1b2c3d4e. This can prevent the fields allowlist setting from uploading correctly.","fix":"Replace the site-setting id with a newly generated RFC 4122 UUID.","details":".powerpages-site/site-settings/Webapi-gcp_signatorymember1-fields.sitesetting.yml:2"},{"id":"c5","severity":"critical","title":"Project permission uses the wrong logical table name","table":"gcp_project","scope":"Global","permission":"Project - Global Access","reasoning":"Project code declares logical name gcp_project and entity set gcp_projectses, but the permission targets gcp_projects. Therefore create/read operations and lookup association to the actual project table can receive 403 responses despite Webapi/gcp_project being enabled.","fix":"Change entitylogicalname from gcp_projects to gcp_project and retain the current Authenticated Users CRUD/append flags.","details":"src/types/project.ts:3; src/shared/services/projectService.ts:30; .powerpages-site/table-permissions/Project-Global-Access.tablepermission.yml:7"},{"id":"c6","severity":"critical","title":"Reviewer and Working GCPC lack append on gcp_request","table":"gcp_request","scope":"Global","permission":"Request - Review Read (Global)","reasoning":"suggestionService and signatureService create records with gcp_Request@odata.bind. gcp_request is the lookup target, so the creating role needs append:true on gcp_request. The shared Reviewer/Verifier/Endorser/Working GCPC permission currently has append:false.","fix":"Set append:true on Request - Review Read (Global). This permits association to an existing request without granting create, write, or delete.","details":"src/shared/services/suggestionService.ts:82; src/shared/services/signatureService.ts:79; .powerpages-site/table-permissions/Request-Review-Read-Global.tablepermission.yml:6"},{"id":"c7","severity":"critical","title":"Working GCPC lacks append on gcp_signatorymember1","table":"gcp_signatorymember1","scope":"Global","permission":"SignatoryMember1 - Global Read","reasoning":"signatureService optionally creates a signature with gcp_Signatory@odata.bind. gcp_signatorymember1 is the lookup target, but the Authenticated Users read permission inherited by Working GCPC has append:false.","fix":"Set append:true on SignatoryMember1 - Global Read, or create a narrower read+append permission for Working GCPC.","details":"src/shared/services/signatureService.ts:82; .powerpages-site/table-permissions/SignatoryMember1-Global-Read.tablepermission.yml:4"},{"id":"w1","severity":"warning","title":"Authenticated Users have Global create/write on child request tables","table":"Multiple child request tables","scope":"Global","permission":"CAA/CI/CPR/JVP/Other/PBL/PCCA/PP/RPCCA/RPP/STSP/VAP Global Access","reasoning":"Every authenticated user can create or modify any record in these child tables. Frontend filtering is not a security boundary.","fix":"Migrate child permissions to Parent scope under the owning gcp_request where Dataverse relationships support it.","details":"12 Global permissions assigned to Authenticated Users with create:true and write:true"},{"id":"w2","severity":"warning","title":"Authenticated Users have Global write on engagements and slots","table":"gcp_engagements / gcp_slot","scope":"Global","permission":"Engagement - Global Access / Slot - Global Access","reasoning":"All signed-in users can modify any engagement or slot record. These operations appear administrative or reviewer-oriented.","fix":"Split requestor read access from administrator/reviewer create-write access, using Parent, Contact, or role-specific Global permissions as appropriate.","details":".powerpages-site/table-permissions/Engagement-Global-Access.tablepermission.yml; Slot-Global-Access.tablepermission.yml"},{"id":"w3","severity":"warning","title":"Reviewer and Verifier status writes are Global","table":"gcp_request","scope":"Global","permission":"Request - Reviewer Verifier Write","reasoning":"The permission intentionally supports review and verification PATCH operations, but it allows those roles to modify any request record, including status and outcome.","fix":"Keep only if global queues are intentional. Otherwise add server-side transition validation or narrow access through relationship-scoped permissions.","details":".powerpages-site/table-permissions/Request-Reviewer-Verifier-Write.tablepermission.yml"},{"id":"w4","severity":"warning","title":"Global delete is enabled for signatory administration","table":"gcp_signatorymember1","scope":"Global","permission":"SignatoryMember1 - Admin Write","reasoning":"Administrators can delete any signatory-member record. This may be intended, but it is a high-impact permission and the browser uses a server-logic endpoint rather than direct table DELETE.","fix":"Confirm direct Web API delete is required; otherwise disable delete and keep deletion behind validated server logic.","details":".powerpages-site/table-permissions/SignatoryMember1-Admin-Write.tablepermission.yml:6"},{"id":"w5","severity":"warning","title":"Detailed Web API inner errors are enabled","table":null,"scope":null,"permission":null,"reasoning":"Webapi/error/innererror is true. This is useful in GCP-Developer but can disclose internal exception details if promoted to production.","fix":"Keep for development only and set false in production deployment settings.","details":".powerpages-site/site-settings/Webapi-error-innererror.sitesetting.yml"},{"id":"i1","severity":"info","title":"Live lookup and relationship checks were skipped","table":null,"scope":null,"permission":null,"reasoning":"The deterministic Dataverse metadata scripts require Azure CLI token acquisition. PAC is authenticated, but Azure CLI is not installed on this machine.","fix":"Install and authenticate Azure CLI, then rerun the audit if live relationship validation is required.","details":"Local schema and code-based checks completed; H/H2/I live metadata checks degraded gracefully."},{"id":"i2","severity":"info","title":"Project write is enabled but unused","table":"gcp_project","scope":"Global","permission":"Project - Global Access","reasoning":"projectService performs POST and GET operations but no PATCH.","fix":"Set write:false unless project editing is planned.","details":"src/shared/services/projectService.ts:63 and read methods; no PATCH found"},{"id":"i3","severity":"info","title":"Email template delete is enabled but unused by the SPA","table":"gcp_emailtemplate","scope":"Global","permission":"Email Template - Admin Access","reasoning":"emailTemplateService performs GET, POST, and PATCH but no DELETE.","fix":"Set delete:false unless a separate administrative client requires direct deletion.","details":"src/shared/services/emailTemplateService.ts"},{"id":"p1","severity":"pass","title":"All table permissions reference existing web roles","table":null,"scope":null,"permission":null,"reasoning":"All 36 permission files contain at least one role UUID, and every referenced UUID is present in the checked-in web-role inventory.","fix":null,"details":"10 web roles and 36 table permissions checked"},{"id":"p2","severity":"pass","title":"Review and verification PATCH operations have write coverage","table":"gcp_request","scope":"Global","permission":"Request - Reviewer Verifier Write","reasoning":"Reviewer and Verifier have write:true for the gcp_request PATCH operations used by RequestReview and VerifyData, with separate Global read coverage.","fix":null,"details":"Request-Reviewer-Verifier-Write.tablepermission.yml and Request-Review-Read-Global.tablepermission.yml"},{"id":"p3","severity":"pass","title":"RTP Parent permission chain resolves locally","table":"gcp_rtprequest","scope":"Parent","permission":"RTP Request - Parent Access","reasoning":"parententitypermission points to the existing Request - Owner Access permission ID.","fix":null,"details":"Parent ID f37c1542-bf14-4324-b616-dabc58ca3c75 exists locally"},{"id":"p4","severity":"pass","title":"No $expand permission gaps detected","table":null,"scope":null,"permission":null,"reasoning":"No $expand, buildExpandClause, or ExpandOption usage was found in the current SPA source.","fix":null,"details":"src/**/*.ts and src/**/*.tsx searched"},{"id":"p5","severity":"pass","title":"PBL bidder delete permission matches code","table":"gcp_pblbidders","scope":"Global","permission":"PBL Bidders - Global Access","reasoning":"pblBidderService performs DELETE and the corresponding permission has delete:true.","fix":null,"details":"src/shared/services/pblBidderService.ts:114"}];
+// Each finding: { id, severity (critical|warning|info|pass), title, table, scope, permission, reasoning, fix, details }
+
+const INVENTORY = [{"name":"Account - Read","table":"account","scope":"Global","roles":["Authenticated Users"],"read":true,"create":false,"write":false,"delete":false,"append":true,"appendto":true},{"name":"CAA Request - Global Access","table":"gcp_caarequest","scope":"Global","roles":["Authenticated Users"],"read":true,"create":true,"write":true,"delete":false,"append":true,"appendto":true},{"name":"CI Request - Global Access","table":"gcp_requestcigcp","scope":"Global","roles":["Authenticated Users"],"read":true,"create":true,"write":true,"delete":false,"append":true,"appendto":true},{"name":"Contact - Global Read","table":"contact","scope":"Global","roles":["Authenticated Users"],"read":true,"create":false,"write":false,"delete":false,"append":true,"appendto":true},{"name":"Contact - Self Read","table":"contact","scope":"Self","roles":["Authenticated Users"],"read":true,"create":false,"write":false,"delete":false,"append":true,"appendto":true},{"name":"CPR Request - Global Access","table":"gcp_cprrequestgcp","scope":"Global","roles":["Authenticated Users"],"read":true,"create":true,"write":true,"delete":false,"append":true,"appendto":true},{"name":"Email Template - Admin Access","table":"gcp_emailtemplate","scope":"Global","roles":["Administrators"],"read":true,"create":true,"write":true,"delete":true,"append":false,"appendto":false},{"name":"Engagement - Global Access","table":"gcp_engagements","scope":"Global","roles":["Authenticated Users"],"read":true,"create":true,"write":true,"delete":false,"append":true,"appendto":true},{"name":"JVP Request - Global Access","table":"gcp_jvmrequest","scope":"Global","roles":["Authenticated Users"],"read":true,"create":true,"write":true,"delete":false,"append":true,"appendto":true},{"name":"Other Request - Global Access","table":"gcp_otherrequests","scope":"Global","roles":["Authenticated Users"],"read":true,"create":true,"write":true,"delete":false,"append":true,"appendto":true},{"name":"PBL Bidders - Global Access","table":"gcp_pblbidders","scope":"Global","roles":["Authenticated Users"],"read":true,"create":true,"write":true,"delete":true,"append":true,"appendto":true},{"name":"PBL Request - Global Access","table":"gcp_pblrequest","scope":"Global","roles":["Authenticated Users"],"read":true,"create":true,"write":true,"delete":false,"append":true,"appendto":true},{"name":"PCCA Request - Global Access","table":"gcp_pccarequest","scope":"Global","roles":["Authenticated Users"],"read":true,"create":true,"write":true,"delete":false,"append":true,"appendto":true},{"name":"PP Request - Global Access","table":"gcp_pprequest","scope":"Global","roles":["Authenticated Users"],"read":true,"create":true,"write":true,"delete":false,"append":true,"appendto":true},{"name":"Project - Global Access","table":"gcp_projects","scope":"Global","roles":["Authenticated Users"],"read":true,"create":true,"write":true,"delete":false,"append":true,"appendto":true},{"name":"Request - Admin Engagement Access","table":"gcp_request","scope":"Global","roles":["Administrators"],"read":true,"create":false,"write":true,"delete":false,"append":true,"appendto":true},{"name":"Request - Admin Global Access","table":"gcp_request","scope":"Global","roles":["Administrators"],"read":true,"create":false,"write":true,"delete":false,"append":true,"appendto":true},{"name":"Request - HOC Company Access","table":"gcp_request","scope":"Account","roles":["HOC"],"read":true,"create":false,"write":true,"delete":false,"append":false,"appendto":false},{"name":"Request - Main Committee Read","table":"gcp_request","scope":"Global","roles":["Main Committee"],"read":true,"create":false,"write":false,"delete":false,"append":false,"appendto":false},{"name":"Request - Owner Access","table":"gcp_request","scope":"Contact","roles":["Authenticated Users"],"read":true,"create":true,"write":true,"delete":false,"append":true,"appendto":true},{"name":"Request - Reviewer Verifier Write","table":"gcp_request","scope":"Global","roles":["Reviewer","Verifier"],"read":false,"create":false,"write":true,"delete":false,"append":true,"appendto":true},{"name":"Request - Review Read (Global)","table":"gcp_request","scope":"Global","roles":["Reviewer","Verifier","Endorser","Working GCPC"],"read":true,"create":false,"write":false,"delete":false,"append":false,"appendto":true},{"name":"RPCCA Request - Global Access","table":"gcp_rpccarequestgcp","scope":"Global","roles":["Authenticated Users"],"read":true,"create":true,"write":true,"delete":false,"append":true,"appendto":true},{"name":"RPP Request - Global Access","table":"gcp_rpprequest","scope":"Global","roles":["Authenticated Users"],"read":true,"create":true,"write":true,"delete":false,"append":true,"appendto":true},{"name":"RTP Request - Parent Access","table":"gcp_rtprequest","scope":"Parent","roles":["Authenticated Users"],"read":true,"create":true,"write":true,"delete":false,"append":false,"appendto":true},{"name":"RTP Request - Reviewer Verifier Write","table":"gcp_rtprequest","scope":"Global","roles":["Reviewer","Verifier"],"read":true,"create":true,"write":true,"delete":false,"append":true,"appendto":true},{"name":"RTP Request - Review Read (Global)","table":"gcp_rtprequest","scope":"Global","roles":["Reviewer","Verifier","Endorser","HOC","Working GCPC"],"read":true,"create":false,"write":false,"delete":false,"append":false,"appendto":false},{"name":"SignatoryMember1 - Admin Write","table":"gcp_signatorymember1","scope":"Global","roles":["Administrators"],"read":true,"create":true,"write":true,"delete":true,"append":true,"appendto":true},{"name":"SignatoryMember1 - Global Read","table":"gcp_signatorymember1","scope":"Global","roles":["Authenticated Users","Administrators"],"read":true,"create":false,"write":false,"delete":false,"append":false,"appendto":false},{"name":"Signature - Global Read","table":"gcp_signature","scope":"Global","roles":["Authenticated Users","Administrators","Reviewer"],"read":true,"create":false,"write":false,"delete":false,"append":false,"appendto":false},{"name":"Signature - Signatory Write","table":"gcp_signature","scope":"Global","roles":["Working GCPC"],"read":true,"create":true,"write":false,"delete":false,"append":true,"appendto":true},{"name":"Slot - Global Access","table":"gcp_slot","scope":"Global","roles":["Authenticated Users"],"read":true,"create":true,"write":true,"delete":false,"append":true,"appendto":true},{"name":"STSP Request - Global Access","table":"gcp_stsprequest","scope":"Global","roles":["Authenticated Users"],"read":true,"create":true,"write":true,"delete":false,"append":true,"appendto":true},{"name":"Suggestion - Global Access","table":"gcp_suggestion","scope":"Global","roles":["Administrators","Reviewer","Working GCPC"],"read":true,"create":true,"write":true,"delete":false,"append":true,"appendto":true},{"name":"Suggestion - View Read","table":"gcp_suggestion","scope":"Global","roles":["Verifier","HOC","Endorser"],"read":true,"create":false,"write":false,"delete":false,"append":false,"appendto":false},{"name":"VAP Request - Global Access","table":"gcp_vaprequest","scope":"Global","roles":["Authenticated Users"],"read":true,"create":true,"write":true,"delete":false,"append":true,"appendto":true}];
+// Each item: { name, table, scope, roles, read, create, write, delete, append, appendto }
+
+// Tab navigation
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// Severity config
+function esc(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function escAttr(s) { return String(s || '').replace(/[^a-zA-Z0-9_.-]/g, ''); }
+const sevConfig = {
+  critical: { color: 'var(--critical)', label: 'CRITICAL', icon: '\u2716' },
+  warning:  { color: 'var(--warning)',  label: 'WARNING',  icon: '\u26A0' },
+  info:     { color: 'var(--info)',     label: 'INFO',     icon: '\u2139' },
+  pass:     { color: 'var(--pass)',     label: 'PASSED',   icon: '\u2714' }
+};
+
+const scopeNames = { 756150000:'Global', 756150001:'Contact', 756150002:'Account', 756150003:'Parent', 756150004:'Self' };
+function scopeName(s) { return scopeNames[s] || s; }
+
+// Stats
+const criticalCount = FINDINGS.filter(f => f.severity === 'critical').length;
+const warningCount = FINDINGS.filter(f => f.severity === 'warning').length;
+const infoCount = FINDINGS.filter(f => f.severity === 'info').length;
+const passCount = FINDINGS.filter(f => f.severity === 'pass').length;
+const issueCount = criticalCount + warningCount + infoCount;
+
+document.getElementById('statCritical').textContent = criticalCount;
+document.getElementById('statWarning').textContent = warningCount;
+document.getElementById('statInfo').textContent = infoCount;
+document.getElementById('statPassed').textContent = passCount;
+document.getElementById('navFindingsCount').textContent = issueCount > 0 ? issueCount : '';
+
+document.getElementById('findingsDesc').textContent =
+  FINDINGS.length + ' check' + (FINDINGS.length !== 1 ? 's' : '') +
+  ' \u2014 ' + criticalCount + ' critical, ' + warningCount + ' warning, ' + infoCount + ' info, ' + passCount + ' passed.';
+
+document.getElementById('invDesc').textContent =
+  INVENTORY.length + ' table permission' + (INVENTORY.length !== 1 ? 's' : '') + ' currently configured.';
+
+// Filter bar
+let activeFilter = 'all';
+function renderFilterBar() {
+  const c = document.getElementById('filterBar');
+  const counts = { all: FINDINGS.length, critical: criticalCount, warning: warningCount, info: infoCount, pass: passCount };
+  const labels = { all: 'All', critical: 'Critical', warning: 'Warning', info: 'Info', pass: 'Passed' };
+  let html = '';
+  Object.entries(labels).forEach(([key, label]) => {
+    if (counts[key] === 0 && key !== 'all') return;
+    html += '<button class="filter-btn ' + (activeFilter === key ? 'active' : '') + '" data-filter="' + escAttr(key) + '">' + esc(label) + '<span class="filter-count">' + counts[key] + '</span></button>';
+  });
+  c.innerHTML = html;
+}
+function setFilter(f) {
+  activeFilter = f;
+  renderFilterBar();
+  renderFindings();
+}
+
+// Render findings
+function renderFindings() {
+  const c = document.getElementById('findingsContainer');
+  const filtered = activeFilter === 'all' ? FINDINGS : FINDINGS.filter(f => f.severity === activeFilter);
+
+  const order = { critical: 0, warning: 1, info: 2, pass: 3 };
+  const sorted = [...filtered].sort((a, b) => (order[a.severity] ?? 99) - (order[b.severity] ?? 99));
+
+  let html = '';
+  sorted.forEach(f => {
+    const sev = sevConfig[f.severity] || sevConfig.info;
+    const fid = escAttr(f.id);
+    const fsev = escAttr(f.severity);
+    html += '<div class="finding-card" id="finding-' + fid + '">' +
+      '<div class="finding-header">' +
+        '<span class="severity severity-' + fsev + '">' + esc(sev.label) + '</span>' +
+        '<span class="finding-title">' + esc(f.title) + '</span>' +
+        (f.table ? '<span class="finding-table">' + esc(f.table) + '</span>' : '') +
+        '<span class="finding-chevron">&#9654;</span>' +
+      '</div>' +
+      '<div class="finding-body">' +
+        (f.permission ? '<div style="margin-top:10px;font-size:12px;"><span class="field-label">Permission:</span> <span style="font-weight:600;color:var(--text-bright)">' + esc(f.permission) + '</span></div>' : '') +
+        (f.scope ? '<div style="margin-top:6px;font-size:12px;"><span class="field-label">Scope:</span> <span class="scope-tag scope-' + escAttr(scopeName(f.scope)) + '" style="font-size:10px;padding:1px 6px;min-width:auto;">' + esc(scopeName(f.scope)) + '</span></div>' : '') +
+        (f.details ? '<div style="margin-top:10px;font-size:12px;color:var(--text);line-height:1.7;">' + esc(f.details) + '</div>' : '') +
+        (f.reasoning ? '<div style="margin-top:10px;"><div class="field-label">Reasoning</div><div class="reasoning-block">' + esc(f.reasoning) + '</div></div>' : '') +
+        (f.fix ? '<div style="margin-top:8px;"><div class="field-label">Suggested Fix</div><div class="fix-block"><strong>Fix:</strong> ' + esc(f.fix) + '</div></div>' : '') +
+      '</div>' +
+    '</div>';
+  });
+
+  if (sorted.length === 0) {
+    html = '<div style="text-align:center;padding:40px;color:var(--text-dim);font-size:14px;">No findings for this filter.</div>';
+  }
+  c.innerHTML = html;
+}
+
+// Expand/Collapse All
+let allExpanded = false;
+function toggleExpandAll() {
+  allExpanded = !allExpanded;
+  document.querySelectorAll('.finding-card').forEach(c => {
+    if (allExpanded) c.classList.add('expanded');
+    else c.classList.remove('expanded');
+  });
+  document.getElementById('expandAllBtn').textContent = allExpanded ? 'Collapse All' : 'Expand All';
+}
+
+// Render inventory
+function renderInventory() {
+  const c = document.getElementById('invContainer');
+  if (INVENTORY.length === 0) {
+    c.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-dim);font-size:14px;">No table permissions configured.</div>';
+    return;
+  }
+  const privs = ['Read','Create','Write','Delete','Append','AppendTo'];
+  let html = '<table class="inv-table"><thead><tr><th>Permission Name</th><th>Table</th><th>Scope</th><th>Roles</th><th>Privileges</th></tr></thead><tbody>';
+  INVENTORY.forEach(p => {
+    const flags = { Read: p.read, Create: p.create, Write: p.write, Delete: p.delete, Append: p.append, AppendTo: p.appendto };
+    html += '<tr>' +
+      '<td style="font-weight:600;color:var(--text-bright)">' + esc(p.name) + '</td>' +
+      '<td><code style="font-size:11px;color:var(--accent);background:var(--accent-bg);padding:1px 5px;border-radius:3px;border:1px solid var(--accent-border);">' + esc(p.table) + '</code></td>' +
+      '<td><span class="scope-tag scope-' + escAttr(scopeName(p.scope)) + '" style="font-size:9px;padding:1px 6px;min-width:auto;">' + esc(scopeName(p.scope)) + '</span></td>' +
+      '<td style="font-size:12px;">' + (Array.isArray(p.roles) ? esc(p.roles.join(', ')) : esc(p.roles)) + '</td>' +
+      '<td style="display:flex;gap:3px;flex-wrap:wrap;">' + privs.map(function(pr) { return '<span class="priv ' + (flags[pr] ? 'priv-on' : 'priv-off') + '">' + pr[0] + (pr === 'AppendTo' ? 'T' : '') + '</span>'; }).join('') + '</td>' +
+    '</tr>';
+  });
+  html += '</tbody></table>';
+  c.innerHTML = html;
+}
+
+document.getElementById('expandAllBtn').addEventListener('click', toggleExpandAll);
+
+// Event delegation — no inline onclick handlers
+document.addEventListener('click', function(e) {
+  var btn = e.target.closest('.filter-btn[data-filter]');
+  if (btn) { setFilter(btn.dataset.filter); return; }
+  var hdr = e.target.closest('.finding-header');
+  if (hdr) { hdr.closest('.finding-card').classList.toggle('expanded'); }
+});
+
+// Init
+renderFilterBar();
+renderFindings();
+renderInventory();
+</script>
+<footer style="position:fixed;bottom:0;left:0;right:0;text-align:center;padding:10px;font-size:12px;color:#605e5c;border-top:1px solid #c8c6c4;background:#ffffff;z-index:100;">AI-generated content may be incorrect</footer>
+</body>
+</html>

@@ -1,5 +1,8 @@
 adx_entitypermission_webrole:
 - f196430f-16b6-4fe0-b0f6-582c30532184
+- b079a542-bca0-43b7-a964-642298845ba1
+- a9024323-2bc2-4fc9-b7cf-aafb69581168
+- f48675b4-13bf-459d-8a1d-f9a42f468dba
 append: true
 appendto: true
 create: true

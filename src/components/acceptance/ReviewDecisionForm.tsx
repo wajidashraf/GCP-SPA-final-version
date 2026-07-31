@@ -8,8 +8,9 @@
 //   GCP channel  → 9  (Pending Ack)     → then the Acknowledgement letter
 //   GCPC channel → 11 (Pending Endorse) → then the Endorsement letter
 // Signing is restricted to users with the HOC role whose company matches
-// the company on the request. The form is read-only once a HOC signature
-// exists (the signature acts as the final lock).
+// the company on the request. A saved signature can be resumed while the
+// request remains at Complete Review (6); the document becomes read-only only
+// after the acceptance itself advances the request.
 
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -23,12 +24,14 @@ import {
   Printer,
 } from 'lucide-react';
 import { InlineMessage, LoadingState } from '../ui';
+import { SignatureImage } from '../signatures/SignatureImage';
 import { SignatureModal } from '../signatures/SignatureModal';
 import { useRequestDetail } from '../../shared/hooks/useRequestDetail';
 import { useAuth } from '../../context/AuthContext';
 import { isAdmin, hasRole } from '../../utils/authorization';
 import {
   acceptReview,
+  getRequestById,
   pollRequestStatus,
 } from '../../shared/services/requestService';
 import { listSignaturesForRequest } from '../../shared/services/signatureService';
@@ -36,6 +39,7 @@ import type { GcpSignature } from '../../shared/services/signatureService';
 import { getChoiceLabel } from '../../data/types';
 import { soaCodeChoices } from '../../data/soaChoices';
 import { matterChoices } from '../../data/matterChoices';
+import { requestStatusChoices } from '../../data/requestChoices';
 
 type ConclusionCode = '1a' | '1b' | '2' | '3';
 
@@ -71,7 +75,6 @@ const CODE_OPTIONS: { value: ConclusionCode; label: string; description: string 
 const copy = {
   cardTitle: 'Review Acceptance',
   noun: 'acceptance',
-  sigName: 'Accepted by',
   submitLabel: 'Submit Acceptance',
   submittingMsg: 'Saving your acceptance and updating the request status…',
   confirmTitle: 'Confirm acceptance',
@@ -83,7 +86,7 @@ const copy = {
 export default function ReviewDecisionForm() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { request, isLoading, error } = useRequestDetail(id);
+  const { request, isLoading, error, refetch } = useRequestDetail(id);
   const { user } = useAuth();
 
   // ── Derived meta ──────────────────────────────────────────────────────────
@@ -98,7 +101,8 @@ export default function ReviewDecisionForm() {
   // Status the request should advance to upon submission:
   //   GCP channel  → 9  (Pending Ack)
   //   GCPC channel → 11 (Pending Endorse)
-  const targetStatus: number = channel === 'gcp' ? 9 : 11;
+  const targetStatus: number | null =
+    channel === 'gcp' ? 9 : channel === 'gcpc' ? 11 : null;
 
   // ── Conclusion-code options gated by the reviewer's decision code ─────────
   // The reviewer's decision code (gcp_decisioncode, set on the Review screen)
@@ -118,8 +122,18 @@ export default function ReviewDecisionForm() {
   const isHocCompanyMatch =
     !!user?.companyAccountId &&
     !!request?.companyId &&
-    user.companyAccountId === request.companyId;
-  const canSign = isAdmin() || (isHocRole && isHocCompanyMatch);
+    user.companyAccountId.toLowerCase() === request.companyId.toLowerCase();
+  const isEditable = request?.status === 6;
+  const isCompleted =
+    request?.status != null &&
+    [8, 9, 10, 11, 12].includes(Number(request.status));
+  const hasUnexpectedStatus = !!request && !isEditable && !isCompleted;
+  const statusLabel =
+    request?.status != null
+      ? getChoiceLabel(requestStatusChoices, request.status)
+      : null;
+  const canSign =
+    isEditable && (isAdmin() || (isHocRole && isHocCompanyMatch));
 
   // ── HOC signature ─────────────────────────────────────────────────────────
   const [hocSig, setHocSig] = useState<GcpSignature | null>(null);
@@ -141,8 +155,10 @@ export default function ReviewDecisionForm() {
 
   useEffect(() => { void loadHocSig(); }, [loadHocSig]);
 
-  // Form is read-only once a HOC signature exists.
-  const isLocked = !!hocSig;
+  // A signature is saved before the final acceptance PATCH. Keep status 6
+  // editable so a user can resume and submit after a refresh or interrupted
+  // session. Only the completed/invalid workflow state locks the document.
+  const isLocked = !isEditable;
 
   // ── Form state ────────────────────────────────────────────────────────────
   // Pre-populate from the loaded request if the form was previously submitted.
@@ -174,6 +190,7 @@ export default function ReviewDecisionForm() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
 
   // ── Submit ────────────────────────────────────────────────────────────────
   const handleSubmit = () => {
@@ -182,8 +199,23 @@ export default function ReviewDecisionForm() {
       setFormError(`You are not authorized to sign this ${copy.noun}.`);
       return;
     }
+    if (!isEditable) {
+      setFormError('This request is not currently awaiting HOC acceptance.');
+      return;
+    }
+    if (targetStatus == null) {
+      setFormError('The request channel could not be determined. Contact your administrator.');
+      return;
+    }
     if (!selectedCode) {
       setFormError('Please select a conclusion code before submitting.');
+      return;
+    }
+    if (
+      selectedCode === '1b' &&
+      !exceptions.some((exception) => exception.trim().length > 0)
+    ) {
+      setFormError('Add at least one exception or mitigation for Code 1 (b).');
       return;
     }
     if (!hocSig) {
@@ -195,34 +227,70 @@ export default function ReviewDecisionForm() {
   };
 
   const handleConfirm = async () => {
-    if (!id) return;
+    if (!id || targetStatus == null) return;
     setSubmitting(true);
     setShowConfirm(false);
+    setSubmitError(null);
+    setSubmitSuccess(null);
     try {
+      const latestRequest = await getRequestById(id);
+      if (!latestRequest || latestRequest.status !== 6) {
+        throw new Error(
+          'The request has already moved to another stage. Refresh the page before continuing.',
+        );
+      }
       const code1bComment =
         selectedCode === '1b'
-          ? exceptions.filter(Boolean).join(', ')
+          ? exceptions.map((value) => value.trim()).filter(Boolean).join(', ')
           : undefined;
       await acceptReview(id, { code: selectedCode as ConclusionCode, code1bComment, targetStatus });
-      await pollRequestStatus(id, targetStatus);
-      navigate(`/requests/${id}`);
+      const confirmed = await pollRequestStatus(id, targetStatus);
+      if (!confirmed) {
+        throw new Error(
+          'The acceptance was saved, but the new status could not be confirmed. Refresh the request before retrying.',
+        );
+      }
+      await refetch();
+      setSubmitSuccess(
+        channel === 'gcp'
+          ? 'Review Acceptance submitted. The request is now pending acknowledgement.'
+          : 'Review Acceptance submitted. The request is now pending endorsement.',
+      );
     } catch (err) {
       setSubmitError(
         err instanceof Error
           ? `Failed to submit: ${err.message}`
           : 'Failed to submit. Please try again.',
       );
+    } finally {
       setSubmitting(false);
     }
   };
 
   const sigDateStr = hocSig?.createdOn
-    ? new Date(hocSig.createdOn).toLocaleDateString(undefined, {
+    ? new Date(hocSig.createdOn).toLocaleString('en-MY', {
         day: '2-digit',
-        month: '2-digit',
+        month: 'short',
         year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Asia/Kuala_Lumpur',
       })
     : null;
+  const acceptanceDateStr = request?.acceptanceDate
+    ? new Date(request.acceptanceDate).toLocaleDateString('en-MY', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        timeZone: 'Asia/Kuala_Lumpur',
+      })
+    : null;
+  const signerName =
+    hocSig?.signatoryName ??
+    (hocSig ? 'Head of Company' : user?.name || 'Head of Company');
+  const selectedOption = CODE_OPTIONS.find((option) => option.value === selectedCode);
+  const nextStage =
+    channel === 'gcp' ? 'Pending Acknowledgement' : 'Pending Endorsement';
 
   return (
     <section className="rd-page">
@@ -256,7 +324,7 @@ export default function ReviewDecisionForm() {
         ) : null}
 
         {request ? (
-          <div className="vd-card lp-card">
+          <div className="vd-card lp-card hoc-acceptance-card">
             <header className="vd-card-head no-print">
               <span className="vd-card-icon" aria-hidden="true">
                 <ClipboardCheck size={20} />
@@ -284,6 +352,7 @@ export default function ReviewDecisionForm() {
               {/* ── Formal acceptance document (A4 paper sheet) ──────────── */}
               <article className="lp-doc hoc-doc">
               <header className="lp-doc-header">
+                <p className="hoc-doc-kicker">GCP NEXUS · CONTROLLED DOCUMENT</p>
                 <h2 className="lp-doc-title">{copy.cardTitle}</h2>
                 <p className="lp-doc-sub">
                   ({matterLabel}
@@ -328,11 +397,36 @@ export default function ReviewDecisionForm() {
                         : '—'}
                     </td>
                   </tr>
+                  <tr>
+                    <th>Document Status</th>
+                    <td>
+                      <span className={`hoc-doc-status ${isCompleted ? 'is-complete' : 'is-pending'}`}>
+                        {isCompleted
+                          ? 'Accepted'
+                          : isEditable
+                            ? 'Pending HOC Acceptance'
+                            : statusLabel ?? 'Unavailable'}
+                      </span>
+                    </td>
+                  </tr>
+                  {acceptanceDateStr ? (
+                    <tr>
+                      <th>Acceptance Date</th>
+                      <td>{acceptanceDateStr}</td>
+                    </tr>
+                  ) : null}
                 </tbody>
               </table>
 
+              <div className="hoc-section-heading">
+                <span>1</span>
+                <div>
+                  <strong>Conclusion and undertaking</strong>
+                  <small>Select the statement that accurately records the company’s acceptance.</small>
+                </div>
+              </div>
               <p className="hoc-instruction">
-                Please tick ( ✓ ) based on the Summary Review Conclusion Code.
+                Select one conclusion based on the Summary Review Conclusion Code.
               </p>
 
               {/* ── Conclusion code radios ───────────────────────────────── */}
@@ -398,14 +492,21 @@ export default function ReviewDecisionForm() {
               <div className="hoc-divider" />
 
               {/* ── HOC Signature box ────────────────────────────────────── */}
+              <div className="hoc-section-heading">
+                <span>2</span>
+                <div>
+                  <strong>Authorization and signature</strong>
+                  <small>The Head of Company must sign before this acceptance can be submitted.</small>
+                </div>
+              </div>
               <div className={`hoc-sig-box${hocSig ? ' hoc-sig-box--signed' : ''}`}>
                 <div className="hoc-sig-img-wrapper">
                   {loadingSig ? (
                     <Loader2 size={20} className="sig-spin" aria-hidden="true" />
                   ) : hocSig?.signUrl ? (
-                    <img
+                    <SignatureImage
                       src={hocSig.signUrl}
-                      alt="HOC Signature"
+                      alt={`Signature of ${signerName}`}
                       className="hoc-sig-img"
                     />
                   ) : (
@@ -417,11 +518,11 @@ export default function ReviewDecisionForm() {
                     {hocSig ? (
                       <CheckCircle2 size={14} aria-hidden="true" className="sig-check-icon" />
                     ) : null}
-                    {copy.sigName}
+                    {signerName}
                   </strong>
                   <span className="hoc-sig-role">Head of Company</span>
                   <span className="hoc-sig-date">
-                    {sigDateStr ? `Signed: ${sigDateStr}` : 'Not yet signed'}
+                    {sigDateStr ? `Digitally signed: ${sigDateStr} MYT` : 'Not yet signed'}
                   </span>
                   {!hocSig && !submitting ? (
                     <button
@@ -437,10 +538,23 @@ export default function ReviewDecisionForm() {
                   ) : null}
                 </div>
               </div>
+              <p className="hoc-signature-declaration">
+                By submitting this document, the signatory confirms that the selected conclusion
+                and any stated exceptions accurately represent the company’s acceptance of the
+                Summary Review.
+              </p>
               </article>
 
+              {hasUnexpectedStatus ? (
+                <InlineMessage tone="warning" title="Acceptance is not available" className="no-print">
+                  This request is currently at{' '}
+                  <strong>{statusLabel ?? `status ${request.status}`}</strong>.
+                  HOC acceptance can only be completed when the request is at Complete Review.
+                </InlineMessage>
+              ) : null}
+
               {/* ── Authorization warning ───────────────────────────────── */}
-              {isHocRole && !isHocCompanyMatch && !isLocked ? (
+              {isHocRole && !isHocCompanyMatch && isEditable ? (
                 <InlineMessage tone="warning" title="Signing restricted" className="no-print">
                   Your company does not match the company on this request. Only
                   the HOC of the requesting company may sign this {copy.noun}.
@@ -458,6 +572,16 @@ export default function ReviewDecisionForm() {
                   {submitError}
                 </InlineMessage>
               ) : null}
+              {submitSuccess ? (
+                <InlineMessage tone="success" title="Acceptance completed" className="no-print">
+                  {submitSuccess}
+                </InlineMessage>
+              ) : null}
+              {hocSig && isEditable && !submitSuccess ? (
+                <InlineMessage tone="info" title="Signature saved" className="no-print">
+                  Review the selected conclusion, then submit the signed acceptance to complete this stage.
+                </InlineMessage>
+              ) : null}
               {submitting ? (
                 <InlineMessage tone="loading" title="Submitting" className="no-print">
                   {copy.submittingMsg}
@@ -465,7 +589,7 @@ export default function ReviewDecisionForm() {
               ) : null}
 
               {/* ── Actions ─────────────────────────────────────────────── */}
-              {!isLocked ? (
+              {isEditable ? (
                 <div className="vd-actions no-print">
                   <button
                     type="button"
@@ -486,7 +610,7 @@ export default function ReviewDecisionForm() {
                     ) : (
                       <ClipboardCheck size={16} aria-hidden="true" />
                     )}
-                    {copy.submitLabel}
+                    {hocSig ? 'Submit Signed Acceptance' : copy.submitLabel}
                   </button>
                 </div>
               ) : (
@@ -518,7 +642,30 @@ export default function ReviewDecisionForm() {
               {copy.confirmTitle}
             </Modal.Title>
           </Modal.Header>
-          <Modal.Body>{copy.confirmBody}</Modal.Body>
+          <Modal.Body>
+            <p>{copy.confirmBody}</p>
+            <dl className="hoc-confirm-summary">
+              <div>
+                <dt>Request</dt>
+                <dd>{request?.title ?? '—'}</dd>
+              </div>
+              <div>
+                <dt>Conclusion</dt>
+                <dd>{selectedOption?.label ?? '—'}</dd>
+              </div>
+              <div>
+                <dt>Signed by</dt>
+                <dd>{signerName}</dd>
+              </div>
+              <div>
+                <dt>Next stage</dt>
+                <dd>{nextStage}</dd>
+              </div>
+            </dl>
+            <InlineMessage tone="warning">
+              Submission is final and cannot be undone from this page.
+            </InlineMessage>
+          </Modal.Body>
           <Modal.Footer>
             <button
               type="button"
@@ -539,7 +686,7 @@ export default function ReviewDecisionForm() {
         </Modal>
 
         {/* ── Signature modal ───────────────────────────────────────────── */}
-        {showSignModal ? (
+        {showSignModal && isEditable && canSign ? (
           <SignatureModal
             show={showSignModal}
             memberName="Head of Company"

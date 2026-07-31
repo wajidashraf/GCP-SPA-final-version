@@ -24,6 +24,7 @@ Set on `gcp_request` for every submission (see each form's `api.ts`):
 | Project code | `gcp_projectcode` | auto-filled from the selected project (CAA, JVP, PBL, ST/SP) |
 | Acknowledgement | `gcp_acknowledgement` | the final step checkbox |
 | (submit time) | `gcp_submittedon` | `new Date().toISOString()` |
+| (RS resubmission marker/time) | `gcp_lastupdateddate` | cleared when a review is submitted; stamped only after every parent/child/document edit succeeds; a non-empty value while status/outcome are RS enables re-review |
 | (status) | `gcp_requeststatus` | `1` = New |
 | Requestor (contact) | `gcp_RequestorName@odata.bind` → `contacts` | skipped unless a GUID |
 | Company | `gcp_Company@odata.bind` → `accounts` | logged-in user's parent account |

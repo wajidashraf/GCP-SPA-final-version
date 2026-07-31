@@ -16,6 +16,9 @@
 			"type": "shell",
 			"label": "npm build (functions)",
 			"command": "npm run build",
+			"windows": {
+				"command": "npm.cmd run build"
+			},
 			"dependsOn": "npm clean (functions)",
 			"problemMatcher": "$tsc",
 			"options": {
@@ -26,6 +29,9 @@
 			"type": "shell",
 			"label": "npm watch (functions)",
 			"command": "npm run watch",
+			"windows": {
+				"command": "npm.cmd run watch"
+			},
 			"dependsOn": "npm clean (functions)",
 			"problemMatcher": "$tsc-watch",
 			"group": {
@@ -41,6 +47,9 @@
 			"type": "shell",
 			"label": "npm install (functions)",
 			"command": "npm install",
+			"windows": {
+				"command": "npm.cmd install"
+			},
 			"options": {
 				"cwd": "${workspaceFolder}/api"
 			}
@@ -49,6 +58,9 @@
 			"type": "shell",
 			"label": "npm prune (functions)",
 			"command": "npm prune --production",
+			"windows": {
+				"command": "npm.cmd prune --production"
+			},
 			"dependsOn": "npm build (functions)",
 			"problemMatcher": [],
 			"options": {
@@ -59,6 +71,9 @@
 			"type": "shell",
 			"label": "npm clean (functions)",
 			"command": "npm run clean",
+			"windows": {
+				"command": "npm.cmd run clean"
+			},
 			"dependsOn": "npm install (functions)",
 			"options": {
 				"cwd": "${workspaceFolder}/api"

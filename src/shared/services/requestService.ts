@@ -45,6 +45,18 @@ const BASE_URL = `/_api/${ENTITY_SET}`;
 const STATUS_RS: RequestStatusValue = 16;
 const OUTCOME_RS: OutcomeValue = 4;
 
+const currentMalaysiaDate = (): string => {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeZone: 'Asia/Kuala_Lumpur',
+  }).formatToParts(new Date());
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? '';
+  return `${value('year')}-${value('month')}-${value('day')}`;
+};
+
 const GUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 const isGuid = (v: string | null | undefined): v is string =>
@@ -469,7 +481,7 @@ const pollRequestStatus = async (
   return false;
 };
 
-// ── HOC Acceptance (status 6 → 8) ───────────────────────────────────────────
+// ── HOC Acceptance (status 6 → 9/11) ────────────────────────────────────────
 
 type AcceptReviewInput = {
   /** Which conclusion code the HOC selected. */
@@ -480,7 +492,7 @@ type AcceptReviewInput = {
   targetStatus?: number;
 };
 
-/** Patch the request with the HOC conclusion code selection and advance to Complete Acceptance (8). */
+/** Patch the HOC conclusion and advance to Pending Ack (9) or Pending Endorse (11). */
 const acceptReview = async (
   id: string,
   input: AcceptReviewInput,
@@ -491,7 +503,7 @@ const acceptReview = async (
     gcp_reviewconclusioncode2: input.code === '2',
     gcp_reviewconclusioncode3: input.code === '3',
     gcp_reviewconclusioncode1bcomment: input.code === '1b' ? (input.code1bComment ?? '') : '',
-    gcp_acceptancedate: new Date().toISOString().split('T')[0],
+    gcp_acceptancedate: currentMalaysiaDate(),
     gcp_requeststatus: input.targetStatus ?? 8,
   };
   await powerPagesFetch<void>(`${BASE_URL}(${id})`, {

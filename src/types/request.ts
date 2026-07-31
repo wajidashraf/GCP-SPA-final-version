@@ -143,7 +143,7 @@ type GcpRequest = {
   confidential: boolean | null;
   documentsOk: boolean | null;
 
-  /** HOC conclusion code fields (set during HOC Acceptance, status 6→8). */
+  /** HOC conclusion fields (set during acceptance, status 6 to 9/11). */
   reviewCode1a: boolean | null;
   reviewCode1b: boolean | null;
   reviewCode1bComment: string | null;
