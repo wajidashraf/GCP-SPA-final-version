@@ -411,6 +411,12 @@
   transform: translateY(-1px);
   box-shadow: var(--shadow-lg);
 }
+.rd-verify-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
 .rd-verify-btn svg {
   flex-shrink: 0;
 }
@@ -442,6 +448,100 @@
   margin-bottom: 4px;
   font-size: 0.9rem;
   color: var(--text-primary);
+}
+
+.rd-review-comment-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+.rd-review-comment-heading .rd-field-label {
+  margin-bottom: 0;
+}
+.rd-review-comment-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--navy);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.rd-review-comment-edit:hover {
+  border-color: var(--accent-ink);
+  background: var(--accent-soft);
+}
+.rd-review-comment-edit:focus-visible,
+.rd-comment-cancel:focus-visible,
+.rd-comment-save:focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: 2px;
+}
+.rd-review-comment-editor {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.rd-review-comment-save-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+.rd-comment-cancel,
+.rd-comment-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 13px;
+  border-radius: var(--radius-sm);
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+.rd-comment-cancel {
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+}
+.rd-comment-save {
+  border: 1px solid var(--navy);
+  background: var(--navy);
+  color: #fff;
+}
+.rd-comment-cancel:disabled,
+.rd-comment-save:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.rd-review-actions {
+  align-items: flex-end;
+  flex-direction: column;
+}
+.rd-review-required-note {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.rd-inline-retry {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: currentColor;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.rd-inline-retry:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
 }
 
 /* ---------- General Review: decision code + cite ---------- */

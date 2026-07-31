@@ -36,7 +36,9 @@ import type { MatterChoice } from '../../data/matterChoices';
 import {
   getResubmissionFields,
   getRsVerificationFields,
+  isReviewerCommentCycleOpen,
 } from '../requestEditPolicy';
+import { buildReviewerCommentPayload } from '../reviewerCommentPayload';
 
 type MatterValue = MatterChoice['value'];
 
@@ -335,6 +337,13 @@ type ReviewFields = {
   infoAndCriteria: string | null;
 };
 
+type ReviewSubmissionSnapshot = ReviewFields & {
+  status: RequestStatusValue | null;
+  outcome: OutcomeValue | null;
+  lastUpdatedDate: string | null;
+  etag: string;
+};
+
 /**
  * Read the reviewer fields needed to prefill the Review Request form. These
  * columns are outside DEFAULT_REQUEST_SELECT. Resilient: all-null on failure.
@@ -355,16 +364,39 @@ const getReviewFields = async (id: string): Promise<ReviewFields> => {
   }
 };
 
+/** Read one concurrency-safe snapshot immediately before review submission. */
+const getReviewSubmissionSnapshot = async (
+  id: string,
+): Promise<ReviewSubmissionSnapshot> => {
+  const entity = await powerPagesFetch<GcpRequestEntity>(
+    `${BASE_URL}(${id})?$select=gcp_decisioncode,gcp_reviewercomments,gcp_infoandcriteriaforreview,gcp_requeststatus,gcp_outcome,gcp_lastupdateddate`,
+    { method: 'GET' },
+  );
+  const etag = entity?.['@odata.etag'];
+  if (!entity || !etag) {
+    throw new Error('Could not confirm the latest review version.');
+  }
+  return {
+    decisionCode: (entity.gcp_decisioncode ?? null) as DecisionCodeValue | null,
+    reviewerComments: entity.gcp_reviewercomments ?? null,
+    infoAndCriteria: entity.gcp_infoandcriteriaforreview ?? null,
+    status: (entity.gcp_requeststatus ?? null) as RequestStatusValue | null,
+    outcome: (entity.gcp_outcome ?? null) as OutcomeValue | null,
+    lastUpdatedDate: entity.gcp_lastupdateddate ?? null,
+    etag,
+  };
+};
+
 type ReviewRequestInput = {
   decisionCode: DecisionCodeValue;
   status: RequestStatusValue;
   outcome: OutcomeValue;
-  /** Serialized reviewer-comment JSON (gcp_reviewercomments). */
-  reviewerComments?: string | null;
   /** Editable Info & Criteria text (special matter types only). */
   infoAndCriteria?: string | null;
   /** Contact GUID of the reviewer, bound to gcp_Reviewedby. */
   reviewedByContactId?: string | null;
+  /** ETag from the validated pre-submission snapshot. */
+  ifMatch: string;
 };
 
 /** Patch the request with the reviewer's decision, status/outcome and audit stamp. */
@@ -376,7 +408,6 @@ const reviewRequest = async (
     gcp_decisioncode: input.decisionCode,
     gcp_requeststatus: input.status,
     gcp_outcome: input.outcome,
-    gcp_reviewercomments: input.reviewerComments ?? '',
     gcp_reviewdate: new Date().toISOString(),
     // A review consumes the current resubmission marker. If the reviewer
     // selects Code 2 again, the next edit submission stamps a fresh marker.
@@ -391,7 +422,54 @@ const reviewRequest = async (
   await powerPagesFetch<void>(`${BASE_URL}(${id})`, {
     method: 'PATCH',
     json: body,
-    headers: { 'If-Match': '*' },
+    headers: { 'If-Match': input.ifMatch },
+  });
+};
+
+type SaveReviewerCommentsInput = {
+  /** Serialized reviewer-comment JSON (gcp_reviewercomments). */
+  reviewerComments: string;
+  /** Contact GUID of the reviewer, bound to gcp_Reviewedby. */
+  reviewedByContactId?: string | null;
+};
+
+/** Save reviewer comments without advancing or auditing the review decision. */
+const saveReviewerComments = async (
+  id: string,
+  input: SaveReviewerCommentsInput,
+): Promise<void> => {
+  const current = await powerPagesFetch<GcpRequestEntity>(
+    `${BASE_URL}(${id})?$select=gcp_requeststatus,gcp_outcome,gcp_lastupdateddate`,
+    { method: 'GET' },
+  );
+  if (
+    !current ||
+    !isReviewerCommentCycleOpen({
+      status: current.gcp_requeststatus,
+      outcome: current.gcp_outcome,
+      lastUpdatedDate: current.gcp_lastupdateddate,
+    })
+  ) {
+    throw new Error('This review cycle is no longer open for comment editing.');
+  }
+  const etag = current['@odata.etag'];
+  if (!etag) {
+    throw new Error('Could not confirm the latest reviewer comment version.');
+  }
+
+  const body: Record<string, unknown> = buildReviewerCommentPayload(
+    input.reviewerComments,
+  );
+  if (isGuid(input.reviewedByContactId)) {
+    body['gcp_Reviewedby@odata.bind'] = odataBind(
+      'contacts',
+      input.reviewedByContactId,
+    );
+  }
+  await powerPagesFetch<void>(`${BASE_URL}(${id})`, {
+    method: 'PATCH',
+    json: body,
+    headers: { 'If-Match': etag },
   });
 };
 
@@ -423,36 +501,22 @@ type VerifierInfo = {
   reviewedByName: string | null;
 };
 
-/**
- * Read the verifier audit fields for the "General Review" section. Resilient:
- * returns all-null on any failure so the page still renders.
- */
+/** Read the verifier and reviewer audit fields for General Review. */
 const getVerifierInfo = async (id: string): Promise<VerifierInfo> => {
-  try {
-    const entity = await powerPagesFetch<GcpRequestEntity>(
-      `${BASE_URL}(${id})?$select=gcp_verifier_comment,gcp_verifydate,_gcp_verified_by_value,gcp_reviewercomments,gcp_decisioncode,_gcp_reviewedby_value`,
-      { method: 'GET', headers: includeFormattedValues() }
-    );
-    return {
-      comment: entity?.gcp_verifier_comment ?? null,
-      verifiedByName:
-        entity?.['_gcp_verified_by_value@OData.Community.Display.V1.FormattedValue'] ?? null,
-      verifyDate: entity?.gcp_verifydate ?? null,
-      reviewerComments: entity?.gcp_reviewercomments ?? null,
-      decisionCode: (entity?.gcp_decisioncode ?? null) as DecisionCodeValue | null,
-      reviewedByName:
-        entity?.['_gcp_reviewedby_value@OData.Community.Display.V1.FormattedValue'] ?? null,
-    };
-  } catch {
-    return {
-      comment: null,
-      verifiedByName: null,
-      verifyDate: null,
-      reviewerComments: null,
-      decisionCode: null,
-      reviewedByName: null,
-    };
-  }
+  const entity = await powerPagesFetch<GcpRequestEntity>(
+    `${BASE_URL}(${id})?$select=gcp_verifier_comment,gcp_verifydate,_gcp_verified_by_value,gcp_reviewercomments,gcp_decisioncode,_gcp_reviewedby_value`,
+    { method: 'GET', headers: includeFormattedValues() },
+  );
+  return {
+    comment: entity?.gcp_verifier_comment ?? null,
+    verifiedByName:
+      entity?.['_gcp_verified_by_value@OData.Community.Display.V1.FormattedValue'] ?? null,
+    verifyDate: entity?.gcp_verifydate ?? null,
+    reviewerComments: entity?.gcp_reviewercomments ?? null,
+    decisionCode: (entity?.gcp_decisioncode ?? null) as DecisionCodeValue | null,
+    reviewedByName:
+      entity?.['_gcp_reviewedby_value@OData.Community.Display.V1.FormattedValue'] ?? null,
+  };
 };
 
 /**
@@ -553,6 +617,8 @@ export {
   verifyRequest,
   deriveReviewTargets,
   getReviewFields,
+  getReviewSubmissionSnapshot,
+  saveReviewerComments,
   reviewRequest,
   getVerifierComment,
   getVerifierInfo,
@@ -574,6 +640,8 @@ export type {
   VerifierInfo,
   ReviewTargets,
   ReviewFields,
+  ReviewSubmissionSnapshot,
+  SaveReviewerCommentsInput,
   ReviewRequestInput,
   AcceptReviewInput,
 };

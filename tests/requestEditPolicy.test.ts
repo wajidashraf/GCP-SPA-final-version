@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   canRenderEditRequest,
+  canEditReviewerComment,
   canEditRequest,
   getEditPurpose,
   getEditSubmissionCopy,
@@ -9,7 +10,81 @@ import {
   getRsVerificationFields,
   isAuthorizedRequestEditor,
   isEditableRequestStatus,
+  isReviewerCommentCycleOpen,
 } from '../src/shared/requestEditPolicy.ts';
+
+test('recognizes only R and timestamped RS as open reviewer-comment cycles', () => {
+  assert.equal(
+    isReviewerCommentCycleOpen({ status: 3, outcome: null, lastUpdatedDate: null }),
+    true,
+  );
+  assert.equal(
+    isReviewerCommentCycleOpen({
+      status: 16,
+      outcome: 4,
+      lastUpdatedDate: '2026-07-31T10:00:00Z',
+    }),
+    true,
+  );
+  assert.equal(
+    isReviewerCommentCycleOpen({ status: 16, outcome: 4, lastUpdatedDate: null }),
+    false,
+  );
+  assert.equal(
+    isReviewerCommentCycleOpen({ status: 5, outcome: 2, lastUpdatedDate: null }),
+    false,
+  );
+});
+
+test('allows reviewer comments only for Reviewer/Admin in an open review cycle', () => {
+  const reviewer = { isAdmin: false, isReviewer: true };
+  const administrator = { isAdmin: true, isReviewer: false };
+  const verifier = { isAdmin: false, isReviewer: false };
+
+  assert.equal(
+    canEditReviewerComment(
+      { status: 3, outcome: null, lastUpdatedDate: null },
+      reviewer,
+    ),
+    true,
+  );
+  assert.equal(
+    canEditReviewerComment(
+      { status: 3, outcome: null, lastUpdatedDate: null },
+      administrator,
+    ),
+    true,
+  );
+  assert.equal(
+    canEditReviewerComment(
+      { status: 3, outcome: null, lastUpdatedDate: null },
+      verifier,
+    ),
+    false,
+  );
+  assert.equal(
+    canEditReviewerComment(
+      { status: 16, outcome: 4, lastUpdatedDate: '2026-07-31T10:00:00Z' },
+      reviewer,
+    ),
+    true,
+  );
+});
+
+test('locks reviewer comments after every submitted code and before RS resubmission', () => {
+  const reviewer = { isAdmin: false, isReviewer: true };
+  const lockedStates = [
+    { status: 5, outcome: 2, lastUpdatedDate: null },
+    { status: 16, outcome: 4, lastUpdatedDate: null },
+    { status: 17, outcome: 5, lastUpdatedDate: null },
+    { status: 18, outcome: 7, lastUpdatedDate: null },
+    { status: 19, outcome: 8, lastUpdatedDate: null },
+  ];
+
+  for (const state of lockedStates) {
+    assert.equal(canEditReviewerComment(state, reviewer), false);
+  }
+});
 
 const noRoles = {
   contactId: null,

@@ -16,6 +16,7 @@ import {
   MessageSquare,
   MessageSquarePlus,
   Pencil,
+  Save,
   Send,
   ShieldCheck,
   Tag,
@@ -44,10 +45,14 @@ import type { FieldDef, RenderedField, SectionDef } from "../components/detail";
 import { useRequestDetail } from "../shared/hooks/useRequestDetail";
 import type { ChildData } from "../shared/hooks/useRequestDetail";
 import { groupDocuments, parseDocuments } from "../shared/documents";
-import { canEditRequest } from "../shared/requestEditPolicy";
+import {
+  canEditRequest,
+  canEditReviewerComment,
+} from "../shared/requestEditPolicy";
 import {
   getVerifierInfo,
   isRequestResubmittedForReview,
+  saveReviewerComments,
 } from "../shared/services/requestService";
 import type { VerifierInfo } from "../shared/services/requestService";
 import { listSuggestionsForRequest } from "../shared/services/suggestionService";
@@ -61,7 +66,13 @@ import {
   requestCategoryChoices,
   requestStatusChoices,
 } from "../data/requestChoices";
-import { parseReviewComments } from "../forms";
+import {
+  ReviewCommentEditor,
+  hasMeaningfulReviewComments,
+  hasStoredReviewComments,
+  parseReviewComments,
+  serializeReviewComments,
+} from "../forms";
 import type { ReviewCommentBlock } from "../forms";
 import { matterChoices } from "../data/matterChoices";
 import { soaCodeChoices } from "../data/soaChoices";
@@ -426,23 +437,145 @@ export default function RequestDetail() {
   const isReadyForEngagement = meta?.statusLabel === "Ready for Engagement";
   // Status "R" (value 3) → reviewer can record a decision + comment on the request.
   const isReview = meta?.statusLabel === "R";
+  const isReviewerCommentCycleOpen =
+    !authLoading &&
+    !!request &&
+    canEditReviewerComment(request, {
+      isAdmin: isAdmin(),
+      isReviewer: hasRole("Reviewer"),
+    });
 
   // Verifier audit info backs the "General Review" section, shown once the
   // request has moved past "New" (i.e. it has been verified at least once).
   const [verifier, setVerifier] = useState<VerifierInfo | null>(null);
+  const [verifierInfoLoaded, setVerifierInfoLoaded] = useState(false);
+  const [verifierInfoError, setVerifierInfoError] = useState<string | null>(null);
+  const [reviewCommentBlocks, setReviewCommentBlocks] = useState<
+    ReviewCommentBlock[]
+  >([]);
+  const [isEditingReviewComment, setIsEditingReviewComment] = useState(false);
+  const [isSavingReviewComment, setIsSavingReviewComment] = useState(false);
+  const [reviewCommentError, setReviewCommentError] = useState<string | null>(
+    null,
+  );
+  const [reviewCommentSaved, setReviewCommentSaved] = useState(false);
+
+  const loadVerifierInfo = useCallback(async () => {
+    if (!id || !meta || meta.statusLabel === "New") {
+      setVerifier(null);
+      setVerifierInfoLoaded(true);
+      setVerifierInfoError(null);
+      return null;
+    }
+    setVerifierInfoLoaded(false);
+    setVerifierInfoError(null);
+    try {
+      const info = await getVerifierInfo(id);
+      setVerifier(info);
+      setVerifierInfoLoaded(true);
+      return info;
+    } catch (loadError) {
+      setVerifierInfoError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Could not load the reviewer comment.",
+      );
+      return null;
+    }
+  }, [id, meta]);
   useEffect(() => {
     if (!id || !meta || meta.statusLabel === "New") {
       setVerifier(null);
+      setVerifierInfoLoaded(true);
+      setVerifierInfoError(null);
       return;
     }
+    setVerifierInfoLoaded(false);
+    setVerifierInfoError(null);
     let cancelled = false;
-    getVerifierInfo(id).then((info) => {
-      if (!cancelled) setVerifier(info);
-    });
+    getVerifierInfo(id)
+      .then((info) => {
+        if (!cancelled) {
+          setVerifier(info);
+          setVerifierInfoLoaded(true);
+        }
+      })
+      .catch((loadError) => {
+        if (!cancelled) {
+          setVerifierInfoError(
+            loadError instanceof Error
+              ? loadError.message
+              : "Could not load the reviewer comment.",
+          );
+        }
+      });
     return () => {
       cancelled = true;
     };
   }, [id, meta]);
+
+  const hasSavedReviewerComment = hasStoredReviewComments(
+    verifier?.reviewerComments,
+  );
+
+  useEffect(() => {
+    if (!verifierInfoLoaded || isEditingReviewComment) return;
+    setReviewCommentBlocks(parseReviewComments(verifier?.reviewerComments));
+    setIsEditingReviewComment(
+      isReviewerCommentCycleOpen && !hasSavedReviewerComment,
+    );
+  }, [
+    hasSavedReviewerComment,
+    isEditingReviewComment,
+    isReviewerCommentCycleOpen,
+    verifierInfoLoaded,
+    verifier?.reviewerComments,
+  ]);
+
+  const handleEditReviewComment = () => {
+    setReviewCommentBlocks(parseReviewComments(verifier?.reviewerComments));
+    setReviewCommentError(null);
+    setReviewCommentSaved(false);
+    setIsEditingReviewComment(true);
+  };
+
+  const handleCancelReviewComment = () => {
+    setReviewCommentBlocks(parseReviewComments(verifier?.reviewerComments));
+    setReviewCommentError(null);
+    setReviewCommentSaved(false);
+    setIsEditingReviewComment(false);
+  };
+
+  const handleSaveReviewComment = async () => {
+    if (!id || !isReviewerCommentCycleOpen || !verifierInfoLoaded) return;
+    if (!hasMeaningfulReviewComments(reviewCommentBlocks)) {
+      setReviewCommentError("Reviewer comment is required before review.");
+      return;
+    }
+
+    setIsSavingReviewComment(true);
+    setReviewCommentError(null);
+    setReviewCommentSaved(false);
+    try {
+      const reviewerComments = serializeReviewComments(reviewCommentBlocks);
+      await saveReviewerComments(id, {
+        reviewerComments,
+        reviewedByContactId: user?.contactId,
+      });
+      const refreshed = await loadVerifierInfo();
+      if (!refreshed) return;
+      setIsEditingReviewComment(false);
+      setReviewCommentSaved(true);
+    } catch (saveError) {
+      setReviewCommentError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Could not save the reviewer comment.",
+      );
+    } finally {
+      setIsSavingReviewComment(false);
+    }
+  };
 
   return (
     <section className="rd-page">
@@ -661,7 +794,7 @@ export default function RequestDetail() {
               ? (() => {
                   // Post-review records carry structured reviewer comments + a
                   // decision code; pre-review records carry only the verifier note.
-                  const isPostReview = !!verifier?.reviewerComments;
+                  const isPostReview = hasSavedReviewerComment;
                   const decisionCode = isPostReview
                     ? verifier?.decisionCode
                     : null;
@@ -682,9 +815,80 @@ export default function RequestDetail() {
                   return (
                     <DetailSection title="General Review" icon={ClipboardCheck}>
                       {/* Comment */}
-                      <div className="rd-bidders-note">
-                        <span className="rd-field-label">Comment</span>
-                        {isPostReview ? (
+                      <div className="rd-bidders-note rd-review-comment">
+                        <div className="rd-review-comment-heading">
+                          <span className="rd-field-label">Comment</span>
+                          {isReviewerCommentCycleOpen &&
+                          hasSavedReviewerComment &&
+                          !isEditingReviewComment ? (
+                            <button
+                              type="button"
+                              className="rd-review-comment-edit"
+                              aria-label="Edit reviewer comment"
+                              onClick={handleEditReviewComment}
+                            >
+                              <Pencil size={15} aria-hidden="true" />
+                              Edit
+                            </button>
+                          ) : null}
+                        </div>
+
+                        {verifierInfoError ? (
+                          <InlineMessage
+                            tone="error"
+                            title="Could not load reviewer comment"
+                          >
+                            <span>{verifierInfoError}</span>{" "}
+                            <button
+                              type="button"
+                              className="rd-inline-retry"
+                              onClick={() => void loadVerifierInfo()}
+                            >
+                              Try again
+                            </button>
+                          </InlineMessage>
+                        ) : !verifierInfoLoaded ? (
+                          <LoadingState message="Loading reviewer comment…" />
+                        ) : isReviewerCommentCycleOpen &&
+                        isEditingReviewComment ? (
+                          <div className="rd-review-comment-editor">
+                            <ReviewCommentEditor
+                              label="Reviewer comment"
+                              value={reviewCommentBlocks}
+                              onChange={(next) => {
+                                setReviewCommentBlocks(next);
+                                setReviewCommentError(null);
+                                setReviewCommentSaved(false);
+                              }}
+                              isRequired
+                              error={reviewCommentError ?? undefined}
+                              helpText="Use text, bullets, or numbered steps. Save the comment before selecting a review code."
+                            />
+                            <div className="rd-review-comment-save-row">
+                              {hasSavedReviewerComment ? (
+                                <button
+                                  type="button"
+                                  className="rd-comment-cancel"
+                                  disabled={isSavingReviewComment}
+                                  onClick={handleCancelReviewComment}
+                                >
+                                  Cancel
+                                </button>
+                              ) : null}
+                              <button
+                                type="button"
+                                className="rd-comment-save"
+                                disabled={isSavingReviewComment}
+                                onClick={() => void handleSaveReviewComment()}
+                              >
+                                <Save size={15} aria-hidden="true" />
+                                {isSavingReviewComment
+                                  ? "Saving…"
+                                  : "Save comment"}
+                              </button>
+                            </div>
+                          </div>
+                        ) : isPostReview ? (
                           parseReviewComments(verifier!.reviewerComments!).map(
                             (block: ReviewCommentBlock, i: number) => {
                               if (block.type === "text") {
@@ -712,6 +916,17 @@ export default function RequestDetail() {
                         ) : (
                           <p className="rd-multiline rd-empty">—</p>
                         )}
+
+                        {reviewCommentSaved ? (
+                          <InlineMessage
+                            tone="success"
+                            title="Comment saved"
+                            className="mt-3"
+                          >
+                            The General Review comment is ready for the review
+                            decision.
+                          </InlineMessage>
+                        ) : null}
                       </div>
 
                       {/* Decision Code (post-review only) */}
@@ -800,10 +1015,15 @@ export default function RequestDetail() {
             {/* Initial R or a submitted RS edit → Reviewer/Admin records a decision. */}
             {(isReview || isResubmittedForReview) &&
             (isAdmin() || hasRole("Reviewer")) ? (
-              <div className="rd-actions">
+              <div className="rd-actions rd-review-actions">
                 <button
                   type="button"
                   className="rd-verify-btn"
+                  disabled={
+                    !verifierInfoLoaded ||
+                    !hasSavedReviewerComment ||
+                    isSavingReviewComment
+                  }
                   onClick={() => {
                     const params = new URLSearchParams();
                     if (request.matter != null)
@@ -821,6 +1041,15 @@ export default function RequestDetail() {
                     ? "Review Resubmission"
                     : "Review Request"}
                 </button>
+                {verifierInfoError ? (
+                  <p className="rd-review-required-note" role="status">
+                    Reload the reviewer comment before continuing.
+                  </p>
+                ) : verifierInfoLoaded && !hasSavedReviewerComment ? (
+                  <p className="rd-review-required-note" role="status">
+                    Save a reviewer comment above before continuing.
+                  </p>
+                ) : null}
               </div>
             ) : null}
 

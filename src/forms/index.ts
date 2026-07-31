@@ -34,6 +34,8 @@ export type { RepeatableTextFieldProps } from './RepeatableTextField';
 export type { ReviewCommentEditorProps } from './ReviewCommentEditor';
 export {
   emptyBlock,
+  hasMeaningfulReviewComments,
+  hasStoredReviewComments,
   normalizeBlocks,
   parseReviewComments,
   serializeReviewComments,
