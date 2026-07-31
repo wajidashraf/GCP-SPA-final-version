@@ -12,6 +12,17 @@ type RequestEditCandidate = {
   requestorContactId: string | null | undefined;
 };
 
+type ReviewerCommentActor = {
+  isAdmin: boolean;
+  isReviewer: boolean;
+};
+
+type ReviewerCommentCandidate = {
+  status: number | null | undefined;
+  outcome: number | null | undefined;
+  lastUpdatedDate: string | null | undefined;
+};
+
 type EditRequestRenderState = {
   authLoading: boolean;
   requestLoading: boolean;
@@ -71,6 +82,22 @@ const canEditRequest = (
 ): boolean =>
   isEditableRequestStatus(request.status) &&
   isAuthorizedRequestEditor(request.requestorContactId, actor);
+
+const isReviewerCommentCycleOpen = (
+  request: ReviewerCommentCandidate,
+): boolean =>
+  Number(request.status) === STATUS_R ||
+  (Number(request.status) === STATUS_RS &&
+    Number(request.outcome) === OUTCOME_RS &&
+    Boolean(request.lastUpdatedDate));
+
+const canEditReviewerComment = (
+  request: ReviewerCommentCandidate,
+  actor: ReviewerCommentActor,
+): boolean => {
+  if (!actor.isAdmin && !actor.isReviewer) return false;
+  return isReviewerCommentCycleOpen(request);
+};
 
 const canRenderEditRequest = ({
   authLoading,
@@ -137,12 +164,14 @@ const getResubmissionFields = (
 export {
   canRenderEditRequest,
   canEditRequest,
+  canEditReviewerComment,
   getEditPurpose,
   getEditSubmissionCopy,
   getResubmissionFields,
   getRsVerificationFields,
   isAuthorizedRequestEditor,
   isEditableRequestStatus,
+  isReviewerCommentCycleOpen,
 };
 export type {
   EditPurpose,
@@ -150,6 +179,8 @@ export type {
   EditSubmissionCopy,
   RequestEditActor,
   RequestEditCandidate,
+  ReviewerCommentActor,
+  ReviewerCommentCandidate,
   ResubmissionFields,
   RsVerificationFields,
 };

@@ -59,8 +59,11 @@ const parseReviewComments = (raw: string | null | undefined): ReviewCommentBlock
       const valid = blocks.filter(isBlock);
       if (valid.length || blocks.length === 0) return valid;
     }
+    // Parsed JSON with an unsupported structure is corrupted structured data,
+    // not a legacy plain-text reviewer comment.
+    return [];
   } catch {
-    // Not JSON — fall through to the legacy-text wrapper.
+    if (value.startsWith('{') || value.startsWith('[')) return [];
   }
   return [{ type: 'text', text: value }];
 };
@@ -75,6 +78,14 @@ const normalizeBlocks = (blocks: ReviewCommentBlock[]): ReviewCommentBlock[] =>
     )
     .filter((b) => (b.type === 'text' ? b.text.length > 0 : b.items.length > 0));
 
+/** True when at least one block contains non-whitespace reviewer content. */
+const hasMeaningfulReviewComments = (blocks: ReviewCommentBlock[]): boolean =>
+  normalizeBlocks(blocks).length > 0;
+
+/** Validate a persisted reviewer comment, including legacy plain-text values. */
+const hasStoredReviewComments = (raw: string | null | undefined): boolean =>
+  hasMeaningfulReviewComments(parseReviewComments(raw));
+
 /** Serialize editor blocks to the JSON string stored in gcp_reviewercomments. */
 const serializeReviewComments = (blocks: ReviewCommentBlock[]): string => {
   const clean = normalizeBlocks(blocks);
@@ -83,7 +94,14 @@ const serializeReviewComments = (blocks: ReviewCommentBlock[]): string => {
   return JSON.stringify(payload);
 };
 
-export { emptyBlock, parseReviewComments, normalizeBlocks, serializeReviewComments };
+export {
+  emptyBlock,
+  hasMeaningfulReviewComments,
+  hasStoredReviewComments,
+  parseReviewComments,
+  normalizeBlocks,
+  serializeReviewComments,
+};
 export type {
   ReviewComments,
   ReviewCommentBlock,

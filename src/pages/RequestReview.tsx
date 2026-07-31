@@ -14,19 +14,17 @@ import Modal from 'react-bootstrap/Modal';
 import { ArrowLeft, ClipboardCheck, Loader2, Send } from 'lucide-react';
 import {
   RadioGroupField,
-  ReviewCommentEditor,
   TextAreaField,
-  parseReviewComments,
-  serializeReviewComments,
+  hasStoredReviewComments,
 } from '../forms';
-import type { ReviewCommentBlock, RadioOption } from '../forms';
+import type { RadioOption } from '../forms';
 import { InlineMessage, LoadingState } from '../components/ui';
 import { useRequestDetail } from '../shared/hooks/useRequestDetail';
 import { useAuth } from '../context/AuthContext';
 import {
   deriveReviewTargets,
-  getRequestById,
   getReviewFields,
+  getReviewSubmissionSnapshot,
   isRequestResubmittedForReview,
   reviewRequest,
   pollRequestStatus,
@@ -110,32 +108,38 @@ export default function RequestReview() {
 
   // ── Form state ──────────────────────────────────────────────────────────
   const [decisionCode, setDecisionCode] = useState('');
-  const [blocks, setBlocks] = useState<ReviewCommentBlock[]>([]);
   const [infoCriteria, setInfoCriteria] = useState('');
+  const [hasSavedReviewerComment, setHasSavedReviewerComment] = useState(false);
+  const [reviewFieldsLoading, setReviewFieldsLoading] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
 
   const [showConfirm, setShowConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Draft/initial review keeps the existing prefill behavior. A resubmission
-  // starts a clean decision/comment set without displaying the previous review.
+  // Draft/initial review keeps the existing decision prefill behavior. A
+  // resubmission starts with a clean decision while reusing the saved comment.
   useEffect(() => {
     if (!id || !request || !reviewMode || reviewMode === 'invalid') return;
     let cancelled = false;
     setDecisionCode('');
-    setBlocks([]);
     setInfoCriteria('');
-    getReviewFields(id).then((fields) => {
-      if (cancelled) return;
-      if (reviewMode !== 'resubmission') {
-        if (fields.decisionCode != null) {
+    setHasSavedReviewerComment(false);
+    setReviewFieldsLoading(true);
+    getReviewFields(id)
+      .then((fields) => {
+        if (cancelled) return;
+        if (reviewMode !== 'resubmission' && fields.decisionCode != null) {
           setDecisionCode(String(fields.decisionCode));
         }
-        setBlocks(parseReviewComments(fields.reviewerComments));
-      }
-      setInfoCriteria(fields.infoAndCriteria ?? '');
-    });
+        setHasSavedReviewerComment(
+          hasStoredReviewComments(fields.reviewerComments),
+        );
+        setInfoCriteria(fields.infoAndCriteria ?? '');
+      })
+      .finally(() => {
+        if (!cancelled) setReviewFieldsLoading(false);
+      });
     return () => {
       cancelled = true;
     };
@@ -143,7 +147,6 @@ export default function RequestReview() {
 
   const buildReviewInput = () => ({
     decisionCode: decisionCode ? (Number(decisionCode) as DecisionCodeValue) : null,
-    reviewerComments: serializeReviewComments(blocks),
     infoAndCriteria: showInfoCriteria ? infoCriteria.trim() : undefined,
     reviewedByContactId: user?.contactId,
   });
@@ -176,6 +179,12 @@ export default function RequestReview() {
   const handleSubmitReview = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setFormError(null);
+    if (!hasSavedReviewerComment) {
+      setFormError(
+        'Save a reviewer comment on the request detail page before submitting.',
+      );
+      return;
+    }
     if (!decisionCode) {
       setFormError('Please select a decision code before submitting.');
       return;
@@ -197,9 +206,34 @@ export default function RequestReview() {
     setSubmitting(true);
     setShowConfirm(false);
     try {
+      const latest = await getReviewSubmissionSnapshot(id);
+      if (!hasStoredReviewComments(latest.reviewerComments)) {
+        setHasSavedReviewerComment(false);
+        setSubmitError(
+          'A saved reviewer comment is required. Return to the request detail page and save the comment before submitting.',
+        );
+        setSubmitting(false);
+        return;
+      }
+
+      const latestMatchesReviewMode =
+        reviewMode === 'initial'
+          ? latest?.status === 3
+          : reviewMode === 'draft'
+            ? latest?.status === 4
+            : reviewMode === 'resubmission' && latest != null
+              ? isRequestResubmittedForReview(latest)
+              : false;
+      if (!latest || !latestMatchesReviewMode) {
+        setSubmitError(
+          'This request is no longer available for review. Reload the latest request before submitting.',
+        );
+        setSubmitting(false);
+        return;
+      }
+
       if (isResubmissionReview) {
-        const latest = await getRequestById(id);
-        if (!latest || !isRequestResubmittedForReview(latest)) {
+        if (!isRequestResubmittedForReview(latest)) {
           setSubmitError(
             'This request is no longer waiting for a resubmission review. Reload the latest request before submitting.',
           );
@@ -220,14 +254,21 @@ export default function RequestReview() {
         decisionCode: selectedDecisionCode,
         status: submissionTargets.status,
         outcome: submissionTargets.outcome,
-        reviewerComments: draft.reviewerComments,
         infoAndCriteria: draft.infoAndCriteria,
         reviewedByContactId: draft.reviewedByContactId,
+        ifMatch: latest.etag,
       });
       await pollRequestStatus(id, submissionTargets.status);
       void notifyEvent(id, 'request_reviewed', user?.email);
       navigate(`/requests/${id}`);
     } catch (err) {
+      if ((err as { status?: number })?.status === 412) {
+        setSubmitError(
+          'This request changed while you were reviewing it. Reload the latest version before submitting.',
+        );
+        setSubmitting(false);
+        return;
+      }
       setSubmitError(
         err instanceof Error
           ? `Failed to submit: ${err.message}`
@@ -256,16 +297,6 @@ export default function RequestReview() {
       Outcome: {submissionOutcomeLabel} · Status: {submissionStatusLabel}
     </InlineMessage>
   ) : null;
-
-  const commentsField = (
-    <ReviewCommentEditor
-      label="Reviewer Comments"
-      isReadOnly={submitting}
-      value={blocks}
-      onChange={setBlocks}
-      helpText="Compose comments as text, bulleted or numbered list blocks."
-    />
-  );
 
   const infoField = showInfoCriteria ? (
     <TextAreaField
@@ -339,22 +370,43 @@ export default function RequestReview() {
               </div>
             </header>
 
-            <form className="vd-card-body" onSubmit={handleSubmitReview} noValidate>
-              {/* Special matter types lead with Info → Comments → Decision. */}
-              {showInfoCriteria ? (
-                <>
-                  {infoField}
-                  {commentsField}
-                  {decisionField}
-                  {decisionResult}
-                </>
-              ) : (
-                <>
-                  {decisionField}
-                  {decisionResult}
-                  {commentsField}
-                </>
-              )}
+            {reviewFieldsLoading ? (
+              <div className="vd-card-body">
+                <LoadingState message="Checking reviewer comment…" />
+              </div>
+            ) : !hasSavedReviewerComment ? (
+              <div className="vd-card-body">
+                <InlineMessage tone="warning" title="Reviewer comment required">
+                  Add and save the reviewer comment in General Review before
+                  selecting a decision code.
+                </InlineMessage>
+                <div className="vd-actions">
+                  <button
+                    type="button"
+                    className="vd-btn-secondary"
+                    onClick={() =>
+                      navigate(id ? `/requests/${id}` : '/requests')
+                    }
+                  >
+                    Back to request
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form className="vd-card-body" onSubmit={handleSubmitReview} noValidate>
+                {/* Special matter types lead with Info and Criteria, then Decision. */}
+                {showInfoCriteria ? (
+                  <>
+                    {infoField}
+                    {decisionField}
+                    {decisionResult}
+                  </>
+                ) : (
+                  <>
+                    {decisionField}
+                    {decisionResult}
+                  </>
+                )}
 
               {submitError ? (
                 <InlineMessage tone="error" title="Couldn't submit">
@@ -386,7 +438,8 @@ export default function RequestReview() {
                   {isResubmissionReview ? 'Submit Re-review' : 'Submit Review'}
                 </button>
               </div>
-            </form>
+              </form>
+            )}
           </div>
         ) : null}
 

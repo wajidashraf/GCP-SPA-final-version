@@ -98,59 +98,90 @@ const ReviewCommentEditor = ({
       helpText={helpText}
     >
       <div className="rc-editor">
-        {value.length === 0 ? (
-          <p className="rc-empty">No comment blocks yet. Add one below.</p>
+        {!isReadOnly ? (
+          <div
+            className="rc-toolbar"
+            role="toolbar"
+            aria-label="Add comment content"
+          >
+            <span className="rc-toolbar-label">Add</span>
+            {ADD_BUTTONS.map(({ type, label: btnLabel, Icon }) => (
+              <button
+                key={type}
+                type="button"
+                className="rc-add-block"
+                onClick={() => addBlock(type)}
+              >
+                <Icon size={16} aria-hidden="true" />
+                {btnLabel}
+              </button>
+            ))}
+          </div>
         ) : null}
 
-        {value.map((block, blockIndex) => (
-          <div className="rc-block" key={blockIndex}>
-            <div className="rc-block-head">
-              <span className="rc-block-kind">{BLOCK_TITLE[block.type]}</span>
-              {!isReadOnly ? (
-                <div className="rc-block-tools">
-                  <button
-                    type="button"
-                    className="rc-icon-btn"
-                    aria-label="Move block up"
-                    disabled={blockIndex === 0}
-                    onClick={() => moveBlock(blockIndex, -1)}
-                  >
-                    <ArrowUp size={15} aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    className="rc-icon-btn"
-                    aria-label="Move block down"
-                    disabled={blockIndex === value.length - 1}
-                    onClick={() => moveBlock(blockIndex, 1)}
-                  >
-                    <ArrowDown size={15} aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    className="rc-icon-btn rc-icon-danger"
-                    aria-label="Remove block"
-                    onClick={() => removeBlock(blockIndex)}
-                  >
-                    <Trash2 size={15} aria-hidden="true" />
-                  </button>
-                </div>
-              ) : null}
-            </div>
+        {value.length === 0 ? (
+          <p className="rc-empty">Start with text, bullets, or numbered steps.</p>
+        ) : null}
 
-            {block.type === 'text' ? (
+        <div className="rc-canvas">
+          {value.map((block, blockIndex) => (
+            <div className="rc-block" key={blockIndex}>
+              <div className="rc-block-head">
+                <span className="rc-block-kind">{BLOCK_TITLE[block.type]}</span>
+                {!isReadOnly ? (
+                  <div className="rc-block-tools">
+                    <button
+                      type="button"
+                      className="rc-icon-btn"
+                      aria-label="Move block up"
+                      disabled={blockIndex === 0}
+                      onClick={() => moveBlock(blockIndex, -1)}
+                    >
+                      <ArrowUp size={15} aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      className="rc-icon-btn"
+                      aria-label="Move block down"
+                      disabled={blockIndex === value.length - 1}
+                      onClick={() => moveBlock(blockIndex, 1)}
+                    >
+                      <ArrowDown size={15} aria-hidden="true" />
+                    </button>
+                    <button
+                      type="button"
+                      className="rc-icon-btn rc-icon-danger"
+                      aria-label="Remove block"
+                      onClick={() => removeBlock(blockIndex)}
+                    >
+                      <Trash2 size={15} aria-hidden="true" />
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+
+              {block.type === 'text' ? (
               <Form.Control
+                id={blockIndex === 0 ? fieldId : `${fieldId}-block-${blockIndex}`}
                 as="textarea"
                 rows={3}
                 value={block.text}
                 readOnly={isReadOnly}
                 placeholder="Enter text…"
                 aria-label="Text block"
+                aria-invalid={Boolean(error)}
+                aria-describedby={
+                  error
+                    ? `${fieldId}-error`
+                    : helpText
+                      ? `${fieldId}-help`
+                      : undefined
+                }
                 onChange={(e) =>
                   replaceBlock(blockIndex, { type: 'text', text: e.target.value })
                 }
               />
-            ) : (
+              ) : (
               <div className="rc-list">
                 {block.items.map((item, itemIndex) => (
                   <div className="rc-list-row" key={itemIndex}>
@@ -158,10 +189,23 @@ const ReviewCommentEditor = ({
                       {block.type === 'numbered-list' ? `${itemIndex + 1}.` : '•'}
                     </span>
                     <Form.Control
+                      id={
+                        blockIndex === 0 && itemIndex === 0
+                          ? fieldId
+                          : `${fieldId}-block-${blockIndex}-item-${itemIndex}`
+                      }
                       value={item}
                       readOnly={isReadOnly}
                       placeholder={`Item ${itemIndex + 1}`}
                       aria-label={`${BLOCK_TITLE[block.type]} item ${itemIndex + 1}`}
+                      aria-invalid={Boolean(error)}
+                      aria-describedby={
+                        error
+                          ? `${fieldId}-error`
+                          : helpText
+                            ? `${fieldId}-help`
+                            : undefined
+                      }
                       onChange={(e) => setItem(block, blockIndex, itemIndex, e.target.value)}
                     />
                     {!isReadOnly ? (
@@ -187,25 +231,10 @@ const ReviewCommentEditor = ({
                   </button>
                 ) : null}
               </div>
-            )}
-          </div>
-        ))}
-
-        {!isReadOnly ? (
-          <div className="rc-toolbar">
-            {ADD_BUTTONS.map(({ type, label: btnLabel, Icon }) => (
-              <button
-                key={type}
-                type="button"
-                className="rc-add-block"
-                onClick={() => addBlock(type)}
-              >
-                <Icon size={16} aria-hidden="true" />
-                {btnLabel}
-              </button>
-            ))}
-          </div>
-        ) : null}
+              )}
+            </div>
+          ))}
+        </div>
       </div>
     </FormField>
   );
