@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   hasMeaningfulReviewComments,
   hasStoredReviewComments,
+  reviewCommentsToText,
   serializeReviewComments,
 } from '../src/forms/reviewComments.ts';
 import { buildReviewerCommentPayload } from '../src/shared/reviewerCommentPayload.ts';
@@ -78,6 +79,15 @@ test('normalizes mixed blocks into the existing version 1 JSON contract', () => 
       { type: 'numbered-list', items: ['  ', 'Approval'] },
     ]),
     '{"version":1,"blocks":[{"type":"text","text":"Summary"},{"type":"bulleted-list","items":["Evidence"]},{"type":"numbered-list","items":["Approval"]}]}',
+  );
+});
+
+test('converts saved structured comments into readable textarea text', () => {
+  assert.equal(
+    reviewCommentsToText(
+      '{"version":1,"blocks":[{"type":"text","text":"Summary"},{"type":"bulleted-list","items":["Evidence","Approval"]},{"type":"numbered-list","items":["Confirm scope","Notify team"]}]}',
+    ),
+    'Summary\n\n• Evidence\n• Approval\n\n1. Confirm scope\n2. Notify team',
   );
 });
 

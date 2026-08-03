@@ -38,6 +38,7 @@ export {
   hasStoredReviewComments,
   normalizeBlocks,
   parseReviewComments,
+  reviewCommentsToText,
   serializeReviewComments,
 } from './reviewComments';
 export type {

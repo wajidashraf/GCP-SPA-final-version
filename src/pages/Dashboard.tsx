@@ -20,6 +20,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  LabelList,
   PieChart,
   Pie,
   Cell,
@@ -27,6 +28,12 @@ import {
 } from 'recharts';
 import { listRequests } from '../shared/services/requestService';
 import { matterChoices } from '../data/matterChoices';
+import { requestStatusChoices } from '../data/requestChoices';
+import {
+  buildPipelineStatusBars,
+  orderPipelineStatusChoices,
+} from '../data/dashboardPipeline';
+import type { PipelineStatusBar } from '../data/dashboardPipeline';
 
 // Active statuses: New(1), Ready for Engagement(2), R(3), Draft Review(4),
 // Pending Review(5), Complete Review(6), Pending Acceptance(7),
@@ -42,10 +49,8 @@ const CLOSED_FILTER =
 
 const CHART_NAVY  = '#0b2545';
 const CHART_BLUE  = '#3b82f6';
-const CHART_GREEN = '#16a34a';
-const CHART_AMBER = '#f59e0b';
 const CATEGORY_COLORS = [CHART_BLUE, CHART_NAVY];
-const STATUS_COLORS   = [CHART_AMBER, CHART_BLUE, CHART_GREEN];
+const pipelineStatusChoices = orderPipelineStatusChoices(requestStatusChoices);
 
 type KpiState = {
   total: number | null;
@@ -78,6 +83,9 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [charts, setCharts] = useState<ChartData | null>(null);
   const [chartsLoading, setChartsLoading] = useState(true);
+  const [statusBars, setStatusBars] = useState<PipelineStatusBar[]>([]);
+  const [statusLoading, setStatusLoading] = useState(true);
+  const [statusError, setStatusError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -111,20 +119,32 @@ export default function Dashboard() {
       setChartsLoading(false);
     });
 
+    Promise.all(
+      pipelineStatusChoices.map((status) =>
+        fetchCount(`gcp_requeststatus eq ${status.value}`),
+      ),
+    ).then((statusCounts) => {
+      if (cancelled) return;
+      if (statusCounts.some((count) => count == null)) {
+        setStatusError(
+          'Pipeline status counts could not be loaded. Refresh the page to try again.',
+        );
+      } else {
+        setStatusBars(
+          buildPipelineStatusBars(pipelineStatusChoices, statusCounts),
+        );
+        setStatusError(null);
+      }
+      setStatusLoading(false);
+    });
+
     return () => { cancelled = true; };
   }, []);
 
   const fmt = (n: number | null): string =>
     loading ? '—' : n != null ? String(n) : '—';
 
-  const statusData = [
-    { name: 'New', count: kpi.newRequests ?? 0 },
-    {
-      name: 'In Progress',
-      count: Math.max(0, (kpi.active ?? 0) - (kpi.newRequests ?? 0)),
-    },
-    { name: 'Closed', count: kpi.closed ?? 0 },
-  ];
+  const statusChartHeight = Math.max(220, statusBars.length * 32 + 36);
 
   return (
     <section className="section">
@@ -218,35 +238,54 @@ export default function Dashboard() {
           {/* Chart 2: Pipeline status bar */}
           <div className="dash-chart-card">
             <h2 className="dash-chart-title">Pipeline Status</h2>
-            {loading ? (
+            {statusLoading ? (
               <div className="dash-chart-loader">
                 <Loader2 size={24} className="dash-kpi-spin" aria-hidden="true" />
               </div>
+            ) : statusError ? (
+              <div className="dash-chart-state" role="alert">
+                {statusError}
+              </div>
+            ) : statusBars.length === 0 ? (
+              <div className="dash-chart-state" role="status">
+                No requests are currently available.
+              </div>
             ) : (
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={statusChartHeight}>
                 <BarChart
-                  data={statusData}
-                  margin={{ top: 8, right: 16, left: 0, bottom: 0 }}
+                  data={statusBars}
+                  layout="vertical"
+                  margin={{ top: 8, right: 32, left: 8, bottom: 0 }}
                 >
                   <CartesianGrid
                     strokeDasharray="3 3"
                     stroke="#e5e7eb"
-                    vertical={false}
+                    horizontal={false}
                   />
-                  <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                  <YAxis
+                  <XAxis
+                    type="number"
                     allowDecimals={false}
                     tick={{ fontSize: 12 }}
-                    width={32}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    tick={{ fontSize: 12 }}
+                    width={142}
                   />
                   <Tooltip formatter={(v) => [v, 'Requests']} />
-                  <Bar dataKey="count" radius={[4, 4, 0, 0]} maxBarSize={60}>
-                    {statusData.map((_, i) => (
-                      <Cell
-                        key={i}
-                        fill={STATUS_COLORS[i % STATUS_COLORS.length]}
-                      />
-                    ))}
+                  <Bar
+                    dataKey="count"
+                    fill={CHART_BLUE}
+                    radius={[0, 4, 4, 0]}
+                    maxBarSize={20}
+                  >
+                    <LabelList
+                      dataKey="count"
+                      position="right"
+                      fill={CHART_NAVY}
+                      fontSize={12}
+                    />
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>

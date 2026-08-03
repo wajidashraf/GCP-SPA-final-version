@@ -7,6 +7,15 @@ type AuthButtonProps = {
   className?: string;
 };
 
+const roleDisplayPriority = [
+  'Administrators',
+  'Endorser',
+  'Working GCPC',
+  'Reviewer',
+  'Verifier',
+  'Requestor',
+] as const;
+
 const AuthButton = ({ className = '' }: AuthButtonProps) => {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const [showModal, setShowModal] = useState(false);
@@ -36,13 +45,14 @@ const AuthButton = ({ className = '' }: AuthButtonProps) => {
     );
   }
 
+  const visibleRole =
+    roleDisplayPriority.find((role) => user.roles.includes(role)) ?? user.roles[0];
+
   return (
     <div className={`user-menu ${className}`} ref={ref}>
       <div className="user-meta">
         <span className="user-name">{user.name}</span>
-        {user.roles.length > 0 ? (
-          <span className="user-role">{user.roles[0]}</span>
-        ) : null}
+        {visibleRole ? <span className="user-role">{visibleRole}</span> : null}
       </div>
       <button
         className="avatar"

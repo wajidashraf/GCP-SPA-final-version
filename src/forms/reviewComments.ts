@@ -86,6 +86,18 @@ const hasMeaningfulReviewComments = (blocks: ReviewCommentBlock[]): boolean =>
 const hasStoredReviewComments = (raw: string | null | undefined): boolean =>
   hasMeaningfulReviewComments(parseReviewComments(raw));
 
+/** Convert persisted reviewer comments into readable text for a standard textarea. */
+const reviewCommentsToText = (raw: string | null | undefined): string =>
+  parseReviewComments(raw)
+    .map((block) => {
+      if (block.type === 'text') return block.text;
+      if (block.type === 'bulleted-list') {
+        return block.items.map((item) => `• ${item}`).join('\n');
+      }
+      return block.items.map((item, index) => `${index + 1}. ${item}`).join('\n');
+    })
+    .join('\n\n');
+
 /** Serialize editor blocks to the JSON string stored in gcp_reviewercomments. */
 const serializeReviewComments = (blocks: ReviewCommentBlock[]): string => {
   const clean = normalizeBlocks(blocks);
@@ -100,6 +112,7 @@ export {
   hasStoredReviewComments,
   parseReviewComments,
   normalizeBlocks,
+  reviewCommentsToText,
   serializeReviewComments,
 };
 export type {

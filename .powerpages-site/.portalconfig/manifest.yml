@@ -3,6 +3,18 @@ adx_webfile:
   DisplayName: index-B_3m_J8S.css
   CheckSum: 
   IsDeleted: true
+- RecordId: 58634b97-2123-49ad-9151-c78699763d98
+  DisplayName: index-eL5qzZ27.js
+  CheckSum:
+  IsDeleted: true
+- RecordId: 5ef0cd23-64b5-47b9-afab-2addeab192a6
+  DisplayName: index-D5jy8-Qs.js
+  CheckSum:
+  IsDeleted: true
+- RecordId: 723b4ed8-25ad-4ee9-9f76-ad52686f5635
+  DisplayName: index-B4NaIgYN.css
+  CheckSum:
+  IsDeleted: true
 - RecordId: 9712f589-c307-4dfb-a2dc-b4533738f275
   DisplayName: index-DVQ7c7ek.js
   CheckSum: 
@@ -10,6 +22,10 @@ adx_webfile:
 - RecordId: ae67353a-7f2d-4cb0-8be5-ec8b5583f4b8
   DisplayName: index-BO4pApu8.js
   CheckSum: 
+  IsDeleted: true
+- RecordId: c379aea8-4c02-45bc-b52f-ba85082c0564
+  DisplayName: index-p9FEmFfp.css
+  CheckSum:
   IsDeleted: true
 - RecordId: c741414a-b320-4a36-8b70-cd55c5ba107a
   DisplayName: index-Q0JDberh.css
