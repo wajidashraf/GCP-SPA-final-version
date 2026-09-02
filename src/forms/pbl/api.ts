@@ -33,6 +33,10 @@ import type {
   GcpPblBidder,
 } from '../../types/pblBidder';
 import type { SoaCodeValue } from '../../data/soaChoices';
+import {
+  resolveParentWrite,
+  updateRepairParent,
+} from '../repairRequest';
 import type { PblBidderDraft, PblFormState } from './types';
 
 type SubmitResult = {
@@ -52,6 +56,8 @@ type SubmitPblOptions = {
   requestorContactId?: string | null;
   /** Uploaded document links to persist on the request's gcp_documentsurl. */
   documents?: DocumentLink[];
+  /** Existing incomplete parent to reuse while creating its missing PBL data. */
+  existingRequestId?: string | null;
 };
 
 const submitPblRequest = async (
@@ -60,6 +66,7 @@ const submitPblRequest = async (
 ): Promise<SubmitResult> => {
   const companyAccountId = data.companyId || null;
   const projectId = data.projectId || null;
+  const parentWrite = resolveParentWrite(options.existingRequestId);
 
   // Step 1 — parent gcp_request
   const parentInput: CreateGcpRequestInput = {
@@ -75,13 +82,18 @@ const submitPblRequest = async (
     gcp_documentsurl: serializeDocuments(options.documents ?? []),
   };
 
-  const created = await createRequest(parentInput, {
-    lookups: {
-      requestorContactId: options.requestorContactId || null,
-      companyAccountId,
-      projectId,
-    },
-  });
+  const requestId =
+    parentWrite.mode === 'reuse'
+      ? parentWrite.requestId
+      : (
+          await createRequest(parentInput, {
+            lookups: {
+              requestorContactId: options.requestorContactId || null,
+              companyAccountId,
+              projectId,
+            },
+          })
+        ).id;
 
   // Step 2 — gcp_pblrequest bound to the parent. Per spec, only the project
   // lookup, project code, and procurement method live on this table; the
@@ -94,7 +106,7 @@ const submitPblRequest = async (
 
   const pblCreated = await createPblRequest(pblInput, {
     lookups: {
-      requestId: created.id,
+      requestId,
       projectId,
     },
   });
@@ -129,8 +141,15 @@ const submitPblRequest = async (
     bidderIds.push(bidder.id);
   }
 
+  if (parentWrite.mode === 'reuse') {
+    await updateRepairParent(requestId, data, {
+      documents: options.documents ?? [],
+      projectId,
+    });
+  }
+
   return {
-    requestId: created.id,
+    requestId,
     pblRequestId: pblCreated.id,
     bidderIds,
   };
@@ -148,7 +167,7 @@ const submitPblRequest = async (
 /** Build PBL form state from the loaded parent + child + bidders (edit prefill). */
 const loadPblFormState = (
   request: GcpRequest,
-  pbl: GcpPblRequest,
+  pbl: GcpPblRequest = {} as GcpPblRequest,
   bidders: GcpPblBidder[]
 ): PblFormState => ({
   matterValue: request.matter as PblFormState['matterValue'],
@@ -159,9 +178,7 @@ const loadPblFormState = (
   requestorEmail: request.requestorEmail ?? '',
   companyId: request.companyId ?? '',
   companyName: request.companyName ?? '',
-  // The parent request has no project lookup in its mapped type; the child
-  // gcp_pblrequest carries the gcp_Project lookup.
-  projectId: pbl.projectId ?? '',
+  projectId: pbl.projectId ?? request.projectId ?? '',
   projectName: request.projectName ?? '',
   projectCode: pbl.projectCode ?? request.projectCode ?? '',
   procurementMethod: pbl.procurementMethod ?? '',

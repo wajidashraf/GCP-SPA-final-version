@@ -29,6 +29,7 @@ The Requests page shows every submitted request in a filterable, paginated table
 | Column | Description |
 |---|---|
 | **Request no.** | Unique request title (or a short ID if no title). A GCP / GCPC channel badge is shown alongside. |
+| **Submission** | Date the request was submitted, shown as `DD MMM YYYY`. |
 | **Matter type** | The form type submitted (e.g. RTP, PBL, JVP, PCCA). The short code badge appears below the full label. |
 | **Requester** | Name and email of the person who submitted the request. |
 | **Project** | Project name linked to the request. |
@@ -44,11 +45,13 @@ Five filters appear at the top of the page. They work together — all active fi
 |---|---|---|
 | **Project** | Text search | Case-insensitive partial match on the project name. |
 | **Company** | Text search | Partial match on company name or company code. |
+| **Matter title** | Text search | Case-insensitive partial match on the full matter label or its short code. |
 | **Status** | Dropdown | Exact match on a single request status. |
 | **Matter type** | Dropdown | Exact match on a specific form type (RTP, PBL, etc.). |
-| **SOA code** | Dropdown | Exact match on the SOA code assigned at submission. |
 
 When any filter is active a **brush icon** (Clear filters) button appears to reset all filters at once.
+
+The filters and current page are stored in the page URL, so refreshing the page or returning from a request detail preserves the same list view.
 
 A count badge on the page header shows the total number of records and, when filters narrow the list, how many currently match.
 
@@ -64,6 +67,14 @@ The last column shows a button whose label and icon change based on the request'
 
 Clicking the button (or anywhere on the row) opens the [Request Detail](#2-request-detail) page for that request.
 
+If a New request was only partially created and its matter-specific details are
+missing, the list shows **Draft** instead of New. A Draft row is not clickable
+and has only an **Edit** button. Use it to finish the original request; the app
+reuses the existing request number and creates the missing details. For PBL,
+both the PBL detail and at least one bidder are required. While details are
+being checked, or if Dataverse cannot verify them, the row remains disabled and
+does not offer repair.
+
 ### Pagination
 
 The table shows **10 rows per page**. Use the **← / →** buttons to move between pages. The footer shows the current range (e.g. "Showing 1 to 10 of 34").
@@ -77,6 +88,8 @@ If the server has more records than the currently loaded batch, a **Load more** 
 **URL:** `/requests/:id`
 
 The detail page is a read-only summary of one request. It is divided into a **header**, a **record bar**, two **information sections**, a **review history section**, and a status-driven **action area**.
+
+Use **Back to requests** to return to the same Requests page and filters from which the detail was opened. If the detail was opened directly, the button returns to `/requests`.
 
 ### Header
 
@@ -218,6 +231,14 @@ The original requestor, a Verifier, a Reviewer, or an Administrator can edit a
 request while its status is **New**, **R**, or **RS**. Edit is hidden at all
 other statuses.
 
+An incomplete New request opens this page in **Complete Draft** mode. The form
+is prefilled from the existing parent record and the final action is **Complete
+Draft**. A successful save creates only the missing matter-specific records,
+updates editable project/document fields, and preserves the original
+requestor, company, submission time, status, and workflow values. If the
+associated record was created elsewhere before submit, the app stops and asks
+you to reload instead of creating a duplicate.
+
 For New and R, the final action is **Save Changes**. The save preserves the
 request's current status and outcome, does not set `gcp_lastupdateddate`, and
 does not send a re-review notification.
@@ -315,18 +336,39 @@ The HOC for the requesting company, or an administrator, records the company's
 acceptance of the completed Summary Review. Direct access is restricted to
 those roles, and a company-scoped HOC can act only on its own company's request.
 
-1. Select the applicable conclusion: Code 1(a) or 1(b) for a Code 1 review;
-   otherwise Code 2 or 3.
-2. Code 1(b) requires at least one exception or mitigation.
-3. Draw a signature or upload a valid PNG/JPEG image of 5 MB or less.
-4. Review the image preview, then save the signature.
-5. Click **Submit Signed Acceptance** and confirm the irreversible action.
+1. Select the displayed conclusion. For a Code 1 review, the form presents one
+   unified acceptance statement; otherwise it presents Code 2 or Code 3.
+2. Draw a signature or upload a valid PNG/JPEG image of 5 MB or less.
+3. Review the image preview, then save the signature.
+4. Click **Submit Signed Acceptance** and confirm the irreversible action.
 
 Saving the signature does not complete or lock the form. If the session is
 interrupted, return to the same page and submit the already-signed acceptance.
 The document becomes read-only only after submission advances a GCP request to
 Pending Ack (`9`) or a GCPC request to Pending Endorse (`11`). Completed
 acceptance documents remain printable.
+
+---
+
+### 3.6 Submit Endorsement Letter — Status: Pending Endorse
+
+**Button:** Endorsement Letter
+
+**URL:** `/requests/:id/endorsement-letter`
+
+An Endorser or Administrator finalises the GCPC endorsement letter while the
+request is **Pending Endorse** (`11`). Legacy records at Complete Acceptance
+(`8`) are also supported. Reviewer-only users cannot open or submit this page.
+
+Review the generated letter, complete any manual values, select **Preview**, and
+then select **Submit Endorsement**. Submission saves the letter and endorsement
+date and advances the request to **E / Endorsed** (`12`). If the browser loses
+the response after Dataverse has already saved it, the app verifies the current
+status before reporting a failure, so retrying does not create another record.
+
+Permission, session, and Dataverse errors display an actionable message. If a
+permission error persists for an Endorser after deployment, sign out, hard
+refresh, and sign back in so the updated Power Pages role permissions reload.
 
 ---
 
@@ -344,8 +386,8 @@ acceptance documents remain printable.
 | Complete Acceptance | 8 | Purple | Acceptance stage completed. |
 | Pending Ack | 9 | Purple | Awaiting acknowledgement. |
 | ACK | 10 | Green | Acknowledged — HOC signed Acceptance of Review. |
-| Pending Endorse | 11 | Purple | Awaiting HOC endorsement signature. |
-| E | 12 | Green | Endorsed — HOC signed Acceptance of Review (GCPC). |
+| Pending Endorse | 11 | Purple | Awaiting Endorser/Admin letter submission. |
+| E | 12 | Green | GCPC endorsement completed. |
 | Submitted | 13 | Blue | Re-submitted after rework. |
 | Under Verification | 14 | Blue | Currently being re-verified. |
 | Scheduled | 15 | Blue | Engagement session scheduled. |

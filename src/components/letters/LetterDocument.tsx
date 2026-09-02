@@ -17,6 +17,13 @@ import type {
   Segment,
 } from './letterTemplates';
 import { CC_LIST } from './letterTemplates';
+import {
+  serializeStoredLetter,
+  type StoredLetter,
+} from './letterPersistence';
+
+export { parseStoredLetter } from './letterPersistence';
+export type { StoredLetter } from './letterPersistence';
 
 const titlePrefix = (template: LetterTemplate): string =>
   template.kind === 'ACK' ? 'REVIEW AND ACKNOWLEDGEMENT' : 'ENDORSEMENT';
@@ -35,35 +42,6 @@ const finalValue = (
 ): string => autoValue(v, ctx) ?? values[v.key] ?? '';
 
 // ── Persistence ─────────────────────────────────────────────────────────────
-
-const MARKER = '\n\n<!--GCP_LETTER:';
-const MARKER_END = '-->';
-
-export interface StoredLetter {
-  templateKey: string;
-  values: Record<string, string>;
-}
-
-/** Pull saved manual values out of a stored letter field (JSON marker). */
-export const parseStoredLetter = (
-  raw: string | null | undefined,
-): StoredLetter | null => {
-  if (!raw) return null;
-  const start = raw.indexOf(MARKER);
-  if (start === -1) return null;
-  const jsonStart = start + MARKER.length;
-  const end = raw.indexOf(MARKER_END, jsonStart);
-  if (end === -1) return null;
-  try {
-    const parsed = JSON.parse(raw.slice(jsonStart, end)) as StoredLetter;
-    if (parsed && typeof parsed.templateKey === 'string') {
-      return { templateKey: parsed.templateKey, values: parsed.values ?? {} };
-    }
-  } catch {
-    /* fall through */
-  }
-  return null;
-};
 
 /** Build the plain-text letter body (no marker). */
 export const renderLetterText = (
@@ -123,7 +101,10 @@ export const serializeLetter = (
     }
   }
   const payload: StoredLetter = { templateKey: template.key, values: manual };
-  return `${renderLetterText(template, ctx, values, letterNumber)}${MARKER}${JSON.stringify(payload)}${MARKER_END}`;
+  return serializeStoredLetter(
+    renderLetterText(template, ctx, values, letterNumber),
+    payload,
+  );
 };
 
 // ── Component ───────────────────────────────────────────────────────────────

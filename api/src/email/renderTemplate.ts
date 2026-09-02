@@ -49,7 +49,12 @@ const renderBlock = (block: EmailBlock, data: TemplateData): string => {
       ).replace(/\n/g, '<br/>')}</p>`;
     case 'fields': {
       const rows = block.rows
-        .map((r, i) => fieldRow(renderText(r.label, data), renderText(r.value, data), i % 2 === 0))
+        .map((row) => ({
+          label: renderText(row.label, data),
+          value: renderText(row.value, data),
+        }))
+        .filter((row) => row.value.trim().length > 0)
+        .map((row, index) => fieldRow(row.label, row.value, index % 2 === 0))
         .join('');
       return `<table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:6px;overflow:hidden;font-size:14px;margin-bottom:24px;">${rows}</table>`;
     }

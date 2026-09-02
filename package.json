@@ -8,6 +8,9 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test:edit-policy": "node --test tests/requestEditPolicy.test.ts",
+    "test:hoc-acceptance": "node --test tests/hocAcceptanceConclusions.test.ts tests/acceptReviewPayload.test.ts",
+    "test:project-webapi-settings": "node --test tests/projectWebApiSettings.test.ts",
+    "test:request-list": "node --test tests/requestListState.test.ts",
     "test:review-comments": "node --test tests/reviewComments.test.ts"
   },
   "dependencies": {

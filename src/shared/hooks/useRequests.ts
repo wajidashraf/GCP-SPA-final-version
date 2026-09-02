@@ -11,12 +11,17 @@ import type {
   ListRequestsResult,
 } from '../services/requestService';
 import type { GcpRequest } from '../../types/request';
+import { checkRequestIntegrity } from '../services/requestIntegrityService';
+import type { RequestIntegrityState } from '../requestIntegrity';
 
 type UseRequestsState = {
   items: GcpRequest[];
   totalCount?: number;
   isLoading: boolean;
   error: string | null;
+  integrityById: ReadonlyMap<string, RequestIntegrityState>;
+  isIntegrityLoading: boolean;
+  integrityWarning: string | null;
   nextLink?: string;
   hasMore: boolean;
   loadMore: () => Promise<void>;
@@ -29,6 +34,12 @@ const useRequests = (options: ListRequestsOptions = {}): UseRequestsState => {
   const [nextLink, setNextLink] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [integrityById, setIntegrityById] = useState<
+    ReadonlyMap<string, RequestIntegrityState>
+  >(new Map());
+  const [isIntegrityLoading, setIntegrityLoading] = useState(false);
+  const [integrityWarning, setIntegrityWarning] = useState<string | null>(null);
+  const loadGeneration = useRef(0);
 
   // Serialize the options object so we re-fetch only when meaningful inputs change.
   const optionsKey = JSON.stringify({
@@ -42,20 +53,51 @@ const useRequests = (options: ListRequestsOptions = {}): UseRequestsState => {
   optionsRef.current = options;
 
   const load = useCallback(async (append: boolean, link?: string) => {
+    const generation = ++loadGeneration.current;
+    const isCurrentLoad = () => loadGeneration.current === generation;
     setIsLoading(true);
     setError(null);
+    setIntegrityLoading(true);
+    setIntegrityWarning(null);
+    if (!append) setIntegrityById(new Map());
     try {
       const result: ListRequestsResult = await listRequests({
         ...optionsRef.current,
         nextLink: link,
       });
+      if (!isCurrentLoad()) return;
       setItems((prev) => (append ? [...prev, ...result.items] : result.items));
       setTotalCount(result.totalCount);
       setNextLink(result.nextLink);
+
+      let checked: Map<string, RequestIntegrityState>;
+      try {
+        checked = await checkRequestIntegrity(result.items);
+      } catch {
+        checked = new Map(
+          result.items.map((request) => [request.id, 'unknown' as const]),
+        );
+      }
+      if (!isCurrentLoad()) return;
+      setIntegrityById((previous) => {
+        const next = append ? new Map(previous) : new Map<string, RequestIntegrityState>();
+        checked.forEach((state, id) => next.set(id, state));
+        return next;
+      });
+      if ([...checked.values()].some((state) => state === 'unknown')) {
+        setIntegrityWarning(
+          'Some requests were kept read-only because their associated details could not be verified.',
+        );
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load requests.');
+      if (isCurrentLoad()) {
+        setError(err instanceof Error ? err.message : 'Failed to load requests.');
+      }
     } finally {
-      setIsLoading(false);
+      if (isCurrentLoad()) {
+        setIsLoading(false);
+        setIntegrityLoading(false);
+      }
     }
   }, []);
 
@@ -78,6 +120,9 @@ const useRequests = (options: ListRequestsOptions = {}): UseRequestsState => {
     totalCount,
     isLoading,
     error,
+    integrityById,
+    isIntegrityLoading,
+    integrityWarning,
     nextLink,
     hasMore: !!nextLink,
     loadMore,

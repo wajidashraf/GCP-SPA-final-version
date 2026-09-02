@@ -100,17 +100,65 @@ const RETRY_BASE_MS = 400;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 type ODataErrorBody = {
-  error?: { code?: string; message?: string; innererror?: unknown };
+  error?: { code?: string; message?: unknown; innererror?: unknown };
 };
 
-const parseErrorBody = async (res: Response): Promise<ODataErrorBody | undefined> => {
+type ParsedErrorResponse = {
+  body?: ODataErrorBody;
+  rawText: string;
+};
+
+const parseErrorResponse = async (
+  res: Response,
+): Promise<ParsedErrorResponse> => {
   try {
     const text = await res.text();
-    if (!text) return undefined;
-    return JSON.parse(text) as ODataErrorBody;
+    if (!text) return { rawText: '' };
+    try {
+      return { body: JSON.parse(text) as ODataErrorBody, rawText: text };
+    } catch {
+      return { rawText: text };
+    }
   } catch {
-    return undefined;
+    return { rawText: '' };
   }
+};
+
+const extractErrorMessage = (value: unknown): string | null => {
+  if (typeof value === 'string') {
+    const message = value.trim();
+    return message || null;
+  }
+  if (typeof value !== 'object' || value === null) return null;
+  const record = value as Record<string, unknown>;
+  return (
+    extractErrorMessage(record.value) ??
+    extractErrorMessage(record.message)
+  );
+};
+
+const safePlainErrorText = (rawText: string): string | null => {
+  const text = rawText.trim();
+  if (!text || /^\s*</.test(text)) return null;
+  return text;
+};
+
+const buildWebApiErrorMessage = (
+  res: Response,
+  parsed: ParsedErrorResponse,
+  code?: string,
+): string => {
+  const odataMessage = extractErrorMessage(parsed.body?.error?.message);
+  if (odataMessage) return odataMessage;
+
+  const plainText = parsed.body ? null : safePlainErrorText(parsed.rawText);
+  if (plainText) return plainText;
+
+  const context = `HTTP ${res.status}${code ? `, code ${code}` : ''}`;
+  if (res.status === 403) {
+    return `You do not have permission to perform this action (${context}).`;
+  }
+  return `Request failed (${context}).`;
 };
 
 const powerPagesFetch = async <T = unknown>(
@@ -157,9 +205,10 @@ const powerPagesFetch = async <T = unknown>(
       }
     }
 
-    const errorBody = await parseErrorBody(res);
+    const parsedError = await parseErrorResponse(res);
+    const errorBody = parsedError.body;
     const code = errorBody?.error?.code;
-    const message = errorBody?.error?.message ?? res.statusText;
+    const message = buildWebApiErrorMessage(res, parsedError, code);
 
     // 403 — could be expired anti-forgery token or real permission denial.
     if (res.status === 403 && code === WebApiErrorCode.AntiForgeryInvalid && attempt < MAX_RETRIES) {
@@ -220,9 +269,10 @@ const powerPagesFetchResponse = async (
 
     if (res.ok) return res;
 
-    const errorBody = await parseErrorBody(res);
+    const parsedError = await parseErrorResponse(res);
+    const errorBody = parsedError.body;
     const code = errorBody?.error?.code;
-    const message = errorBody?.error?.message ?? res.statusText;
+    const message = buildWebApiErrorMessage(res, parsedError, code);
 
     if (res.status === 403 && code === WebApiErrorCode.AntiForgeryInvalid && attempt < MAX_RETRIES) {
       invalidateAntiForgeryToken();

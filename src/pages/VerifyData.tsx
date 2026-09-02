@@ -21,7 +21,15 @@ import {
   pollRequestStatus,
   verifyRequest,
 } from '../shared/services/requestService';
+import {
+  activateProjectIfInactive,
+  getProjectById,
+} from '../shared/services/projectService';
 import { notifyEvent } from '../shared/notificationApi';
+import {
+  getVerificationSubmissionPresentation,
+  submitVerificationWithRtpProjectActivation,
+} from '../shared/rtpProjectActivation';
 import { getChoiceLabel } from '../data/types';
 import { requestStatusChoices } from '../data/requestChoices';
 import { matterChoices } from '../data/matterChoices';
@@ -79,6 +87,7 @@ export default function VerifyData() {
   const [status, setStatus] = useState('');
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [verificationSaved, setVerificationSaved] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -102,6 +111,10 @@ export default function VerifyData() {
         isSpecialProject
       ),
     [matterType, request?.status, isSpecialProject]
+  );
+
+  const submissionPresentation = getVerificationSubmissionPresentation(
+    verificationSaved,
   );
 
   // Default the dropdown to the request's current status once it loads.
@@ -136,23 +149,44 @@ export default function VerifyData() {
     }
 
     setSubmitting(true);
+    let verificationSavedThisAttempt = verificationSaved;
     try {
       const targetStatus = Number(status);
-      await verifyRequest(id, {
-        status: targetStatus,
-        comment,
-        verifiedByContactId: user?.contactId,
-      });
-      // Wait for Dataverse to commit so the detail page reads the fresh status.
-      await pollRequestStatus(id, targetStatus);
+      await submitVerificationWithRtpProjectActivation(
+        {
+          matter: request?.matter,
+          targetStatus,
+          projectId: request?.projectId,
+          verificationAlreadySaved: verificationSaved,
+        },
+        {
+          loadProject: getProjectById,
+          verifyRequest: () =>
+            verifyRequest(id, {
+              status: targetStatus,
+              comment,
+              verifiedByContactId: user?.contactId,
+            }),
+          confirmRequest: () => pollRequestStatus(id, targetStatus),
+          onVerificationSaved: () => {
+            verificationSavedThisAttempt = true;
+            setVerificationSaved(true);
+          },
+          activateProject: activateProjectIfInactive,
+        },
+      );
       // Fire-and-forget: notify reviewers/requester. Never blocks navigation.
       void notifyEvent(id, 'request_verified', user?.email);
       navigate(`/requests/${id}`);
     } catch (err) {
+      const presentation = getVerificationSubmissionPresentation(
+        verificationSavedThisAttempt,
+      );
+      const detail = err instanceof Error ? err.message.trim() : '';
       setSubmitError(
-        err instanceof Error
-          ? `Failed to update request: ${err.message}`
-          : 'Failed to update request. Please try again.'
+        detail
+          ? `${presentation.errorPrefix}: ${detail}`
+          : `${presentation.errorPrefix}. Please try again.`,
       );
       setSubmitting(false);
     }
@@ -214,7 +248,7 @@ export default function VerifyData() {
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
                 error={formError ?? undefined}
-                isReadOnly={submitting}
+                isReadOnly={submitting || verificationSaved}
               />
 
               <TextAreaField
@@ -224,19 +258,19 @@ export default function VerifyData() {
                 placeholder="Enter your comment here…"
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                isReadOnly={submitting}
+                isReadOnly={submitting || verificationSaved}
                 helpText="Optional. Shared with reviewers as the verifier comment."
               />
 
               {submitError ? (
-                <InlineMessage tone="error" title="Couldn’t submit">
+                <InlineMessage tone="error" title={submissionPresentation.errorTitle}>
                   {submitError}
                 </InlineMessage>
               ) : null}
 
               {submitting ? (
-                <InlineMessage tone="loading" title="Updating request">
-                  Saving your decision and confirming the status update…
+                <InlineMessage tone="loading" title={submissionPresentation.progressTitle}>
+                  {submissionPresentation.progressMessage}
                 </InlineMessage>
               ) : null}
 
@@ -251,7 +285,7 @@ export default function VerifyData() {
                 </button>
                 <button type="submit" className="rd-verify-btn" disabled={submitting}>
                   <ShieldCheck size={16} aria-hidden="true" />
-                  Submit Verification
+                  {submissionPresentation.submitLabel}
                 </button>
               </div>
             </form>

@@ -24,6 +24,7 @@ import type {
 } from '../../types/ppRequest';
 import type { SoaCodeValue } from '../../data/soaChoices';
 import type { PpFormState } from './types';
+import { resolveParentWrite, updateRepairParent } from '../repairRequest';
 
 type SubmitResult = {
   requestId: string;
@@ -47,6 +48,7 @@ type SubmitPpOptions = {
   requestorContactId?: string | null;
   /** Uploaded document links to persist on the request's gcp_documentsurl. */
   documents?: DocumentLink[];
+  existingRequestId?: string | null;
 };
 
 const submitPpRequest = async (
@@ -70,13 +72,16 @@ const submitPpRequest = async (
     gcp_documentsurl: serializeDocuments(options.documents ?? []),
   };
 
-  const created = await createRequest(parentInput, {
-    lookups: {
-      requestorContactId: options.requestorContactId || null,
-      companyAccountId,
-      projectId,
-    },
-  });
+  const parentWrite = resolveParentWrite(options.existingRequestId);
+  const created = parentWrite.mode === 'reuse'
+    ? { id: parentWrite.requestId }
+    : await createRequest(parentInput, {
+        lookups: {
+          requestorContactId: options.requestorContactId || null,
+          companyAccountId,
+          projectId,
+        },
+      });
 
   // Step 3 — gcp_pprequest bound to the parent.
   // (This table has no gcp_soacode column — SOA code lives on gcp_request.)
@@ -93,6 +98,13 @@ const submitPpRequest = async (
       companyAccountId,
     },
   });
+
+  if (parentWrite.mode === 'reuse') {
+    await updateRepairParent(created.id, data, {
+      documents: options.documents ?? [],
+      projectId,
+    });
+  }
 
   return {
     requestId: created.id,
@@ -111,7 +123,7 @@ const submitPpRequest = async (
 /** Build PP form state from the loaded parent + child records (edit prefill). */
 const loadPpFormState = (
   request: GcpRequest,
-  pp: GcpPpRequest
+  pp: GcpPpRequest = {} as GcpPpRequest
 ): PpFormState => ({
   matterValue: request.matter as PpFormState['matterValue'],
   categoryValue: (request.category ?? 2) as PpFormState['categoryValue'],
@@ -121,7 +133,7 @@ const loadPpFormState = (
   requestorEmail: request.requestorEmail ?? '',
   companyId: request.companyId ?? '',
   companyName: request.companyName ?? '',
-  projectId: pp.projectId ?? '',
+  projectId: pp.projectId ?? request.projectId ?? '',
   projectName: request.projectName ?? pp.name ?? '',
   projectCode: request.projectCode ?? pp.projectCode ?? '',
   acknowledged: request.acknowledged ?? pp.acknowledged ?? false,

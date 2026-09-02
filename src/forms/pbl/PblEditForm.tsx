@@ -5,10 +5,18 @@ import { parseDocuments } from '../../shared/documents';
 import type { DocumentLink } from '../../shared/documents';
 import type { SubmitResult } from '../multistep';
 import PblForm from './PblForm';
-import { loadPblFormState, updatePblRequestFromState } from './api';
+import {
+  loadPblFormState,
+  submitPblRequest,
+  updatePblRequestFromState,
+} from './api';
 import type { PblFormState } from './types';
 import type { EditFormProps } from '../editRegistry';
 import { getEditSubmissionCopy } from '../../shared/requestEditPolicy';
+import {
+  assertStillMissing,
+  selectPblRepairPath,
+} from '../repairRequest';
 
 /**
  * Edit-mode adapter for PBL requests. Resolves the matter, hydrates form state
@@ -45,8 +53,11 @@ const PblEditForm = ({
   );
 
   const initialState = useMemo(
-    () => (pbl ? loadPblFormState(request, pbl, bidders) : null),
-    [request, pbl, bidders]
+    () =>
+      pbl || editPurpose === 'repair'
+        ? loadPblFormState(request, pbl ?? undefined, bidders)
+        : null,
+    [request, pbl, bidders, editPurpose]
   );
 
   // Existing documents stored on the parent request (gcp_documentsurl).
@@ -55,7 +66,7 @@ const PblEditForm = ({
     [request.documentsUrl]
   );
 
-  if (!matter || !pbl || !initialState) {
+  if (!matter || (!pbl && editPurpose !== 'repair') || !initialState) {
     return (
       <InlineMessage tone="warning" title="Can’t edit this request">
         The PBL detail record for this request couldn’t be loaded, so it can’t
@@ -71,12 +82,41 @@ const PblEditForm = ({
     state: PblFormState,
     documents: DocumentLink[]
   ): Promise<SubmitResult> => {
-    await updatePblRequestFromState(state, {
-      requestId: request.id,
-      pblRecordId: pbl.id,
-      originalBidders: bidders,
-      documents,
-    });
+    if (editPurpose === 'repair') {
+      await assertStillMissing(request);
+      const repairPath = selectPblRepairPath({
+        childCount: pbl ? 1 : 0,
+        bidderCount: bidders.length,
+      });
+
+      if (repairPath === 'create-child') {
+        await submitPblRequest(state, {
+          existingRequestId: request.id,
+          documents,
+        });
+      } else if (repairPath === 'add-bidders' && pbl) {
+        await updatePblRequestFromState(state, {
+          requestId: request.id,
+          pblRecordId: pbl.id,
+          originalBidders: bidders,
+          documents,
+        });
+      } else {
+        throw new Error(
+          'The PBL associated records already exist. Reload this request before continuing.',
+        );
+      }
+    } else {
+      if (!pbl) {
+        throw new Error('The PBL detail record could not be loaded.');
+      }
+      await updatePblRequestFromState(state, {
+        requestId: request.id,
+        pblRecordId: pbl.id,
+        originalBidders: bidders,
+        documents,
+      });
+    }
     if (editPurpose === 'resubmission') {
       await onResubmitted();
     }

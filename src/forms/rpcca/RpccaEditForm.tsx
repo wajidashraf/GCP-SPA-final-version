@@ -5,10 +5,11 @@ import { parseDocuments } from '../../shared/documents';
 import type { DocumentLink } from '../../shared/documents';
 import type { SubmitResult } from '../multistep';
 import RpccaForm from './RpccaForm';
-import { loadRpccaFormState, updateRpccaRequestFromState } from './api';
+import { loadRpccaFormState, submitRpccaRequest, updateRpccaRequestFromState } from './api';
 import type { RpccaFormState } from './types';
 import type { EditFormProps } from '../editRegistry';
 import { getEditSubmissionCopy } from '../../shared/requestEditPolicy';
+import { assertStillMissing } from '../repairRequest';
 
 /**
  * Edit-mode adapter for R-PCCA (Revised Project Cost Control Analysis) requests.
@@ -33,7 +34,7 @@ const RpccaEditForm = ({
   const rpcca = child.type === 'rpcca' ? (child.records[0] ?? null) : null;
 
   const initialState = useMemo(
-    () => (rpcca ? loadRpccaFormState(request, rpcca) : null),
+    () => loadRpccaFormState(request, rpcca ?? undefined),
     [request, rpcca]
   );
 
@@ -43,7 +44,7 @@ const RpccaEditForm = ({
     [request.documentsUrl]
   );
 
-  if (!matter || !rpcca || !initialState) {
+  if (!matter || !initialState || (!rpcca && editPurpose !== 'repair')) {
     return (
       <InlineMessage tone="warning" title="Can’t edit this request">
         The Revised PCCA detail record for this request couldn’t be loaded, so
@@ -59,11 +60,20 @@ const RpccaEditForm = ({
     state: RpccaFormState,
     documents: DocumentLink[]
   ): Promise<SubmitResult> => {
-    await updateRpccaRequestFromState(state, {
-      requestId: request.id,
-      rpccaRecordId: rpcca.id,
-      documents,
-    });
+    if (editPurpose === 'repair') {
+      await assertStillMissing(request);
+      await submitRpccaRequest(state, {
+        existingRequestId: request.id,
+        documents,
+      });
+    } else {
+      if (!rpcca) throw new Error('The Revised PCCA detail record is missing.');
+      await updateRpccaRequestFromState(state, {
+        requestId: request.id,
+        rpccaRecordId: rpcca.id,
+        documents,
+      });
+    }
     if (editPurpose === 'resubmission') {
       await onResubmitted();
     }

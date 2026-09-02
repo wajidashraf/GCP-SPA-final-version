@@ -253,6 +253,21 @@ users; writes fail closed unless the server sees the Administrators role.
 `pac pages upload-code-site` must receive the root, `dist` compiled path, and
 site name `gcp-nexus`. Restart and role-based smoke testing follow deployment.
 
+### D-009: Incomplete New requests are repairable drafts
+
+The Requests list derives associated-data integrity with batched, lookup-only
+queries against each matter-specific child table. A status New (`1`) parent is
+shown as **Draft** only when its required associated data is verifiably missing;
+the row is non-navigable and exposes only **Edit**. Failed integrity queries are
+fail-closed as **Unable to verify** and never offer repair. PBL is complete only
+when both its direct PBL child and at least one bidder exist.
+
+Repair mode reuses the existing parent GUID, creates only the missing associated
+records, and then PATCHes editable parent fields without changing requestor,
+company, submitted timestamp, status, or workflow outcome. A fresh integrity
+check immediately before submit prevents duplicate child creation. Ordinary
+complete New/R/RS edit behavior is unchanged.
+
 ### D-008: HOC acceptance remains resumable until submission
 
 HOC acceptance is available only to the HOC role for the request's company (or
@@ -263,6 +278,54 @@ request to Pending Ack (`9`) or Pending Endorse (`11`). Completed acceptance
 documents are read-only and printable. Signature uploads preserve their actual
 PNG/JPEG content type, are preview-validated before upload, and SharePoint image
 links use direct-download rendering rather than the document-view page.
+
+### D-010: GCPC endorsements are submitted by Endorser/Admin
+
+The Endorser or Administrator owns the GCPC Endorsement Letter action at
+Pending Endorse (`11`), with legacy Complete Acceptance (`8`) retained for old
+records. Reviewer-only users cannot see or directly open the endorsement route.
+The Endorser role is attached to the existing global `gcp_request` workflow
+write permission; Authenticated Users are not broadened.
+
+Submission PATCHes only the endorsement letter text, endorsement date, and
+Endorsed (`12`) status. Deterministic authorization/validation failures remain
+errors. If an uncertain network, throttling, or server response occurs, the SPA
+checks the saved request status and treats the operation as successful only when
+Endorsed (`12`) is observable. Shared Power Pages Web API errors must always
+provide a non-empty message with available HTTP and Dataverse-code context.
+
+Production edge diagnostics on 2026-09-02 identified the legacy embedded HTML
+comment marker (`<!--GCP_LETTER:...-->`) as a separate cause of HTTP 403 during
+letter PATCH requests. New acknowledgement and endorsement letters therefore
+store their re-editable JSON metadata after the plain-text
+`GCP_LETTER_METADATA_V2:` marker. The parser remains backward compatible with
+the legacy marker so existing saved letters can still be opened and re-saved.
+
+Endorsement **Review No.** is sourced from the request's most recent Completed
+(`2`) engagement, ordered by engagement date and then creation time descending.
+When that engagement has a non-empty number such as `R02`, the letter displays
+it through the existing automatic read-only field behavior. If no Completed
+engagement exists, Review No. remains blank and editable. Engagement lookup
+errors withhold the letter editor rather than silently enabling manual entry.
+
+### D-011: RTP FR verification conditionally activates its project
+
+Decision date: 2026-09-01.
+
+RTP submission creates a related `gcp_projects` row with
+`gcp_projectstatus = 0` (Inactive). When the verifier submits an RTP request as
+FR (`gcp_requeststatus = 0`), the Verify workflow confirms the request status
+and then changes the related project to Active (`1`) only when its current
+status remains Inactive. Active (`1`), Completed (`2`), Dead (`3`), null, and
+unknown statuses are never overwritten.
+
+The project is read before the request mutation and updated with its Dataverse
+ETag. A `412` conflict reloads and reevaluates the project once, which preserves
+a concurrent terminal-state change. If request verification succeeds but
+project activation fails, the Verify page stays open, locks the verified form
+fields, and exposes a project-only retry. Notification and navigation occur
+only after activation succeeds or is safely skipped. See
+`docs/superpowers/specs/2026-09-01-rtp-fr-project-activation-design.md`.
 
 ## Code standards
 

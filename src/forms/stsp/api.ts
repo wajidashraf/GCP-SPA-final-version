@@ -26,6 +26,7 @@ import type {
 } from '../../types/stspRequest';
 import type { SoaCodeValue } from '../../data/soaChoices';
 import type { StspFormState } from './types';
+import { resolveParentWrite, updateRepairParent } from '../repairRequest';
 
 type SubmitResult = {
   requestId: string;
@@ -49,6 +50,7 @@ type SubmitStspOptions = {
   requestorContactId?: string | null;
   /** Uploaded document links to persist on the request's gcp_documentsurl. */
   documents?: DocumentLink[];
+  existingRequestId?: string | null;
 };
 
 const submitStspRequest = async (
@@ -72,13 +74,16 @@ const submitStspRequest = async (
     gcp_documentsurl: serializeDocuments(options.documents ?? []),
   };
 
-  const created = await createRequest(parentInput, {
-    lookups: {
-      requestorContactId: options.requestorContactId || null,
-      companyAccountId,
-      projectId,
-    },
-  });
+  const parentWrite = resolveParentWrite(options.existingRequestId);
+  const created = parentWrite.mode === 'reuse'
+    ? { id: parentWrite.requestId }
+    : await createRequest(parentInput, {
+        lookups: {
+          requestorContactId: options.requestorContactId || null,
+          companyAccountId,
+          projectId,
+        },
+      });
 
   // Step 2 — gcp_stsprequest bound to the parent. Repeatable / dynamic-table
   // inputs are already JSON strings in form state, so they persist as-is.
@@ -126,6 +131,13 @@ const submitStspRequest = async (
     },
   });
 
+  if (parentWrite.mode === 'reuse') {
+    await updateRepairParent(created.id, data, {
+      documents: options.documents ?? [],
+      projectId,
+    });
+  }
+
   return {
     requestId: created.id,
     stspRequestId: stspCreated.id,
@@ -143,7 +155,7 @@ const submitStspRequest = async (
 /** Build ST/SP form state from the loaded parent + child records (edit prefill). */
 const loadStspFormState = (
   request: GcpRequest,
-  stsp: GcpStspRequest
+  stsp: GcpStspRequest = {} as GcpStspRequest
 ): StspFormState => ({
   matterValue: request.matter as StspFormState['matterValue'],
   categoryValue: (request.category ?? 2) as StspFormState['categoryValue'],
@@ -153,7 +165,7 @@ const loadStspFormState = (
   requestorEmail: request.requestorEmail ?? '',
   companyId: request.companyId ?? '',
   companyName: request.companyName ?? '',
-  projectId: stsp.projectId ?? '',
+  projectId: stsp.projectId ?? request.projectId ?? '',
   projectName: request.projectName ?? '',
   projectCode: request.projectCode ?? '',
   // gcp_tenderproposalsubmissiondate is a DateTime; the <input type="date">

@@ -5,10 +5,11 @@ import { parseDocuments } from '../../shared/documents';
 import type { DocumentLink } from '../../shared/documents';
 import type { SubmitResult } from '../multistep';
 import JvpForm from './JvpForm';
-import { loadJvpFormState, updateJvpRequestFromState } from './api';
+import { loadJvpFormState, submitJvpRequest, updateJvpRequestFromState } from './api';
 import type { JvpFormState } from './types';
 import type { EditFormProps } from '../editRegistry';
 import { getEditSubmissionCopy } from '../../shared/requestEditPolicy';
+import { assertStillMissing } from '../repairRequest';
 
 /**
  * Edit-mode adapter for JVP requests. Resolves the matter, hydrates form state
@@ -33,7 +34,7 @@ const JvpEditForm = ({
   const jvp = child.type === 'jvp' ? (child.records[0] ?? null) : null;
 
   const initialState = useMemo(
-    () => (jvp ? loadJvpFormState(request, jvp) : null),
+    () => loadJvpFormState(request, jvp ?? undefined),
     [request, jvp]
   );
 
@@ -43,7 +44,7 @@ const JvpEditForm = ({
     [request.documentsUrl]
   );
 
-  if (!matter || !jvp || !initialState) {
+  if (!matter || !initialState || (!jvp && editPurpose !== 'repair')) {
     return (
       <InlineMessage tone="warning" title="Can’t edit this request">
         The JVP detail record for this request couldn’t be loaded, so it can’t
@@ -59,11 +60,20 @@ const JvpEditForm = ({
     state: JvpFormState,
     documents: DocumentLink[]
   ): Promise<SubmitResult> => {
-    await updateJvpRequestFromState(state, {
-      requestId: request.id,
-      jvpRecordId: jvp.id,
-      documents,
-    });
+    if (editPurpose === 'repair') {
+      await assertStillMissing(request);
+      await submitJvpRequest(state, {
+        existingRequestId: request.id,
+        documents,
+      });
+    } else {
+      if (!jvp) throw new Error('The JVP detail record is missing.');
+      await updateJvpRequestFromState(state, {
+        requestId: request.id,
+        jvpRecordId: jvp.id,
+        documents,
+      });
+    }
     if (editPurpose === 'resubmission') {
       await onResubmitted();
     }

@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowUpRight, BrushCleaning, CalendarCheck, ShieldCheck, SlidersHorizontal, ChevronLeft, ChevronRight, FilterX, Loader2, Plus } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowUpRight, BrushCleaning, CalendarCheck, CircleAlert, ShieldCheck, SlidersHorizontal, ChevronLeft, ChevronRight, FilterX, Loader2, Pencil, Plus } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { InlineMessage } from '../components/ui';
 import RequireRole from '../components/RequireRole';
@@ -12,6 +12,14 @@ import {
 } from '../data/requestChoices';
 import { matterChoices } from '../data/matterChoices';
 import { SelectField, TextField } from '../forms';
+import {
+  filterRequestList,
+  formatSubmissionDate,
+  parseRequestListState,
+  serializeRequestListState,
+} from '../shared/requestListState';
+import type { RequestListState } from '../shared/requestListState';
+import { getRequestRowPresentation } from '../shared/requestListPresentation';
 
 
 const PAGE_SIZE = 10;
@@ -28,6 +36,9 @@ const statusDisplayLabel: Record<string, string> = {
 
 const statusClass: Record<string, string> = {
   New: 'status-new',
+  Draft: 'status-new',
+  'Checking details': 'status-new',
+  'Unable to verify': 'status-rework',
   'Pending Review': 'status-review',
   'Draft Review': 'status-review',
   'Complete Review': 'status-review',
@@ -61,10 +72,20 @@ type MatterMeta = { label: string; code: string; channel: string };
 
 export default function Requests() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const submittedId = searchParams.get('submitted');
   const [showSubmitted, setShowSubmitted] = useState(true);
-  const { items, totalCount, isLoading, error, hasMore, loadMore } = useRequests({
+  const {
+    items,
+    totalCount,
+    isLoading,
+    error,
+    integrityById,
+    integrityWarning,
+    hasMore,
+    loadMore,
+  } = useRequests({
     pageSize: SERVER_FETCH_SIZE,
     withFormattedValues: true,
   });
@@ -77,44 +98,44 @@ export default function Requests() {
     return m;
   }, []);
 
-  // Filter state
-  const [projectFilter, setProjectFilter] = useState('');
-  const [companyFilter, setCompanyFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('');
-  const [typeFilter, setTypeFilter] = useState<string>('');
-  const [page, setPage] = useState(1);
+  const listState = useMemo(
+    () => parseRequestListState(searchParams),
+    [searchParams],
+  );
+  const {
+    matterTitle: matterTitleFilter,
+    project: projectFilter,
+    company: companyFilter,
+    status: statusFilter,
+    matterType: typeFilter,
+    page,
+  } = listState;
+
+  const updateListState = (
+    updates: Partial<RequestListState>,
+    resetPage = false,
+  ) => {
+    const nextState: RequestListState = {
+      ...listState,
+      ...updates,
+      page: resetPage ? 1 : updates.page ?? listState.page,
+    };
+    setSearchParams(serializeRequestListState(nextState, submittedId), {
+      replace: true,
+    });
+  };
 
   const hasActiveFilters =
+    matterTitleFilter !== '' ||
     projectFilter !== '' ||
     companyFilter !== '' ||
     statusFilter !== '' ||
     typeFilter !== '';
 
-  // Reset to first page when filters change
-  useEffect(() => {
-    setPage(1);
-  }, [projectFilter, companyFilter, statusFilter, typeFilter]);
-
-  const filtered = useMemo(() => {
-    const p = projectFilter.trim().toLowerCase();
-    const c = companyFilter.trim().toLowerCase();
-    const s = statusFilter ? Number(statusFilter) : null;
-    const t = typeFilter ? Number(typeFilter) : null;
-
-    return items.filter((r) => {
-      if (p) {
-        const projectName = (r.projectName ?? '').toLowerCase();
-        if (!projectName.includes(p)) return false;
-      }
-      if (c) {
-        const company = `${r.companyName ?? ''} ${r.companyCode ?? ''}`.toLowerCase();
-        if (!company.includes(c)) return false;
-      }
-      if (s != null && r.status !== s) return false;
-      if (t != null && r.matter !== t) return false;
-      return true;
-    });
-  }, [items, projectFilter, companyFilter, statusFilter, typeFilter]);
+  const filtered = useMemo(
+    () => filterRequestList(items, listState, matterMetaByValue),
+    [items, listState, matterMetaByValue],
+  );
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
@@ -122,14 +143,24 @@ export default function Requests() {
   const pageItems = filtered.slice(pageStart, pageStart + PAGE_SIZE);
 
   const clearFilters = () => {
-    setProjectFilter('');
-    setCompanyFilter('');
-    setStatusFilter('');
-    setTypeFilter('');
+    updateListState(
+      {
+        matterTitle: '',
+        project: '',
+        company: '',
+        status: '',
+        matterType: '',
+      },
+      true,
+    );
   };
 
   const openRecord = (id: string) => {
-    navigate(`/requests/${id}`);
+    navigate(`/requests/${id}`, {
+      state: {
+        requestsReturnTo: `${location.pathname}${location.search}`,
+      },
+    });
   };
 
   return (
@@ -169,7 +200,7 @@ export default function Requests() {
               name="projectFilter"
               label="Project"
               value={projectFilter}
-              onChange={(e) => setProjectFilter(e.target.value)}
+              onChange={(e) => updateListState({ project: e.target.value }, true)}
               placeholder="Search project..."
             />
           </div>
@@ -178,8 +209,19 @@ export default function Requests() {
               name="companyFilter"
               label="Company"
               value={companyFilter}
-              onChange={(e) => setCompanyFilter(e.target.value)}
+              onChange={(e) => updateListState({ company: e.target.value }, true)}
               placeholder="Search company..."
+            />
+          </div>
+          <div className="rq-field">
+            <TextField
+              name="matterTitleFilter"
+              label="Matter title"
+              value={matterTitleFilter}
+              onChange={(e) =>
+                updateListState({ matterTitle: e.target.value }, true)
+              }
+              placeholder="Search matter title..."
             />
           </div>
           <div className="rq-field">
@@ -188,7 +230,10 @@ export default function Requests() {
               label="Status"
               value={statusFilter || '__all__'}
               onChange={(e) =>
-                setStatusFilter(e.target.value === '__all__' ? '' : e.target.value)
+                updateListState(
+                  { status: e.target.value === '__all__' ? '' : e.target.value },
+                  true,
+                )
               }
               options={[
                 { label: 'All statuses', value: '__all__' },
@@ -202,7 +247,13 @@ export default function Requests() {
               label="Matter type"
               value={typeFilter || '__all__'}
               onChange={(e) =>
-                setTypeFilter(e.target.value === '__all__' ? '' : e.target.value)
+                updateListState(
+                  {
+                    matterType:
+                      e.target.value === '__all__' ? '' : e.target.value,
+                  },
+                  true,
+                )
               }
               options={[
                 { label: 'All matter types', value: '__all__' },
@@ -249,12 +300,23 @@ export default function Requests() {
           </InlineMessage>
         )}
 
+        {integrityWarning && !error ? (
+          <InlineMessage
+            tone="warning"
+            title="Some request details could not be verified"
+            className="mb-3"
+          >
+            {integrityWarning}
+          </InlineMessage>
+        ) : null}
+
         {/* Table */}
         <div className="rq-table-wrap">
           <table className="rq-table">
             <thead>
               <tr>
                 <th className="col-req">Request no.</th>
+                <th className="col-submission">Submission</th>
                 <th className="col-matter">Matter type</th>
                 <th className="col-requester">Requester</th>
                 <th className="col-project">Project</th>
@@ -266,7 +328,7 @@ export default function Requests() {
             <tbody>
               {isLoading && items.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="rq-empty-state">
+                  <td colSpan={8} className="rq-empty-state">
                     <Loader2 size={20} className="rq-spinner" aria-hidden="true" />
                     Loading requests...
                   </td>
@@ -275,7 +337,7 @@ export default function Requests() {
 
               {!isLoading && filtered.length === 0 && !error && (
                 <tr>
-                  <td colSpan={7} className="rq-empty-state">
+                  <td colSpan={8} className="rq-empty-state">
                     <FilterX size={20} aria-hidden="true" style={{ marginBottom: 4 }} />
                     <span>No requests match the current filters</span>
                   </td>
@@ -300,17 +362,47 @@ export default function Requests() {
                   r.status != null
                     ? getChoiceLabel(requestStatusChoices, r.status) ?? '\u2014'
                     : '\u2014';
-                const statusCls = statusClass[statusLabel] ?? '';
-                const action = actionForStatus(statusLabel);
+                const presentation = getRequestRowPresentation(
+                  statusLabel,
+                  integrityById.get(r.id),
+                );
+                const displayStatus =
+                  presentation.actionMode === 'normal'
+                    ? statusDisplayLabel[statusLabel] ?? statusLabel
+                    : presentation.displayStatus;
+                const statusCls = statusClass[presentation.displayStatus] ?? '';
+                const action =
+                  presentation.actionMode === 'edit'
+                    ? { label: 'Edit', Icon: Pencil }
+                    : presentation.actionMode === 'loading'
+                      ? { label: 'Checking', Icon: Loader2 }
+                      : presentation.actionMode === 'disabled'
+                        ? { label: 'Unavailable', Icon: CircleAlert }
+                        : actionForStatus(statusLabel);
 
                 return (
-                  <tr key={r.id} onClick={() => openRecord(r.id)} className="rq-row-clickable">
+                  <tr
+                    key={r.id}
+                    onClick={
+                      presentation.isClickable
+                        ? () => openRecord(r.id)
+                        : undefined
+                    }
+                    className={
+                      presentation.isClickable ? 'rq-row-clickable' : undefined
+                    }
+                  >
                     <td>
                       <span className="rq-req-id">{r.title ?? r.id.slice(0, 8)} {channel && (
                           <span className={`rq-chan-badge rq-cat-badge chan-${channel}`}>
                             {categoryLabel ?? channel.toUpperCase()}
                           </span>
                         )}</span>
+                    </td>
+                    <td>
+                      <div className="cell-main">
+                        {formatSubmissionDate(r.submittedOn)}
+                      </div>
                     </td>
                     <td>
                       <div className="cell-main rq-matter-title" title={matterLabel}>
@@ -340,7 +432,7 @@ export default function Requests() {
                     <td>
                       <span className={`rq-status-pill ${statusCls}`}>
                         <span className="rq-status-dot" />
-                        {statusDisplayLabel[statusLabel] ?? statusLabel}
+                        {displayStatus}
                       </span>
                     </td>
                     <td>
@@ -349,12 +441,25 @@ export default function Requests() {
                         className="rq-open-btn"
                         onClick={(e) => {
                           e.stopPropagation();
-                          openRecord(r.id);
+                          if (presentation.actionMode === 'edit') {
+                            navigate(`/requests/${r.id}/edit`);
+                          } else if (presentation.actionMode === 'normal') {
+                            openRecord(r.id);
+                          }
                         }}
                         title={`${action.label} request`}
+                        disabled={presentation.isDisabled}
                       >
                         {action.label}
-                        <action.Icon size={14} aria-hidden="true" />
+                        <action.Icon
+                          size={14}
+                          aria-hidden="true"
+                          className={
+                            presentation.actionMode === 'loading'
+                              ? 'rq-spinner'
+                              : undefined
+                          }
+                        />
                       </button>
                     </td>
                   </tr>
@@ -379,7 +484,9 @@ export default function Requests() {
             <button
               type="button"
               className="rq-pg-btn"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              onClick={() =>
+                updateListState({ page: Math.max(1, currentPage - 1) })
+              }
               disabled={currentPage <= 1}
               aria-label="Previous page"
             >
@@ -393,7 +500,9 @@ export default function Requests() {
             <button
               type="button"
               className="rq-pg-btn"
-              onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+              onClick={() =>
+                updateListState({ page: Math.min(pageCount, currentPage + 1) })
+              }
               disabled={currentPage >= pageCount}
               aria-label="Next page"
             >

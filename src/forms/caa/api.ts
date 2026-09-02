@@ -26,6 +26,7 @@ import type {
 } from '../../types/caaRequest';
 import type { SoaCodeValue } from '../../data/soaChoices';
 import type { CaaFormState } from './types';
+import { resolveParentWrite, updateRepairParent } from '../repairRequest';
 
 type SubmitResult = {
   requestId: string;
@@ -61,6 +62,7 @@ type SubmitCaaOptions = {
   requestorContactId?: string | null;
   /** Uploaded document links to persist on the request's gcp_documentsurl. */
   documents?: DocumentLink[];
+  existingRequestId?: string | null;
 };
 
 const submitCaaRequest = async (
@@ -84,13 +86,16 @@ const submitCaaRequest = async (
     gcp_documentsurl: serializeDocuments(options.documents ?? []),
   };
 
-  const created = await createRequest(parentInput, {
-    lookups: {
-      requestorContactId: options.requestorContactId || null,
-      companyAccountId,
-      projectId,
-    },
-  });
+  const parentWrite = resolveParentWrite(options.existingRequestId);
+  const created = parentWrite.mode === 'reuse'
+    ? { id: parentWrite.requestId }
+    : await createRequest(parentInput, {
+        lookups: {
+          requestorContactId: options.requestorContactId || null,
+          companyAccountId,
+          projectId,
+        },
+      });
 
   // Step 2 — gcp_caarequest bound to the parent. DynamicRowFields inputs are
   // already JSON strings in form state, so they persist as-is.
@@ -166,6 +171,13 @@ const submitCaaRequest = async (
     },
   });
 
+  if (parentWrite.mode === 'reuse') {
+    await updateRepairParent(created.id, data, {
+      documents: options.documents ?? [],
+      projectId,
+    });
+  }
+
   return {
     requestId: created.id,
     caaRequestId: caaCreated.id,
@@ -195,7 +207,7 @@ const dateToStr = (value: string | null): string =>
 /** Build CAA form state from the loaded parent + child records (edit prefill). */
 const loadCaaFormState = (
   request: GcpRequest,
-  caa: GcpCaaRequest
+  caa: GcpCaaRequest = {} as GcpCaaRequest
 ): CaaFormState => ({
   matterValue: request.matter as CaaFormState['matterValue'],
   categoryValue: (request.category ?? 2) as CaaFormState['categoryValue'],
@@ -205,7 +217,7 @@ const loadCaaFormState = (
   requestorEmail: request.requestorEmail ?? '',
   companyId: request.companyId ?? '',
   companyName: request.companyName ?? '',
-  projectId: caa.projectId ?? '',
+  projectId: caa.projectId ?? request.projectId ?? '',
   projectName: request.projectName ?? caa.title ?? '',
   projectCode: request.projectCode ?? caa.projectCode ?? '',
 

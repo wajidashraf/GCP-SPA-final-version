@@ -5,10 +5,11 @@ import { parseDocuments } from '../../shared/documents';
 import type { DocumentLink } from '../../shared/documents';
 import type { SubmitResult } from '../multistep';
 import VapForm from './VapForm';
-import { loadVapFormState, updateVapRequestFromState } from './api';
+import { loadVapFormState, submitVapRequest, updateVapRequestFromState } from './api';
 import type { VapFormState } from './types';
 import type { EditFormProps } from '../editRegistry';
 import { getEditSubmissionCopy } from '../../shared/requestEditPolicy';
+import { assertStillMissing } from '../repairRequest';
 
 /**
  * Edit-mode adapter for VAP (Vendor Appointment & Procurement) requests.
@@ -33,7 +34,7 @@ const VapEditForm = ({
   const vap = child.type === 'vap' ? (child.records[0] ?? null) : null;
 
   const initialState = useMemo(
-    () => (vap ? loadVapFormState(request, vap) : null),
+    () => loadVapFormState(request, vap ?? undefined),
     [request, vap]
   );
 
@@ -43,7 +44,7 @@ const VapEditForm = ({
     [request.documentsUrl]
   );
 
-  if (!matter || !vap || !initialState) {
+  if (!matter || !initialState || (!vap && editPurpose !== 'repair')) {
     return (
       <InlineMessage tone="warning" title="Can’t edit this request">
         The VAP detail record for this request couldn’t be loaded, so it can’t
@@ -59,11 +60,20 @@ const VapEditForm = ({
     state: VapFormState,
     documents: DocumentLink[]
   ): Promise<SubmitResult> => {
-    await updateVapRequestFromState(state, {
-      requestId: request.id,
-      vapRecordId: vap.id,
-      documents,
-    });
+    if (editPurpose === 'repair') {
+      await assertStillMissing(request);
+      await submitVapRequest(state, {
+        existingRequestId: request.id,
+        documents,
+      });
+    } else {
+      if (!vap) throw new Error('The VAP detail record is missing.');
+      await updateVapRequestFromState(state, {
+        requestId: request.id,
+        vapRecordId: vap.id,
+        documents,
+      });
+    }
     if (editPurpose === 'resubmission') {
       await onResubmitted();
     }

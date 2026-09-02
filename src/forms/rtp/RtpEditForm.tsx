@@ -5,10 +5,11 @@ import { parseDocuments } from '../../shared/documents';
 import type { DocumentLink } from '../../shared/documents';
 import type { SubmitResult } from '../multistep';
 import RtpForm from './RtpForm';
-import { loadRtpFormState, updateRtpRequestFromState } from './api';
+import { loadRtpFormState, submitRtpRequest, updateRtpRequestFromState } from './api';
 import type { RtpFormState } from './types';
 import type { EditFormProps } from '../editRegistry';
 import { getEditSubmissionCopy } from '../../shared/requestEditPolicy';
+import { assertStillMissing } from '../repairRequest';
 
 /**
  * Edit-mode adapter for RTP requests. Resolves the matter, hydrates form state
@@ -33,7 +34,7 @@ const RtpEditForm = ({
   const rtp = child.type === 'rtp' ? (child.records[0] ?? null) : null;
 
   const initialState = useMemo(
-    () => (rtp ? loadRtpFormState(request, rtp) : null),
+    () => loadRtpFormState(request, rtp ?? undefined),
     [request, rtp]
   );
 
@@ -43,7 +44,7 @@ const RtpEditForm = ({
     [request.documentsUrl]
   );
 
-  if (!matter || !rtp || !initialState) {
+  if (!matter || !initialState || (!rtp && editPurpose !== 'repair')) {
     return (
       <InlineMessage tone="warning" title="Can’t edit this request">
         The RTP detail record for this request couldn’t be loaded, so it can’t be
@@ -59,11 +60,21 @@ const RtpEditForm = ({
     state: RtpFormState,
     documents: DocumentLink[]
   ): Promise<SubmitResult> => {
-    await updateRtpRequestFromState(state, {
-      requestId: request.id,
-      rtpRecordId: rtp.id,
-      documents,
-    });
+    if (editPurpose === 'repair') {
+      await assertStillMissing(request);
+      await submitRtpRequest(state, {
+        existingRequestId: request.id,
+        existingProjectId: request.projectId,
+        documents,
+      });
+    } else {
+      if (!rtp) throw new Error('The RTP detail record is missing.');
+      await updateRtpRequestFromState(state, {
+        requestId: request.id,
+        rtpRecordId: rtp.id,
+        documents,
+      });
+    }
     if (editPurpose === 'resubmission') {
       await onResubmitted();
     }

@@ -5,10 +5,11 @@ import { parseDocuments } from '../../shared/documents';
 import type { DocumentLink } from '../../shared/documents';
 import type { SubmitResult } from '../multistep';
 import CprForm from './CprForm';
-import { loadCprFormState, updateCprRequestFromState } from './api';
+import { loadCprFormState, submitCprRequest, updateCprRequestFromState } from './api';
 import type { CprFormState } from './types';
 import type { EditFormProps } from '../editRegistry';
 import { getEditSubmissionCopy } from '../../shared/requestEditPolicy';
+import { assertStillMissing } from '../repairRequest';
 
 /**
  * Edit-mode adapter for CPR (Contract Progress Report) requests. Resolves the
@@ -33,7 +34,7 @@ const CprEditForm = ({
   const cpr = child.type === 'cpr' ? (child.records[0] ?? null) : null;
 
   const initialState = useMemo(
-    () => (cpr ? loadCprFormState(request, cpr) : null),
+    () => loadCprFormState(request, cpr ?? undefined),
     [request, cpr]
   );
 
@@ -43,7 +44,7 @@ const CprEditForm = ({
     [request.documentsUrl]
   );
 
-  if (!matter || !cpr || !initialState) {
+  if (!matter || !initialState || (!cpr && editPurpose !== 'repair')) {
     return (
       <InlineMessage tone="warning" title="Can’t edit this request">
         The CPR detail record for this request couldn’t be loaded, so it can’t
@@ -59,11 +60,20 @@ const CprEditForm = ({
     state: CprFormState,
     documents: DocumentLink[]
   ): Promise<SubmitResult> => {
-    await updateCprRequestFromState(state, {
-      requestId: request.id,
-      cprRecordId: cpr.id,
-      documents,
-    });
+    if (editPurpose === 'repair') {
+      await assertStillMissing(request);
+      await submitCprRequest(state, {
+        existingRequestId: request.id,
+        documents,
+      });
+    } else {
+      if (!cpr) throw new Error('The CPR detail record is missing.');
+      await updateCprRequestFromState(state, {
+        requestId: request.id,
+        cprRecordId: cpr.id,
+        documents,
+      });
+    }
     if (editPurpose === 'resubmission') {
       await onResubmitted();
     }

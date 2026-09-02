@@ -1,9 +1,9 @@
 // src/shared/services/projectService.ts
-// Create + read service for the gcp_project Dataverse table.
+// Create, read, and conditional status-update service for gcp_projects.
 //
-// Power Pages site settings & table permissions for `gcp_project` must be
-// configured (Webapi/gcp_project/enabled = true, plus a table permission
-// granting the calling web role create/read).
+// Power Pages site settings & table permissions for `gcp_projects` must be
+// configured (Webapi/gcp_projects/enabled = true, plus a table permission
+// granting the calling web role create/read/write).
 
 import {
   buildODataQuery,
@@ -14,18 +14,18 @@ import {
   pageSizeHeader,
   powerPagesFetch,
   powerPagesFetchResponse,
-} from '../powerPagesApi';
-import type { ODataListResponse, ODataQuery } from '../powerPagesApi';
+} from '../powerPagesApi.ts';
+import type { ODataListResponse, ODataQuery } from '../powerPagesApi.ts';
 import {
   DEFAULT_PROJECT_SELECT,
   mapGcpProject,
   PROJECT_STATUS,
-} from '../../types/project';
+} from '../../types/project.ts';
 import type {
   CreateGcpProjectInput,
   GcpProject,
   GcpProjectEntity,
-} from '../../types/project';
+} from '../../types/project.ts';
 
 const ENTITY_SET = 'gcp_projectses';
 const BASE_URL = `/_api/${ENTITY_SET}`;
@@ -44,6 +44,11 @@ type CreateProjectOptions = {
 type CreateProjectResult = {
   id: string;
   record?: GcpProject;
+};
+
+type ProjectActivationResult = {
+  outcome: 'activated' | 'unchanged';
+  project: GcpProject;
 };
 
 const createProject = async (
@@ -109,6 +114,57 @@ const getProjectById = async (
   }
 };
 
+const activateProjectIfInactive = async (
+  id: string,
+  initialProject?: GcpProject,
+): Promise<ProjectActivationResult> => {
+  let project = initialProject ?? (await getProjectById(id));
+  if (!project) {
+    throw new Error('The related project could not be loaded.');
+  }
+
+  if (project.status !== PROJECT_STATUS.Inactive) {
+    return { outcome: 'unchanged', project };
+  }
+
+  const patchActive = async (etag: string | null): Promise<void> => {
+    if (!etag?.trim()) {
+      throw new Error(
+        'The related project version could not be confirmed. Please reload and try again.',
+      );
+    }
+    await powerPagesFetch<void>(`${BASE_URL}(${id})`, {
+      method: 'PATCH',
+      json: { gcp_projectstatus: PROJECT_STATUS.Active },
+      headers: { 'If-Match': etag },
+    });
+  };
+
+  try {
+    await patchActive(project.etag);
+  } catch (error) {
+    if ((error as { status?: number })?.status !== 412) throw error;
+
+    project = await getProjectById(id);
+    if (!project) {
+      throw new Error('The related project could not be loaded after it changed.');
+    }
+    if (project.status !== PROJECT_STATUS.Inactive) {
+      return { outcome: 'unchanged', project };
+    }
+    await patchActive(project.etag);
+  }
+
+  return {
+    outcome: 'activated',
+    project: {
+      ...project,
+      status: PROJECT_STATUS.Active,
+      etag: null,
+    },
+  };
+};
+
 type ListProjectsOptions = {
   select?: readonly string[];
   filter?: string;
@@ -168,6 +224,7 @@ const listActiveProjects = (
 export {
   createProject,
   getProjectById,
+  activateProjectIfInactive,
   listProjects,
   listActiveProjects,
   ENTITY_SET as PROJECT_ENTITY_SET,
@@ -175,6 +232,7 @@ export {
 export type {
   CreateProjectOptions,
   CreateProjectResult,
+  ProjectActivationResult,
   ListProjectsOptions,
   ListProjectsResult,
 };

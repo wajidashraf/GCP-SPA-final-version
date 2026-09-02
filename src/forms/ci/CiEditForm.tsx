@@ -5,10 +5,11 @@ import { parseDocuments } from '../../shared/documents';
 import type { DocumentLink } from '../../shared/documents';
 import type { SubmitResult } from '../multistep';
 import CiForm from './CiForm';
-import { loadCiFormState, updateCiRequestFromState } from './api';
+import { loadCiFormState, submitCiRequest, updateCiRequestFromState } from './api';
 import type { CiFormState } from './types';
 import type { EditFormProps } from '../editRegistry';
 import { getEditSubmissionCopy } from '../../shared/requestEditPolicy';
+import { assertStillMissing } from '../repairRequest';
 
 /**
  * Edit-mode adapter for CI (Contractual Issue) requests. Resolves the matter,
@@ -33,7 +34,7 @@ const CiEditForm = ({
   const ci = child.type === 'ci' ? (child.records[0] ?? null) : null;
 
   const initialState = useMemo(
-    () => (ci ? loadCiFormState(request, ci) : null),
+    () => loadCiFormState(request, ci ?? undefined),
     [request, ci]
   );
 
@@ -43,7 +44,7 @@ const CiEditForm = ({
     [request.documentsUrl]
   );
 
-  if (!matter || !ci || !initialState) {
+  if (!matter || !initialState || (!ci && editPurpose !== 'repair')) {
     return (
       <InlineMessage tone="warning" title="Can’t edit this request">
         The CI detail record for this request couldn’t be loaded, so it can’t be
@@ -59,11 +60,20 @@ const CiEditForm = ({
     state: CiFormState,
     documents: DocumentLink[]
   ): Promise<SubmitResult> => {
-    await updateCiRequestFromState(state, {
-      requestId: request.id,
-      ciRecordId: ci.id,
-      documents,
-    });
+    if (editPurpose === 'repair') {
+      await assertStillMissing(request);
+      await submitCiRequest(state, {
+        existingRequestId: request.id,
+        documents,
+      });
+    } else {
+      if (!ci) throw new Error('The CI detail record is missing.');
+      await updateCiRequestFromState(state, {
+        requestId: request.id,
+        ciRecordId: ci.id,
+        documents,
+      });
+    }
     if (editPurpose === 'resubmission') {
       await onResubmitted();
     }

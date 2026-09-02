@@ -23,6 +23,7 @@ import {
   submitEndorsementLetter,
   pollRequestStatus,
 } from '../shared/services/requestService';
+import { getLatestCompletedEngagementNumberByRequest } from '../shared/services/engagementService';
 import { getChoiceLabel } from '../data/types';
 import { soaCodeChoices } from '../data/soaChoices';
 import { matterChoices } from '../data/matterChoices';
@@ -33,14 +34,93 @@ import {
   serializeLetter,
 } from '../components/letters';
 import type { LetterContext } from '../components/letters';
+import { useAuth } from '../context/AuthContext';
+import {
+  canSubmitEndorsement,
+  formatEndorsementSubmissionError,
+  submitEndorsementWithReconciliation,
+} from '../shared/endorsementSubmission';
+import { hasRole, isAdmin } from '../utils/authorization';
 
 const LETTER_TYPE = 'Endorsement';
 const TARGET_STATUS = 12; // Endorsed (E)
+
+type ReviewNumberLookup = {
+  requestId: string | null;
+  number: string | null;
+  isLoading: boolean;
+  error: string | null;
+};
 
 export default function EndorsementLetterPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { request, isLoading, error } = useRequestDetail(id);
+  const { isLoading: authLoading } = useAuth();
+  const [reviewNumberLookup, setReviewNumberLookup] =
+    useState<ReviewNumberLookup>({
+      requestId: null,
+      number: null,
+      isLoading: Boolean(id),
+      error: null,
+    });
+
+  useEffect(() => {
+    if (!id) {
+      setReviewNumberLookup({
+        requestId: null,
+        number: null,
+        isLoading: false,
+        error: null,
+      });
+      return;
+    }
+
+    let cancelled = false;
+    setReviewNumberLookup({
+      requestId: id,
+      number: null,
+      isLoading: true,
+      error: null,
+    });
+
+    void getLatestCompletedEngagementNumberByRequest(id)
+      .then((number) => {
+        if (cancelled) return;
+        setReviewNumberLookup({
+          requestId: id,
+          number,
+          isLoading: false,
+          error: null,
+        });
+      })
+      .catch((lookupError: unknown) => {
+        if (cancelled) return;
+        const message =
+          lookupError instanceof Error && lookupError.message.trim()
+            ? lookupError.message
+            : 'Failed to load the latest Completed engagement.';
+        setReviewNumberLookup({
+          requestId: id,
+          number: null,
+          isLoading: false,
+          error: message,
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  const reviewNumber =
+    reviewNumberLookup.requestId === id ? reviewNumberLookup.number : null;
+  const reviewNumberLoading =
+    Boolean(id) &&
+    (reviewNumberLookup.requestId !== id || reviewNumberLookup.isLoading);
+  const reviewNumberError =
+    reviewNumberLookup.requestId === id ? reviewNumberLookup.error : null;
+  const pageLoading = isLoading || reviewNumberLoading;
 
   // ── Derived meta ──────────────────────────────────────────────────────────
   const matter = useMemo(
@@ -71,13 +151,11 @@ export default function EndorsementLetterPage() {
     .join('/');
 
   const ctx: LetterContext | null = useMemo(
-    () => (request ? { request, matterLabel, soaLabel } : null),
-    [request, matterLabel, soaLabel],
+    () => (request ? { request, matterLabel, soaLabel, reviewNumber } : null),
+    [request, matterLabel, soaLabel, reviewNumber],
   );
 
   // ── Form state ────────────────────────────────────────────────────────────
-  const existingText = request?.endorsementLetterText ?? '';
-
   const [values, setValues] = useState<Record<string, string>>({});
   const [isEditing, setIsEditing] = useState(false);
 
@@ -96,7 +174,14 @@ export default function EndorsementLetterPage() {
   const handleChange = (key: string, value: string) =>
     setValues((prev) => ({ ...prev, [key]: value }));
 
-  const isSubmitted = !isEditing && !!existingText && request?.status !== 8;
+  const isSubmitted = request?.status === TARGET_STATUS;
+  const canSubmit =
+    !!request &&
+    !authLoading &&
+    canSubmitEndorsement(request.status, {
+      isAdmin: isAdmin(),
+      isEndorser: hasRole('Endorser'),
+    });
   const [formError, setFormError] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -128,15 +213,14 @@ export default function EndorsementLetterPage() {
     setShowConfirm(false);
     try {
       const payload = serializeLetter(template, ctx, values, letterNumber);
-      await submitEndorsementLetter(id, payload);
-      await pollRequestStatus(id, TARGET_STATUS);
+      await submitEndorsementWithReconciliation({
+        submit: () => submitEndorsementLetter(id, payload),
+        confirm: () => pollRequestStatus(id, TARGET_STATUS),
+      });
       navigate(`/requests/${id}`);
     } catch (err) {
-      setSubmitError(
-        err instanceof Error
-          ? `Failed to submit: ${err.message}`
-          : 'Failed to submit. Please try again.',
-      );
+      console.error('Endorsement submission failed:', err);
+      setSubmitError(formatEndorsementSubmissionError(err));
       setSubmitting(false);
     }
   };
@@ -155,24 +239,57 @@ export default function EndorsementLetterPage() {
           </button>
         </div>
 
-        {isLoading && !request ? (
+        {pageLoading ? (
           <LoadingState message="Loading request…" size="lg" />
         ) : null}
 
-        {error ? (
+        {!pageLoading && error ? (
           <InlineMessage tone="error" title="Couldn't load this request">
             {error}
           </InlineMessage>
         ) : null}
 
-        {!isLoading && !error && !request ? (
+        {!pageLoading && !error && reviewNumberError ? (
+          <InlineMessage tone="error" title="Couldn't load engagement details">
+            {reviewNumberError}
+          </InlineMessage>
+        ) : null}
+
+        {!pageLoading && !error && !reviewNumberError && !request ? (
           <InlineMessage tone="warning" title="Request not found">
             We couldn't find a request with this ID.{' '}
             <Link to="/requests">Return to the requests list.</Link>
           </InlineMessage>
         ) : null}
 
-        {request && ctx ? (
+        {!pageLoading &&
+        !error &&
+        !reviewNumberError &&
+        request &&
+        ctx &&
+        !authLoading &&
+        !isSubmitted &&
+        !canSubmit ? (
+          <InlineMessage tone="warning" title="Endorsement unavailable">
+            Only an Endorser or Administrator can submit an endorsement while
+            the request is Pending Endorse.{' '}
+            <button
+              type="button"
+              className="rd-back-link"
+              onClick={() => navigate(`/requests/${request.id}`)}
+            >
+              Go back
+            </button>
+          </InlineMessage>
+        ) : null}
+
+        {!pageLoading &&
+        !error &&
+        !reviewNumberError &&
+        request &&
+        ctx &&
+        !authLoading &&
+        (isSubmitted || canSubmit) ? (
           <div className="vd-card lp-card lp-letter-card">
             <header className="vd-card-head no-print">
               <span className="vd-card-icon" aria-hidden="true">

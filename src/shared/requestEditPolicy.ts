@@ -1,4 +1,4 @@
-type EditPurpose = 'standard' | 'resubmission';
+type EditPurpose = 'standard' | 'resubmission' | 'repair';
 
 type RequestEditActor = {
   contactId: string | null | undefined;
@@ -128,7 +128,15 @@ const getEditPurpose = (
 const getEditSubmissionCopy = (
   purpose: EditPurpose,
 ): EditSubmissionCopy =>
-  purpose === 'resubmission'
+  purpose === 'repair'
+    ? {
+        submitLabel: 'Complete Draft',
+        successTitle: 'Draft completed',
+        successMessage:
+          'The missing request details have been created. This request is now ready for verification.',
+        toastMessage: 'Draft completed successfully.',
+      }
+    : purpose === 'resubmission'
     ? {
         submitLabel: 'Submit Changes for Re-review',
         successTitle: 'Changes submitted',

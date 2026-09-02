@@ -5,10 +5,11 @@ import { parseDocuments } from '../../shared/documents';
 import type { DocumentLink } from '../../shared/documents';
 import type { SubmitResult } from '../multistep';
 import RppForm from './RppForm';
-import { loadRppFormState, updateRppRequestFromState } from './api';
+import { loadRppFormState, submitRppRequest, updateRppRequestFromState } from './api';
 import type { RppFormState } from './types';
 import type { EditFormProps } from '../editRegistry';
 import { getEditSubmissionCopy } from '../../shared/requestEditPolicy';
+import { assertStillMissing } from '../repairRequest';
 
 /**
  * Edit-mode adapter for R-PP (Revised Procurement Plan) requests. Resolves the
@@ -33,7 +34,7 @@ const RppEditForm = ({
   const rpp = child.type === 'rpp' ? (child.records[0] ?? null) : null;
 
   const initialState = useMemo(
-    () => (rpp ? loadRppFormState(request, rpp) : null),
+    () => loadRppFormState(request, rpp ?? undefined),
     [request, rpp]
   );
 
@@ -43,7 +44,7 @@ const RppEditForm = ({
     [request.documentsUrl]
   );
 
-  if (!matter || !rpp || !initialState) {
+  if (!matter || !initialState || (!rpp && editPurpose !== 'repair')) {
     return (
       <InlineMessage tone="warning" title="Can’t edit this request">
         The Revised PP detail record for this request couldn’t be loaded, so it
@@ -59,11 +60,20 @@ const RppEditForm = ({
     state: RppFormState,
     documents: DocumentLink[]
   ): Promise<SubmitResult> => {
-    await updateRppRequestFromState(state, {
-      requestId: request.id,
-      rppRecordId: rpp.id,
-      documents,
-    });
+    if (editPurpose === 'repair') {
+      await assertStillMissing(request);
+      await submitRppRequest(state, {
+        existingRequestId: request.id,
+        documents,
+      });
+    } else {
+      if (!rpp) throw new Error('The Revised PP detail record is missing.');
+      await updateRppRequestFromState(state, {
+        requestId: request.id,
+        rppRecordId: rpp.id,
+        documents,
+      });
+    }
     if (editPurpose === 'resubmission') {
       await onResubmitted();
     }

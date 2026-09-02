@@ -15,6 +15,7 @@ import {
 } from '../shared/requestEditPolicy';
 import { markRequestResubmitted } from '../shared/services/requestService';
 import { notifyEvent } from '../shared/notificationApi';
+import { hasRequiredAssociatedData } from '../shared/requestIntegrity';
 
 export default function EditRequest() {
   const { id } = useParams<{ id: string }>();
@@ -48,7 +49,14 @@ export default function EditRequest() {
   }, [request, authLoading, user]);
 
   const isEditableStatus = isEditableRequestStatus(request?.status);
-  const editPurpose = getEditPurpose(request?.status);
+  const isRepair = Boolean(
+    request?.status === 1 &&
+      child &&
+      child.type !== 'unsupported' &&
+      !childError &&
+      !hasRequiredAssociatedData(child),
+  );
+  const editPurpose = isRepair ? 'repair' : getEditPurpose(request?.status);
 
   const matterCode = useMemo(
     () =>
@@ -150,7 +158,8 @@ export default function EditRequest() {
             <header className="rd-hero">
               <div className="rd-hero-main">
                 <h1 className="rd-hero-title mb-2">
-                  <Pencil size={20} aria-hidden="true" /> Edit request
+                  <Pencil size={20} aria-hidden="true" />{' '}
+                  {editPurpose === 'repair' ? 'Complete draft' : 'Edit request'}
                 </h1>
                 <div className="rd-hero-eyebrow">
                   {matterCode ? (

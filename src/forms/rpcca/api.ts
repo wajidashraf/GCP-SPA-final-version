@@ -27,6 +27,7 @@ import type {
 } from '../../types/rpccaRequest';
 import type { SoaCodeValue } from '../../data/soaChoices';
 import type { RpccaFormState } from './types';
+import { resolveParentWrite, updateRepairParent } from '../repairRequest';
 
 type SubmitResult = {
   requestId: string;
@@ -50,6 +51,7 @@ type SubmitRpccaOptions = {
   requestorContactId?: string | null;
   /** Uploaded document links to persist on the request's gcp_documentsurl. */
   documents?: DocumentLink[];
+  existingRequestId?: string | null;
 };
 
 const submitRpccaRequest = async (
@@ -73,13 +75,16 @@ const submitRpccaRequest = async (
     gcp_documentsurl: serializeDocuments(options.documents ?? []),
   };
 
-  const created = await createRequest(parentInput, {
-    lookups: {
-      requestorContactId: options.requestorContactId || null,
-      companyAccountId,
-      projectId,
-    },
-  });
+  const parentWrite = resolveParentWrite(options.existingRequestId);
+  const created = parentWrite.mode === 'reuse'
+    ? { id: parentWrite.requestId }
+    : await createRequest(parentInput, {
+        lookups: {
+          requestorContactId: options.requestorContactId || null,
+          companyAccountId,
+          projectId,
+        },
+      });
 
   // Step 2 — gcp_rpccarequestgcp bound to the parent. The Work Item Entry grid is
   // already a JSON string in form state, so it persists as-is.
@@ -97,6 +102,13 @@ const submitRpccaRequest = async (
       requestId: created.id,
     },
   });
+
+  if (parentWrite.mode === 'reuse') {
+    await updateRepairParent(created.id, data, {
+      documents: options.documents ?? [],
+      projectId,
+    });
+  }
 
   return {
     requestId: created.id,
@@ -117,7 +129,7 @@ const submitRpccaRequest = async (
 /** Build R-PCCA form state from the loaded parent + child records (edit prefill). */
 const loadRpccaFormState = (
   request: GcpRequest,
-  rpcca: GcpRpccaRequest
+  rpcca: GcpRpccaRequest = {} as GcpRpccaRequest
 ): RpccaFormState => ({
   matterValue: request.matter as RpccaFormState['matterValue'],
   categoryValue: (request.category ?? 2) as RpccaFormState['categoryValue'],

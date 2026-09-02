@@ -5,10 +5,11 @@ import { parseDocuments } from '../../shared/documents';
 import type { DocumentLink } from '../../shared/documents';
 import type { SubmitResult } from '../multistep';
 import PccaForm from './PccaForm';
-import { loadPccaFormState, updatePccaRequestFromState } from './api';
+import { loadPccaFormState, submitPccaRequest, updatePccaRequestFromState } from './api';
 import type { PccaFormState } from './types';
 import type { EditFormProps } from '../editRegistry';
 import { getEditSubmissionCopy } from '../../shared/requestEditPolicy';
+import { assertStillMissing } from '../repairRequest';
 
 /**
  * Edit-mode adapter for PCCA (Project Cost Control Analysis) requests. Resolves
@@ -33,7 +34,7 @@ const PccaEditForm = ({
   const pcca = child.type === 'pcca' ? (child.records[0] ?? null) : null;
 
   const initialState = useMemo(
-    () => (pcca ? loadPccaFormState(request, pcca) : null),
+    () => loadPccaFormState(request, pcca ?? undefined),
     [request, pcca]
   );
 
@@ -43,7 +44,7 @@ const PccaEditForm = ({
     [request.documentsUrl]
   );
 
-  if (!matter || !pcca || !initialState) {
+  if (!matter || !initialState || (!pcca && editPurpose !== 'repair')) {
     return (
       <InlineMessage tone="warning" title="Can’t edit this request">
         The PCCA detail record for this request couldn’t be loaded, so it can’t
@@ -59,11 +60,20 @@ const PccaEditForm = ({
     state: PccaFormState,
     documents: DocumentLink[]
   ): Promise<SubmitResult> => {
-    await updatePccaRequestFromState(state, {
-      requestId: request.id,
-      pccaRecordId: pcca.id,
-      documents,
-    });
+    if (editPurpose === 'repair') {
+      await assertStillMissing(request);
+      await submitPccaRequest(state, {
+        existingRequestId: request.id,
+        documents,
+      });
+    } else {
+      if (!pcca) throw new Error('The PCCA detail record is missing.');
+      await updatePccaRequestFromState(state, {
+        requestId: request.id,
+        pccaRecordId: pcca.id,
+        documents,
+      });
+    }
     if (editPurpose === 'resubmission') {
       await onResubmitted();
     }

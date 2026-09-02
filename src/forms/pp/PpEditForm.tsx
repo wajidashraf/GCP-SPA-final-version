@@ -5,10 +5,11 @@ import { parseDocuments } from '../../shared/documents';
 import type { DocumentLink } from '../../shared/documents';
 import type { SubmitResult } from '../multistep';
 import PpForm from './PpForm';
-import { loadPpFormState, updatePpRequestFromState } from './api';
+import { loadPpFormState, submitPpRequest, updatePpRequestFromState } from './api';
 import type { PpFormState } from './types';
 import type { EditFormProps } from '../editRegistry';
 import { getEditSubmissionCopy } from '../../shared/requestEditPolicy';
+import { assertStillMissing } from '../repairRequest';
 
 /**
  * Edit-mode adapter for PP (Procurement Plan) requests. Resolves the matter,
@@ -33,7 +34,7 @@ const PpEditForm = ({
   const pp = child.type === 'pp' ? (child.records[0] ?? null) : null;
 
   const initialState = useMemo(
-    () => (pp ? loadPpFormState(request, pp) : null),
+    () => loadPpFormState(request, pp ?? undefined),
     [request, pp]
   );
 
@@ -43,7 +44,7 @@ const PpEditForm = ({
     [request.documentsUrl]
   );
 
-  if (!matter || !pp || !initialState) {
+  if (!matter || !initialState || (!pp && editPurpose !== 'repair')) {
     return (
       <InlineMessage tone="warning" title="Can’t edit this request">
         The PP detail record for this request couldn’t be loaded, so it can’t be
@@ -59,11 +60,20 @@ const PpEditForm = ({
     state: PpFormState,
     documents: DocumentLink[]
   ): Promise<SubmitResult> => {
-    await updatePpRequestFromState(state, {
-      requestId: request.id,
-      ppRecordId: pp.id,
-      documents,
-    });
+    if (editPurpose === 'repair') {
+      await assertStillMissing(request);
+      await submitPpRequest(state, {
+        existingRequestId: request.id,
+        documents,
+      });
+    } else {
+      if (!pp) throw new Error('The PP detail record is missing.');
+      await updatePpRequestFromState(state, {
+        requestId: request.id,
+        ppRecordId: pp.id,
+        documents,
+      });
+    }
     if (editPurpose === 'resubmission') {
       await onResubmitted();
     }

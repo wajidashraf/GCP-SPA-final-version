@@ -1919,14 +1919,15 @@ tr:last-child td {
   text-align: right;
 }
 
-/* Column widths (optional guidance, remove if your layout differs) */
-.col-req      { width: 12%; }
-.col-matter   { width: 22%; }
-.col-requester{ width: 18%; }
-.col-project  { width: 14%; }
-.col-company  { width: 14%; }
-.col-status   { width: 12%; }
-.col-action   { width: 8%;  }
+/* Column widths */
+.col-req        { width: 11%; }
+.col-submission { width: 10%; }
+.col-matter     { width: 19%; }
+.col-requester  { width: 17%; }
+.col-project    { width: 12%; }
+.col-company    { width: 13%; }
+.col-status     { width: 10%; }
+.col-action     { width: 8%;  }
 
 /* ---------- Cell typography ---------- */
 

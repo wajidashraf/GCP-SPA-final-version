@@ -29,7 +29,7 @@ import { RppEditForm } from './rpp/RppEditForm';
 type EditFormProps = {
   /** The loaded parent request (guaranteed present, status New, R, or RS). */
   request: GcpRequest;
-  /** The loaded child detail for this request's matter type. */
+  /** The loaded child detail; repair mode may provide an empty records array. */
   child: ChildData;
   /** Standard save for New/R, resubmission behavior for RS. */
   editPurpose: EditPurpose;

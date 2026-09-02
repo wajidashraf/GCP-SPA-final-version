@@ -38,6 +38,8 @@ import {
   getRsVerificationFields,
   isReviewerCommentCycleOpen,
 } from '../requestEditPolicy';
+import { buildAcceptReviewPayload } from '../acceptReviewPayload';
+import type { AcceptReviewInput } from '../acceptReviewPayload';
 import { buildReviewerCommentPayload } from '../reviewerCommentPayload';
 
 type MatterValue = MatterChoice['value'];
@@ -547,29 +549,12 @@ const pollRequestStatus = async (
 
 // ── HOC Acceptance (status 6 → 9/11) ────────────────────────────────────────
 
-type AcceptReviewInput = {
-  /** Which conclusion code the HOC selected. */
-  code: '1a' | '1b' | '2' | '3';
-  /** Comma-separated exceptions text; only written when code is '1b'. */
-  code1bComment?: string;
-  /** Target status after acceptance. GCP channel → 9 (Pending Ack), GCPC → 11 (Pending Endorse). Defaults to 8. */
-  targetStatus?: number;
-};
-
 /** Patch the HOC conclusion and advance to Pending Ack (9) or Pending Endorse (11). */
 const acceptReview = async (
   id: string,
   input: AcceptReviewInput,
 ): Promise<void> => {
-  const body: Record<string, unknown> = {
-    gcp_reviewconclusioncode1a: input.code === '1a',
-    gcp_reviewconclusioncode1b: input.code === '1b',
-    gcp_reviewconclusioncode2: input.code === '2',
-    gcp_reviewconclusioncode3: input.code === '3',
-    gcp_reviewconclusioncode1bcomment: input.code === '1b' ? (input.code1bComment ?? '') : '',
-    gcp_acceptancedate: currentMalaysiaDate(),
-    gcp_requeststatus: input.targetStatus ?? 8,
-  };
+  const body = buildAcceptReviewPayload(input, currentMalaysiaDate());
   await powerPagesFetch<void>(`${BASE_URL}(${id})`, {
     method: 'PATCH',
     json: body,
@@ -592,7 +577,7 @@ const submitAckLetter = async (id: string, text: string): Promise<void> => {
   });
 };
 
-// ── Submit Endorsement Letter (status 8 → 12, GCPC channel) ─────────────────
+// ── Submit Endorsement Letter (status 11 or legacy 8 → 12, GCPC channel) ───
 
 /** Save the endorsement letter text and advance the request to Endorsed (12). */
 const submitEndorsementLetter = async (id: string, text: string): Promise<void> => {

@@ -37,7 +37,12 @@ Set on `gcp_request` for every submission (see each form's `api.ts`):
 
 - Matter code `RTP` · SOA `1` · Child table `gcp_rtprequest` (`gcp_rtprequests`)
 - Files: [src/forms/rtp/](src/forms/rtp/) · [api.ts](src/forms/rtp/api.ts)
-- Note: RTP **creates a stub `gcp_project`** first (status inactive), then the parent, then the child.
+- Note: RTP **creates a stub `gcp_projects`** first with
+  `gcp_projectstatus = 0` (Inactive), then the parent, then the child. When a
+  verifier submits the RTP request as FR (`gcp_requeststatus = 0`), the Verify
+  workflow changes that project to Active (`gcp_projectstatus = 1`) only if it
+  is still Inactive. Existing Active (`1`), Completed (`2`), Dead (`3`), null,
+  or unknown values are preserved.
 
 | Step | Field | Component | Target column | Table |
 |---|---|---|---|---|

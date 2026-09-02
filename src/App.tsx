@@ -23,6 +23,7 @@ import SignatoryManagement from './pages/SignatoryManagement';
 import EmailTemplateManagement from './pages/EmailTemplateManagement';
 import Profile from './pages/Profile';
 import Dashboard from './pages/Dashboard';
+import { ENDORSEMENT_ROUTE_ROLES } from './shared/endorsementSubmission';
 
 export default function App() {
   useDocumentTitle();
@@ -82,7 +83,17 @@ export default function App() {
           }
         />
         <Route path="/requests/:id/ack-letter" element={<AckLetterPage />} />
-        <Route path="/requests/:id/endorsement-letter" element={<EndorsementLetterPage />} />
+        <Route
+          path="/requests/:id/endorsement-letter"
+          element={
+            <RequireRole
+              roles={ENDORSEMENT_ROUTE_ROLES}
+              fallback={<Navigate to="/requests" replace />}
+            >
+              <EndorsementLetterPage />
+            </RequireRole>
+          }
+        />
         {/* Admin section — Administrators only. Reviewer/Verifier/Working GCPC
             and every other role are redirected to the requests list, even when
             navigating directly by URL (the nav links are hidden separately). */}

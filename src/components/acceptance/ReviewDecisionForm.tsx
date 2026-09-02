@@ -2,7 +2,7 @@
 // HOC Acceptance decision form — reached at /requests/:id/hoc-acceptance for
 // BOTH the GCP and GCPC channels (status 6 → "Complete Review").
 //
-// The HOC selects a conclusion code (1a / 1b / 2 / 3), adds a digital
+// The HOC selects a conclusion (unified Code 1 / Code 2 / Code 3), adds a digital
 // signature, then submits. This is the ONLY screen carrying a conclusion code.
 // On submit the request advances along its channel:
 //   GCP channel  → 9  (Pending Ack)     → then the Acknowledgement letter
@@ -40,34 +40,11 @@ import { getChoiceLabel } from '../../data/types';
 import { soaCodeChoices } from '../../data/soaChoices';
 import { matterChoices } from '../../data/matterChoices';
 import { requestStatusChoices } from '../../data/requestChoices';
-
-type ConclusionCode = '1a' | '1b' | '2' | '3';
-
-const CODE_OPTIONS: { value: ConclusionCode; label: string; description: string }[] = [
-  {
-    value: '1a',
-    label: 'Code 1 (a)',
-    description:
-      'We agree to incorporate all of your comments in our submission and/or future action or during implementation.',
-  },
-  {
-    value: '1b',
-    label: 'Code 1 (b)',
-    description:
-      'We agree to incorporate all of your comments in our submission and/or future action or during implementation, EXCEPT the following which we will undertake to mitigate all related risks:',
-  },
-  {
-    value: '2',
-    label: 'Code 2',
-    description:
-      'We acknowledge the need to resubmit the document and incorporate your comments.',
-  },
-  {
-    value: '3',
-    label: 'Code 3',
-    description: 'Acknowledged. We admit the non-compliance.',
-  },
-];
+import {
+  deriveHocAcceptanceCode,
+  getHocAcceptanceOptions,
+} from './hocAcceptanceConclusions';
+import type { HocAcceptanceCode } from './hocAcceptanceConclusions';
 
 // Single set of HOC-acceptance wording — used for both channels. (GCPC requests
 // still advance to a different status and a different follow-up letter, but the
@@ -107,13 +84,10 @@ export default function ReviewDecisionForm() {
   // ── Conclusion-code options gated by the reviewer's decision code ─────────
   // The reviewer's decision code (gcp_decisioncode, set on the Review screen)
   // decides which HOC conclusion codes are offered here:
-  //   • Review Code 1 (proceed with acceptance) → HOC chooses 1a / 1b.
+  //   • Review Code 1 (proceed with acceptance) → one unified acceptance.
   //   • Any other review code (2 / 3 / …)        → HOC chooses among 2 / 3.
   const reviewDecisionCode = request?.decisionCode ?? null;
-  const visibleCodeOptions =
-    reviewDecisionCode === 1
-      ? CODE_OPTIONS.filter((o) => o.value === '1a' || o.value === '1b')
-      : CODE_OPTIONS.filter((o) => o.value === '2' || o.value === '3');
+  const visibleCodeOptions = getHocAcceptanceOptions(reviewDecisionCode);
 
   // ── HOC authorization ─────────────────────────────────────────────────────
   // The signing user must hold the HOC role AND belong to the same company as
@@ -162,28 +136,13 @@ export default function ReviewDecisionForm() {
 
   // ── Form state ────────────────────────────────────────────────────────────
   // Pre-populate from the loaded request if the form was previously submitted.
-  const deriveCode = (): ConclusionCode | '' => {
-    if (!request) return '';
-    if (request.reviewCode1a) return '1a';
-    if (request.reviewCode1b) return '1b';
-    if (request.reviewCode2) return '2';
-    if (request.reviewCode3) return '3';
-    return '';
-  };
-
-  const [selectedCode, setSelectedCode] = useState<ConclusionCode | ''>('');
-  const [exceptions, setExceptions] = useState(['', '', '']);
+  const [selectedCode, setSelectedCode] = useState<HocAcceptanceCode | ''>('');
 
   // Populate once the request loads (or re-loads).
   useEffect(() => {
     if (!request) return;
-    const code = deriveCode();
+    const code = deriveHocAcceptanceCode(request);
     if (code) setSelectedCode(code);
-    if (request.reviewCode1bComment) {
-      const parts = request.reviewCode1bComment.split(',').map((s) => s.trim());
-      setExceptions([parts[0] ?? '', parts[1] ?? '', parts[2] ?? '']);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [request?.id]);
 
   const [formError, setFormError] = useState<string | null>(null);
@@ -211,13 +170,6 @@ export default function ReviewDecisionForm() {
       setFormError('Please select a conclusion code before submitting.');
       return;
     }
-    if (
-      selectedCode === '1b' &&
-      !exceptions.some((exception) => exception.trim().length > 0)
-    ) {
-      setFormError('Add at least one exception or mitigation for Code 1 (b).');
-      return;
-    }
     if (!hocSig) {
       setFormError('Please add your digital signature before submitting.');
       return;
@@ -227,7 +179,7 @@ export default function ReviewDecisionForm() {
   };
 
   const handleConfirm = async () => {
-    if (!id || targetStatus == null) return;
+    if (!id || targetStatus == null || !selectedCode) return;
     setSubmitting(true);
     setShowConfirm(false);
     setSubmitError(null);
@@ -239,11 +191,7 @@ export default function ReviewDecisionForm() {
           'The request has already moved to another stage. Refresh the page before continuing.',
         );
       }
-      const code1bComment =
-        selectedCode === '1b'
-          ? exceptions.map((value) => value.trim()).filter(Boolean).join(', ')
-          : undefined;
-      await acceptReview(id, { code: selectedCode as ConclusionCode, code1bComment, targetStatus });
+      await acceptReview(id, { code: selectedCode, targetStatus });
       const confirmed = await pollRequestStatus(id, targetStatus);
       if (!confirmed) {
         throw new Error(
@@ -288,7 +236,9 @@ export default function ReviewDecisionForm() {
   const signerName =
     hocSig?.signatoryName ??
     (hocSig ? 'Head of Company' : user?.name || 'Head of Company');
-  const selectedOption = CODE_OPTIONS.find((option) => option.value === selectedCode);
+  const selectedOption = visibleCodeOptions.find(
+    (option) => option.value === selectedCode,
+  );
   const nextStage =
     channel === 'gcp' ? 'Pending Acknowledgement' : 'Pending Endorsement';
 
@@ -445,49 +395,13 @@ export default function ReviewDecisionForm() {
                       onChange={() => setSelectedCode(opt.value)}
                       className="hoc-code-radio"
                     />
-                    <span className="hoc-code-badge">{opt.label}</span>
+                    {opt.label ? (
+                      <span className="hoc-code-badge">{opt.label}</span>
+                    ) : null}
                     <span className="hoc-code-desc">{opt.description}</span>
                   </label>
                 ))}
               </fieldset>
-
-              {/* ── Code 1b exception inputs ─────────────────────────────── */}
-              {selectedCode === '1b' && !isLocked ? (
-                <div className="hoc-exceptions">
-                  <p className="hoc-exceptions-label">
-                    Exceptions / Mitigations
-                  </p>
-                  {exceptions.map((val, i) => (
-                    <div key={i} className="hoc-exception-row">
-                      <span className="hoc-exception-num">{i + 1}.</span>
-                      <input
-                        type="text"
-                        className="hoc-exception-input"
-                        placeholder="Type exception / mitigation…"
-                        value={val}
-                        disabled={submitting}
-                        onChange={(e) =>
-                          setExceptions((prev) =>
-                            prev.map((v, j) => (j === i ? e.target.value : v)),
-                          )
-                        }
-                      />
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-
-              {/* ── Code 1b exceptions read-only display ─────────────────── */}
-              {selectedCode === '1b' && isLocked && request.reviewCode1bComment ? (
-                <div className="hoc-exceptions hoc-exceptions--locked">
-                  <p className="hoc-exceptions-label">Exceptions / Mitigations</p>
-                  <ol className="hoc-exceptions-list">
-                    {request.reviewCode1bComment.split(',').map((s, i) =>
-                      s.trim() ? <li key={i}>{s.trim()}</li> : null,
-                    )}
-                  </ol>
-                </div>
-              ) : null}
 
               <div className="hoc-divider" />
 
@@ -540,8 +454,7 @@ export default function ReviewDecisionForm() {
               </div>
               <p className="hoc-signature-declaration">
                 By submitting this document, the signatory confirms that the selected conclusion
-                and any stated exceptions accurately represent the company’s acceptance of the
-                Summary Review.
+                accurately represents the company’s acceptance of the Summary Review.
               </p>
               </article>
 
@@ -651,7 +564,7 @@ export default function ReviewDecisionForm() {
               </div>
               <div>
                 <dt>Conclusion</dt>
-                <dd>{selectedOption?.label ?? '—'}</dd>
+                <dd>{selectedOption?.description ?? '—'}</dd>
               </div>
               <div>
                 <dt>Signed by</dt>

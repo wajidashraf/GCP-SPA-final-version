@@ -24,6 +24,7 @@ import type {
 } from '../../types/ciRequest';
 import type { SoaCodeValue } from '../../data/soaChoices';
 import type { CiFormState } from './types';
+import { resolveParentWrite, updateRepairParent } from '../repairRequest';
 
 type SubmitResult = {
   requestId: string;
@@ -47,6 +48,7 @@ type SubmitCiOptions = {
   requestorContactId?: string | null;
   /** Uploaded document links to persist on the request's gcp_documentsurl. */
   documents?: DocumentLink[];
+  existingRequestId?: string | null;
 };
 
 const submitCiRequest = async (
@@ -70,13 +72,16 @@ const submitCiRequest = async (
     gcp_documentsurl: serializeDocuments(options.documents ?? []),
   };
 
-  const created = await createRequest(parentInput, {
-    lookups: {
-      requestorContactId: options.requestorContactId || null,
-      companyAccountId,
-      projectId,
-    },
-  });
+  const parentWrite = resolveParentWrite(options.existingRequestId);
+  const created = parentWrite.mode === 'reuse'
+    ? { id: parentWrite.requestId }
+    : await createRequest(parentInput, {
+        lookups: {
+          requestorContactId: options.requestorContactId || null,
+          companyAccountId,
+          projectId,
+        },
+      });
 
   // Step 2–5 — gcp_requestcigcp bound to the parent.
   // (This table has no gcp_soacode column — SOA code lives on gcp_request.)
@@ -112,6 +117,13 @@ const submitCiRequest = async (
     },
   });
 
+  if (parentWrite.mode === 'reuse') {
+    await updateRepairParent(created.id, data, {
+      documents: options.documents ?? [],
+      projectId,
+    });
+  }
+
   return {
     requestId: created.id,
     ciRequestId: ciCreated.id,
@@ -130,7 +142,7 @@ const submitCiRequest = async (
 /** Build CI form state from the loaded parent + child records (edit prefill). */
 const loadCiFormState = (
   request: GcpRequest,
-  ci: GcpCiRequest
+  ci: GcpCiRequest = {} as GcpCiRequest
 ): CiFormState => ({
   matterValue: request.matter as CiFormState['matterValue'],
   categoryValue: (request.category ?? 2) as CiFormState['categoryValue'],
@@ -140,7 +152,7 @@ const loadCiFormState = (
   requestorEmail: request.requestorEmail ?? '',
   companyId: request.companyId ?? '',
   companyName: request.companyName ?? '',
-  projectId: ci.projectId ?? '',
+  projectId: ci.projectId ?? request.projectId ?? '',
   projectName: request.projectName ?? ci.name ?? '',
   projectCode: request.projectCode ?? ci.projectCode ?? '',
   companyRole: ci.companyRole ?? '',

@@ -172,7 +172,7 @@ type GcpRequest = {
 // Navigation property names are the PascalCase schema names from customizations.xml:
 //   gcp_RequestorName → contacts(<guid>)
 //   gcp_Company       → accounts(<guid>)
-//   gcp_Project       → gcp_projects(<guid>)
+//   gcp_Project       → gcp_projectses(<guid>)
 type CreateGcpRequestInput = {
   gcp_requesttitle?: string | null;
   gcp_requestoremail?: string | null;

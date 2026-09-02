@@ -25,6 +25,7 @@ import type {
 } from '../../types/pccaRequest';
 import type { SoaCodeValue } from '../../data/soaChoices';
 import type { PccaFormState } from './types';
+import { resolveParentWrite, updateRepairParent } from '../repairRequest';
 
 type SubmitResult = {
   requestId: string;
@@ -56,6 +57,7 @@ type SubmitPccaOptions = {
   requestorContactId?: string | null;
   /** Uploaded document links to persist on the request's gcp_documentsurl. */
   documents?: DocumentLink[];
+  existingRequestId?: string | null;
 };
 
 const submitPccaRequest = async (
@@ -79,13 +81,16 @@ const submitPccaRequest = async (
     gcp_documentsurl: serializeDocuments(options.documents ?? []),
   };
 
-  const created = await createRequest(parentInput, {
-    lookups: {
-      requestorContactId: options.requestorContactId || null,
-      companyAccountId,
-      projectId,
-    },
-  });
+  const parentWrite = resolveParentWrite(options.existingRequestId);
+  const created = parentWrite.mode === 'reuse'
+    ? { id: parentWrite.requestId }
+    : await createRequest(parentInput, {
+        lookups: {
+          requestorContactId: options.requestorContactId || null,
+          companyAccountId,
+          projectId,
+        },
+      });
 
   // Step 2 — gcp_pccarequest bound to the parent. DynamicRowFields inputs are
   // already JSON strings in form state, so they persist as-is.
@@ -116,6 +121,13 @@ const submitPccaRequest = async (
     },
   });
 
+  if (parentWrite.mode === 'reuse') {
+    await updateRepairParent(created.id, data, {
+      documents: options.documents ?? [],
+      projectId,
+    });
+  }
+
   return {
     requestId: created.id,
     pccaRequestId: pccaCreated.id,
@@ -138,7 +150,7 @@ const numToStr = (value: number | null): string =>
 /** Build PCCA form state from the loaded parent + child records (edit prefill). */
 const loadPccaFormState = (
   request: GcpRequest,
-  pcca: GcpPccaRequest
+  pcca: GcpPccaRequest = {} as GcpPccaRequest
 ): PccaFormState => ({
   matterValue: request.matter as PccaFormState['matterValue'],
   categoryValue: (request.category ?? 2) as PccaFormState['categoryValue'],
@@ -148,7 +160,7 @@ const loadPccaFormState = (
   requestorEmail: request.requestorEmail ?? '',
   companyId: request.companyId ?? '',
   companyName: request.companyName ?? '',
-  projectId: pcca.projectId ?? '',
+  projectId: pcca.projectId ?? request.projectId ?? '',
   projectName: request.projectName ?? pcca.title ?? '',
   projectCode: request.projectCode ?? '',
 

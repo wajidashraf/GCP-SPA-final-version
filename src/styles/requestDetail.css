@@ -1955,62 +1955,6 @@
   line-height: 1.5;
 }
 
-/* Code 1b exception inputs */
-.hoc-exceptions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 14px 16px;
-  background: var(--surface-2);
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-sm);
-}
-.hoc-exceptions--locked {
-  background: var(--surface-2);
-  border-style: solid;
-}
-.hoc-exceptions-label {
-  margin: 0 0 4px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.hoc-exception-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.hoc-exception-num {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--muted);
-  width: 18px;
-  flex-shrink: 0;
-}
-.hoc-exception-input {
-  flex: 1;
-  border: none;
-  border-bottom: 1.5px solid var(--border-strong);
-  background: transparent;
-  padding: 4px 2px;
-  font-size: 0.875rem;
-  color: var(--text);
-  outline: none;
-  transition: border-color 0.15s ease;
-}
-.hoc-exception-input:focus {
-  border-color: var(--navy);
-}
-.hoc-exceptions-list {
-  margin: 0;
-  padding-left: 20px;
-  font-size: 0.875rem;
-  color: var(--text);
-  line-height: 1.6;
-}
-
 /* Divider */
 .hoc-divider {
   border: none;

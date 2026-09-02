@@ -24,6 +24,7 @@ import type {
 } from '../../types/rppRequest';
 import type { SoaCodeValue } from '../../data/soaChoices';
 import type { RppFormState } from './types';
+import { resolveParentWrite, updateRepairParent } from '../repairRequest';
 
 type SubmitResult = {
   requestId: string;
@@ -47,6 +48,7 @@ type SubmitRppOptions = {
   requestorContactId?: string | null;
   /** Uploaded document links to persist on the request's gcp_documentsurl. */
   documents?: DocumentLink[];
+  existingRequestId?: string | null;
 };
 
 const submitRppRequest = async (
@@ -70,13 +72,16 @@ const submitRppRequest = async (
     gcp_documentsurl: serializeDocuments(options.documents ?? []),
   };
 
-  const created = await createRequest(parentInput, {
-    lookups: {
-      requestorContactId: options.requestorContactId || null,
-      companyAccountId,
-      projectId,
-    },
-  });
+  const parentWrite = resolveParentWrite(options.existingRequestId);
+  const created = parentWrite.mode === 'reuse'
+    ? { id: parentWrite.requestId }
+    : await createRequest(parentInput, {
+        lookups: {
+          requestorContactId: options.requestorContactId || null,
+          companyAccountId,
+          projectId,
+        },
+      });
 
   // Step 3 — gcp_rpprequest bound to the parent.
   // (This table has no gcp_soacode column — SOA code lives on gcp_request.)
@@ -93,6 +98,13 @@ const submitRppRequest = async (
       companyAccountId,
     },
   });
+
+  if (parentWrite.mode === 'reuse') {
+    await updateRepairParent(created.id, data, {
+      documents: options.documents ?? [],
+      projectId,
+    });
+  }
 
   return {
     requestId: created.id,
@@ -111,7 +123,7 @@ const submitRppRequest = async (
 /** Build R-PP form state from the loaded parent + child records (edit prefill). */
 const loadRppFormState = (
   request: GcpRequest,
-  rpp: GcpRppRequest
+  rpp: GcpRppRequest = {} as GcpRppRequest
 ): RppFormState => ({
   matterValue: request.matter as RppFormState['matterValue'],
   categoryValue: (request.category ?? 2) as RppFormState['categoryValue'],

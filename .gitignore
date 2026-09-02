@@ -11,6 +11,7 @@ tsconfig.tsbuildinfo
 CLAUDE.local.md
 .claude/settings.local.json
 .playwright-mcp/
+.deployment-staging/
 
 # Server Logic debugging runtime loader
 .vscode/server-logic-debug-runtime.cjs

@@ -24,6 +24,7 @@ import type {
 } from '../../types/cprRequest';
 import type { SoaCodeValue } from '../../data/soaChoices';
 import type { CprFormState } from './types';
+import { resolveParentWrite, updateRepairParent } from '../repairRequest';
 
 type SubmitResult = {
   requestId: string;
@@ -59,6 +60,7 @@ type SubmitCprOptions = {
   requestorContactId?: string | null;
   /** Uploaded document links to persist on the request's gcp_documentsurl. */
   documents?: DocumentLink[];
+  existingRequestId?: string | null;
 };
 
 const submitCprRequest = async (
@@ -82,13 +84,16 @@ const submitCprRequest = async (
     gcp_documentsurl: serializeDocuments(options.documents ?? []),
   };
 
-  const created = await createRequest(parentInput, {
-    lookups: {
-      requestorContactId: options.requestorContactId || null,
-      companyAccountId,
-      projectId,
-    },
-  });
+  const parentWrite = resolveParentWrite(options.existingRequestId);
+  const created = parentWrite.mode === 'reuse'
+    ? { id: parentWrite.requestId }
+    : await createRequest(parentInput, {
+        lookups: {
+          requestorContactId: options.requestorContactId || null,
+          companyAccountId,
+          projectId,
+        },
+      });
 
   // Step 2–5 — gcp_cprrequestgcp bound to the parent.
   // (This table has no gcp_soacode column — SOA code lives on gcp_request.)
@@ -143,6 +148,13 @@ const submitCprRequest = async (
     },
   });
 
+  if (parentWrite.mode === 'reuse') {
+    await updateRepairParent(created.id, data, {
+      documents: options.documents ?? [],
+      projectId,
+    });
+  }
+
   return {
     requestId: created.id,
     cprRequestId: cprCreated.id,
@@ -169,7 +181,7 @@ const dateToStr = (value: string | null): string =>
 /** Build CPR form state from the loaded parent + child records (edit prefill). */
 const loadCprFormState = (
   request: GcpRequest,
-  cpr: GcpCprRequest
+  cpr: GcpCprRequest = {} as GcpCprRequest
 ): CprFormState => ({
   matterValue: request.matter as CprFormState['matterValue'],
   categoryValue: (request.category ?? 2) as CprFormState['categoryValue'],
@@ -179,7 +191,7 @@ const loadCprFormState = (
   requestorEmail: request.requestorEmail ?? '',
   companyId: request.companyId ?? '',
   companyName: request.companyName ?? '',
-  projectId: cpr.projectId ?? '',
+  projectId: cpr.projectId ?? request.projectId ?? '',
   projectName: request.projectName ?? cpr.name ?? '',
   projectCode: request.projectCode ?? cpr.projectCode ?? '',
 

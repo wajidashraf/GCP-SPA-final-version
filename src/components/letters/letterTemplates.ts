@@ -32,6 +32,8 @@ export interface LetterContext {
   matterLabel: string;
   /** Short SoA label, e.g. "PBL". */
   soaLabel: string | null;
+  /** Latest Completed engagement number; endorsement supplies this when found. */
+  reviewNumber?: string | null;
 }
 
 export interface LetterVariable {
@@ -94,7 +96,7 @@ export const formatLetterDate = (iso: string | null | undefined): string => {
 /** Shared "cc." recipients — edit names/roles here. */
 export const CC_LIST = [
   'GEXCO',
-  'GCPC Chairman- Dato Rosli b Husin',
+  'GCPC Chairman- Siti Yuhaniz bt Bustari',
   'GCPC Member- Mohammad Nadzif b Bustari',
   'GCPC Member- Hafitz b Khalid',
   'GCPC Member- Ivy Lau',
@@ -133,6 +135,7 @@ const vReviewNo: LetterVariable = {
   key: 'reviewNo',
   label: 'Review No.',
   placeholder: 'e.g. R01',
+  auto: (c) => c.reviewNumber ?? null,
 };
 const vDateOfReview: LetterVariable = {
   key: 'dateOfReview',

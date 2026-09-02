@@ -200,6 +200,16 @@ test('uses standard edit behavior for New/R and resubmission behavior for RS', (
   });
 });
 
+test('uses dedicated completion copy for missing-child repair', () => {
+  assert.deepEqual(getEditSubmissionCopy('repair'), {
+    submitLabel: 'Complete Draft',
+    successTitle: 'Draft completed',
+    successMessage:
+      'The missing request details have been created. This request is now ready for verification.',
+    toastMessage: 'Draft completed successfully.',
+  });
+});
+
 test('adds RS outcome and clears the marker only when verification selects RS', () => {
   assert.deepEqual(getRsVerificationFields(16), {
     gcp_outcome: 4,

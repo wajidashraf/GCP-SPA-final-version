@@ -23,12 +23,15 @@ import {
 } from '../powerPagesApi';
 import type { ODataListResponse, ODataQuery } from '../powerPagesApi';
 import {
+  buildLatestCompletedEngagementQuery,
   DEFAULT_ENGAGEMENT_SELECT,
   mapGcpEngagement,
+  readLatestEngagementNumber,
 } from '../../types/engagement';
 import type {
   CreateGcpEngagementInput,
   Engagement,
+  EngagementNumberListResponse,
   GcpEngagementEntity,
 } from '../../types/engagement';
 import type {
@@ -61,6 +64,17 @@ const listEngagementsByRequest = async (
     }
   );
   return (res?.value ?? []).map(mapGcpEngagement);
+};
+
+const getLatestCompletedEngagementNumberByRequest = async (
+  requestId: string,
+): Promise<string | null> => {
+  const query = buildLatestCompletedEngagementQuery(requestId);
+  const response = await powerPagesFetch<EngagementNumberListResponse>(
+    `${BASE_URL}${buildODataQuery(query)}`,
+    { method: 'GET' },
+  );
+  return readLatestEngagementNumber(response);
 };
 
 // ── List all engagements (admin) ─────────────────────────────────────────────
@@ -175,6 +189,7 @@ const updateEngagement = async (
 };
 
 export {
+  getLatestCompletedEngagementNumberByRequest,
   listEngagementsByRequest,
   listEngagements,
   createEngagement,

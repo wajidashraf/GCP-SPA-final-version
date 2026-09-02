@@ -26,6 +26,7 @@ import type {
 } from '../../types/jvpRequest';
 import type { SoaCodeValue } from '../../data/soaChoices';
 import type { JvpFormState } from './types';
+import { resolveParentWrite, updateRepairParent } from '../repairRequest';
 
 type SubmitResult = {
   requestId: string;
@@ -49,6 +50,7 @@ type SubmitJvpOptions = {
   requestorContactId?: string | null;
   /** Uploaded document links to persist on the request's gcp_documentsurl. */
   documents?: DocumentLink[];
+  existingRequestId?: string | null;
 };
 
 const submitJvpRequest = async (
@@ -72,13 +74,16 @@ const submitJvpRequest = async (
     gcp_documentsurl: serializeDocuments(options.documents ?? []),
   };
 
-  const created = await createRequest(parentInput, {
-    lookups: {
-      requestorContactId: options.requestorContactId || null,
-      companyAccountId,
-      projectId,
-    },
-  });
+  const parentWrite = resolveParentWrite(options.existingRequestId);
+  const created = parentWrite.mode === 'reuse'
+    ? { id: parentWrite.requestId }
+    : await createRequest(parentInput, {
+        lookups: {
+          requestorContactId: options.requestorContactId || null,
+          companyAccountId,
+          projectId,
+        },
+      });
 
   // Step 2 — gcp_jvmrequest bound to the parent. Repeatable / dynamic-table
   // inputs are already JSON strings in form state, so they persist as-is.
@@ -122,6 +127,13 @@ const submitJvpRequest = async (
     },
   });
 
+  if (parentWrite.mode === 'reuse') {
+    await updateRepairParent(created.id, data, {
+      documents: options.documents ?? [],
+      projectId,
+    });
+  }
+
   return {
     requestId: created.id,
     jvpRequestId: jvpCreated.id,
@@ -139,7 +151,7 @@ const submitJvpRequest = async (
 /** Build JVP form state from the loaded parent + child records (edit prefill). */
 const loadJvpFormState = (
   request: GcpRequest,
-  jvp: GcpJvpRequest
+  jvp: GcpJvpRequest = {} as GcpJvpRequest
 ): JvpFormState => ({
   matterValue: request.matter as JvpFormState['matterValue'],
   categoryValue: (request.category ?? 2) as JvpFormState['categoryValue'],
@@ -149,7 +161,7 @@ const loadJvpFormState = (
   requestorEmail: request.requestorEmail ?? '',
   companyId: request.companyId ?? '',
   companyName: request.companyName ?? '',
-  projectId: jvp.projectId ?? '',
+  projectId: jvp.projectId ?? request.projectId ?? '',
   projectName: request.projectName ?? '',
   projectCode: request.projectCode ?? '',
 

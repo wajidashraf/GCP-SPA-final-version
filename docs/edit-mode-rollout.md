@@ -16,6 +16,22 @@ re-review side effects. RS edits enforce outcome RS, then stamp
 `request_resubmitted` notification. A submitted review clears that marker.
 Edit is hidden at every status other than New, R, and RS.
 
+## Incomplete-parent repair mode (2026-09-01)
+
+Status New parents whose required associated records are verifiably missing are
+presented as **Draft** on the Requests list. Their rows do not open Request
+Detail and expose only **Edit**. The edit route uses the same matter form with
+`editPurpose="repair"`; submitting reuses the existing parent and creates the
+missing child data rather than creating another parent. It then updates only
+editable parent/project/document fields and preserves identity and workflow
+columns. A submit-time integrity check blocks duplicate creation if another
+session completed the request first.
+
+Integrity checks are grouped by child kind and parent IDs are queried in
+batches. Query failures remain `unknown` and fail closed. PBL has two repair
+paths: create the direct PBL child plus its bidders when the child is absent, or
+use the bidder diff path when the direct child exists but has zero bidders.
+
 ## Coverage — 13 matter codes (14 matter values)
 
 | Code | Matter | Edit form | Phase |
@@ -110,5 +126,7 @@ select from the parent. Additive only; the column was already selected.
 
 ## Validation
 
-`tsc --noEmit` clean and `npm run build` green after each type. Deploy per
-CLAUDE.md §7 (dev first, then prod on the user's call); commit + push after.
+`tsc --noEmit` and the request integrity/repair tests are the minimum local
+checks. Run `npm run build` before deployment. Deploy per the repository upload
+checklist (developer environment first, then production only on the user's
+explicit confirmation).

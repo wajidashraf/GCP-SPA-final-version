@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   Building2,
@@ -49,6 +49,7 @@ import {
   canEditRequest,
   canEditReviewerComment,
 } from "../shared/requestEditPolicy";
+import { canSubmitEndorsement } from "../shared/endorsementSubmission";
 import {
   getVerifierInfo,
   isRequestResubmittedForReview,
@@ -84,6 +85,7 @@ import { hasEditForm } from "../forms/editRegistry";
 import { AddSuggestionModal } from "../components/suggestions/AddSuggestionModal";
 import { SuggestionsViewModal } from "../components/suggestions/SuggestionsViewModal";
 import { SignatureSection } from "../components/signatures";
+import { getRequestsReturnPath } from "../shared/requestListState";
 
 const statusClass: Record<string, string> = {
   New: "status-new",
@@ -265,6 +267,8 @@ const childDetailNote = (child: ChildData | null): ReactNode => {
 export default function RequestDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const requestsReturnPath = getRequestsReturnPath(location.state);
   const { request, child, isLoading, error, childError, refetch } =
     useRequestDetail(id);
   const { user, isLoading: authLoading } = useAuth();
@@ -311,9 +315,10 @@ export default function RequestDetail() {
   const isDraftReview = request?.status === 4;
   const isPendingReview = request?.status === 5;
   const isCompleteReview = request?.status === 6;
-  // 8 = legacy Complete Acceptance; 9 = Pending Ack (GCP); 11 = Pending Endorse (GCPC)
-  const isCompleteAcceptance =
-    request?.status === 8 || request?.status === 9 || request?.status === 11;
+  // GCP acknowledgement accepts Pending Ack (9) plus legacy Complete
+  // Acceptance (8). GCPC endorsement uses canSubmitEndorsement below.
+  const isAcknowledgementReady =
+    request?.status === 8 || request?.status === 9;
   const canAddSuggestion = isDraftReview && hasRole("Working GCPC");
 
   const loadSuggestions = useCallback(async () => {
@@ -573,7 +578,7 @@ export default function RequestDetail() {
           <button
             type="button"
             className="rd-back-link"
-            onClick={() => navigate(-1)}
+            onClick={() => navigate(requestsReturnPath)}
           >
             <ArrowLeft size={16} aria-hidden="true" />
             Back to requests
@@ -1130,8 +1135,16 @@ export default function RequestDetail() {
               </div>
             ) : null}
 
-            {/* Complete Acceptance (8) → reviewer finalises the letter. */}
-            {isCompleteAcceptance && (isAdmin() || hasRole("Reviewer")) ? (
+            {/* GCP acknowledgement is Reviewer/Admin; GCPC endorsement is
+                Endorser/Admin. Both retain legacy status 8 support. */}
+            {(meta.channel === "gcp" &&
+              isAcknowledgementReady &&
+              (isAdmin() || hasRole("Reviewer"))) ||
+            (meta.channel === "gcpc" &&
+              canSubmitEndorsement(request.status, {
+                isAdmin: isAdmin(),
+                isEndorser: hasRole("Endorser"),
+              })) ? (
               <div className="rd-actions">
                 <button
                   type="button"

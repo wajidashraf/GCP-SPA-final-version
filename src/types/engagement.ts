@@ -14,6 +14,7 @@ import type {
   EngagementStatusValue,
   EngagementTypeValue,
 } from '../data/engagementChoices';
+import { ENGAGEMENT_STATUS_COMPLETED } from '../data/engagementChoices.ts';
 
 // ── Raw OData entity (as it comes back from /_api/gcp_engagementses) ──────────
 type GcpEngagementEntity = {
@@ -108,5 +109,40 @@ const DEFAULT_ENGAGEMENT_SELECT: readonly string[] = [
   'createdon',
 ];
 
-export { mapGcpEngagement, DEFAULT_ENGAGEMENT_SELECT };
-export type { Engagement, GcpEngagementEntity, CreateGcpEngagementInput };
+type LatestCompletedEngagementQuery = {
+  select: readonly string[];
+  filter: string;
+  orderby: string;
+  top: number;
+};
+
+type EngagementNumberListResponse = {
+  value?: Array<Pick<GcpEngagementEntity, 'gcp_engagementnumber'>>;
+};
+
+const buildLatestCompletedEngagementQuery = (
+  requestId: string,
+): LatestCompletedEngagementQuery => ({
+  select: ['gcp_engagementnumber'],
+  filter: `_gcp_request_value eq ${requestId.replace(/'/g, "''")} and gcp_engagementstatus eq ${ENGAGEMENT_STATUS_COMPLETED}`,
+  orderby: 'gcp_engagementdate desc,createdon desc',
+  top: 1,
+});
+
+const readLatestEngagementNumber = (
+  response: EngagementNumberListResponse,
+): string | null => response.value?.[0]?.gcp_engagementnumber?.trim() || null;
+
+export {
+  buildLatestCompletedEngagementQuery,
+  mapGcpEngagement,
+  readLatestEngagementNumber,
+  DEFAULT_ENGAGEMENT_SELECT,
+};
+export type {
+  Engagement,
+  EngagementNumberListResponse,
+  GcpEngagementEntity,
+  CreateGcpEngagementInput,
+  LatestCompletedEngagementQuery,
+};

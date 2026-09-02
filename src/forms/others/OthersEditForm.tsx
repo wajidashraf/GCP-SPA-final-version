@@ -5,10 +5,11 @@ import { parseDocuments } from '../../shared/documents';
 import type { DocumentLink } from '../../shared/documents';
 import type { SubmitResult } from '../multistep';
 import OthersForm from './OthersForm';
-import { loadOthersFormState, updateOtherRequestFromState } from './api';
+import { loadOthersFormState, submitOtherRequest, updateOtherRequestFromState } from './api';
 import type { OthersFormState } from './types';
 import type { EditFormProps } from '../editRegistry';
 import { getEditSubmissionCopy } from '../../shared/requestEditPolicy';
+import { assertStillMissing } from '../repairRequest';
 
 /**
  * Edit-mode adapter for "Others" requests (shared by GCPC matter 9 and GCP
@@ -33,7 +34,7 @@ const OthersEditForm = ({
   const other = child.type === 'other' ? (child.records[0] ?? null) : null;
 
   const initialState = useMemo(
-    () => (other ? loadOthersFormState(request, other) : null),
+    () => loadOthersFormState(request, other ?? undefined),
     [request, other]
   );
 
@@ -43,7 +44,7 @@ const OthersEditForm = ({
     [request.documentsUrl]
   );
 
-  if (!matter || !other || !initialState) {
+  if (!matter || !initialState || (!other && editPurpose !== 'repair')) {
     return (
       <InlineMessage tone="warning" title="Can’t edit this request">
         The detail record for this request couldn’t be loaded, so it can’t be
@@ -59,11 +60,20 @@ const OthersEditForm = ({
     state: OthersFormState,
     documents: DocumentLink[]
   ): Promise<SubmitResult> => {
-    await updateOtherRequestFromState(state, {
-      requestId: request.id,
-      otherRecordId: other.id,
-      documents,
-    });
+    if (editPurpose === 'repair') {
+      await assertStillMissing(request);
+      await submitOtherRequest(state, {
+        existingRequestId: request.id,
+        documents,
+      });
+    } else {
+      if (!other) throw new Error('The Others detail record is missing.');
+      await updateOtherRequestFromState(state, {
+        requestId: request.id,
+        otherRecordId: other.id,
+        documents,
+      });
+    }
     if (editPurpose === 'resubmission') {
       await onResubmitted();
     }

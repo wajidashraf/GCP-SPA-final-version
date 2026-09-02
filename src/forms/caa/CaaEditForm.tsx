@@ -5,10 +5,11 @@ import { parseDocuments } from '../../shared/documents';
 import type { DocumentLink } from '../../shared/documents';
 import type { SubmitResult } from '../multistep';
 import CaaForm from './CaaForm';
-import { loadCaaFormState, updateCaaRequestFromState } from './api';
+import { loadCaaFormState, submitCaaRequest, updateCaaRequestFromState } from './api';
 import type { CaaFormState } from './types';
 import type { EditFormProps } from '../editRegistry';
 import { getEditSubmissionCopy } from '../../shared/requestEditPolicy';
+import { assertStillMissing } from '../repairRequest';
 
 /**
  * Edit-mode adapter for CAA requests. Resolves the matter, hydrates form state
@@ -33,7 +34,7 @@ const CaaEditForm = ({
   const caa = child.type === 'caa' ? (child.records[0] ?? null) : null;
 
   const initialState = useMemo(
-    () => (caa ? loadCaaFormState(request, caa) : null),
+    () => loadCaaFormState(request, caa ?? undefined),
     [request, caa]
   );
 
@@ -43,7 +44,7 @@ const CaaEditForm = ({
     [request.documentsUrl]
   );
 
-  if (!matter || !caa || !initialState) {
+  if (!matter || !initialState || (!caa && editPurpose !== 'repair')) {
     return (
       <InlineMessage tone="warning" title="Can’t edit this request">
         The CAA detail record for this request couldn’t be loaded, so it can’t
@@ -59,11 +60,20 @@ const CaaEditForm = ({
     state: CaaFormState,
     documents: DocumentLink[]
   ): Promise<SubmitResult> => {
-    await updateCaaRequestFromState(state, {
-      requestId: request.id,
-      caaRecordId: caa.id,
-      documents,
-    });
+    if (editPurpose === 'repair') {
+      await assertStillMissing(request);
+      await submitCaaRequest(state, {
+        existingRequestId: request.id,
+        documents,
+      });
+    } else {
+      if (!caa) throw new Error('The CAA detail record is missing.');
+      await updateCaaRequestFromState(state, {
+        requestId: request.id,
+        caaRecordId: caa.id,
+        documents,
+      });
+    }
     if (editPurpose === 'resubmission') {
       await onResubmitted();
     }

@@ -4,6 +4,7 @@
 // name, etc.) without us hardcoding the choice maps on the server.
 
 import { dvGet } from './dataverseClient.js';
+import { resolveEmailRequestNumber } from '../email/requestReference.js';
 
 // Annotation name as it appears in the `odata.include-annotations` Prefer value
 // — NO leading `@`. The `@` only prefixes the annotation when it suffixes a
@@ -79,7 +80,7 @@ export const getRequestForNotification = async (
   const data: Record<string, string> = {
     requestName: s('gcp_requesttitle'),
     requestType: formatted('gcp_mattertype') || formatted('gcp_type'),
-    requestNumber: s('gcp_reviewno') || recordId,
+    requestNumber: resolveEmailRequestNumber(r.gcp_reviewno),
     requestCategory: formatted('gcp_category'),
     requestStatus: formatted('gcp_requeststatus'),
     requestorName: formatted('_gcp_requestorname_value'),

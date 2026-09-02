@@ -5,10 +5,11 @@ import { parseDocuments } from '../../shared/documents';
 import type { DocumentLink } from '../../shared/documents';
 import type { SubmitResult } from '../multistep';
 import StspForm from './StspForm';
-import { loadStspFormState, updateStspRequestFromState } from './api';
+import { loadStspFormState, submitStspRequest, updateStspRequestFromState } from './api';
 import type { StspFormState } from './types';
 import type { EditFormProps } from '../editRegistry';
 import { getEditSubmissionCopy } from '../../shared/requestEditPolicy';
+import { assertStillMissing } from '../repairRequest';
 
 /**
  * Edit-mode adapter for ST/SP requests. Resolves the matter, hydrates form
@@ -33,7 +34,7 @@ const StspEditForm = ({
   const stsp = child.type === 'stsp' ? (child.records[0] ?? null) : null;
 
   const initialState = useMemo(
-    () => (stsp ? loadStspFormState(request, stsp) : null),
+    () => loadStspFormState(request, stsp ?? undefined),
     [request, stsp]
   );
 
@@ -43,7 +44,7 @@ const StspEditForm = ({
     [request.documentsUrl]
   );
 
-  if (!matter || !stsp || !initialState) {
+  if (!matter || !initialState || (!stsp && editPurpose !== 'repair')) {
     return (
       <InlineMessage tone="warning" title="Can’t edit this request">
         The ST/SP detail record for this request couldn’t be loaded, so it
@@ -59,11 +60,20 @@ const StspEditForm = ({
     state: StspFormState,
     documents: DocumentLink[]
   ): Promise<SubmitResult> => {
-    await updateStspRequestFromState(state, {
-      requestId: request.id,
-      stspRecordId: stsp.id,
-      documents,
-    });
+    if (editPurpose === 'repair') {
+      await assertStillMissing(request);
+      await submitStspRequest(state, {
+        existingRequestId: request.id,
+        documents,
+      });
+    } else {
+      if (!stsp) throw new Error('The ST/SP detail record is missing.');
+      await updateStspRequestFromState(state, {
+        requestId: request.id,
+        stspRecordId: stsp.id,
+        documents,
+      });
+    }
     if (editPurpose === 'resubmission') {
       await onResubmitted();
     }

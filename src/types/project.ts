@@ -1,6 +1,6 @@
 // src/types/project.ts
-// TypeScript mirror of the gcp_project Dataverse table.
-// Logical name: gcp_project | Entity set: gcp_projectses | PK: gcp_projectsid
+// TypeScript mirror of the gcp_projects Dataverse table.
+// Logical name: gcp_projects | Entity set: gcp_projectses | PK: gcp_projectsid
 //
 // Used to create a stub project record at RTP submission time so the request
 // can reference it via the `gcp_Project` lookup.
@@ -22,6 +22,7 @@ type GcpProject = {
   name: string | null;
   code: string | null;
   status: number | null;
+  etag: string | null;
   companyId: string | null;
   companyName: string | null;
   createdOn?: string;
@@ -32,6 +33,7 @@ const PROJECT_STATUS = {
   Inactive: 0,
   Active: 1,
   Completed: 2,
+  Dead: 3,
 } as const;
 
 // Lookups MUST be written via `<NavProperty>@odata.bind`. Navigation property:
@@ -47,6 +49,7 @@ const mapGcpProject = (e: GcpProjectEntity): GcpProject => ({
   name: e.gcp_projectname ?? null,
   code: e.gcp_projectcode ?? null,
   status: e.gcp_projectstatus ?? null,
+  etag: e['@odata.etag'] ?? null,
   companyId: e['_gcp_company_value'] ?? null,
   companyName:
     e['_gcp_company_value@OData.Community.Display.V1.FormattedValue'] ?? null,

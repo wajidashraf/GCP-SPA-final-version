@@ -24,6 +24,7 @@ import type {
 } from '../../types/otherRequest';
 import type { SoaCodeValue } from '../../data/soaChoices';
 import type { OthersFormState } from './types';
+import { resolveParentWrite, updateRepairParent } from '../repairRequest';
 
 type SubmitResult = {
   requestId: string;
@@ -49,6 +50,7 @@ type SubmitOthersOptions = {
   requestorContactId?: string | null;
   /** Uploaded document links to persist on the request's gcp_documentsurl. */
   documents?: DocumentLink[];
+  existingRequestId?: string | null;
 };
 
 const submitOtherRequest = async (
@@ -72,13 +74,16 @@ const submitOtherRequest = async (
     gcp_documentsurl: serializeDocuments(options.documents ?? []),
   };
 
-  const created = await createRequest(parentInput, {
-    lookups: {
-      requestorContactId: options.requestorContactId || null,
-      companyAccountId,
-      projectId,
-    },
-  });
+  const parentWrite = resolveParentWrite(options.existingRequestId);
+  const created = parentWrite.mode === 'reuse'
+    ? { id: parentWrite.requestId }
+    : await createRequest(parentInput, {
+        lookups: {
+          requestorContactId: options.requestorContactId || null,
+          companyAccountId,
+          projectId,
+        },
+      });
 
   // Step 3 — gcp_otherrequests bound to the parent via gcp_Requestlookup.
   // (This table has no gcp_soacode column — SOA code lives on gcp_request.)
@@ -96,6 +101,13 @@ const submitOtherRequest = async (
       companyAccountId,
     },
   });
+
+  if (parentWrite.mode === 'reuse') {
+    await updateRepairParent(created.id, data, {
+      documents: options.documents ?? [],
+      projectId,
+    });
+  }
 
   return {
     requestId: created.id,
@@ -115,7 +127,7 @@ const submitOtherRequest = async (
 /** Build Others form state from the loaded parent + child records (edit prefill). */
 const loadOthersFormState = (
   request: GcpRequest,
-  other: GcpOtherRequest
+  other: GcpOtherRequest = {} as GcpOtherRequest
 ): OthersFormState => ({
   matterValue: request.matter as OthersFormState['matterValue'],
   categoryValue: (request.category ?? 2) as OthersFormState['categoryValue'],
@@ -125,7 +137,7 @@ const loadOthersFormState = (
   requestorEmail: request.requestorEmail ?? '',
   companyId: request.companyId ?? '',
   companyName: request.companyName ?? '',
-  projectId: other.projectId ?? '',
+  projectId: other.projectId ?? request.projectId ?? '',
   projectName: request.projectName ?? other.name ?? '',
   projectCode: request.projectCode ?? other.projectCode ?? '',
   descriptionOfMatters: other.descriptionOfMatters ?? '',
