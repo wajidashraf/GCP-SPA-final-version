@@ -20,24 +20,24 @@ import {
   pageSizeHeader,
   powerPagesFetch,
   powerPagesFetchResponse,
-} from '../powerPagesApi';
-import type { ODataListResponse, ODataQuery } from '../powerPagesApi';
+} from '../powerPagesApi.ts';
+import type { ODataListResponse, ODataQuery } from '../powerPagesApi.ts';
 import {
   buildLatestCompletedEngagementQuery,
   DEFAULT_ENGAGEMENT_SELECT,
   mapGcpEngagement,
   readLatestEngagementNumber,
-} from '../../types/engagement';
+} from '../../types/engagement.ts';
 import type {
   CreateGcpEngagementInput,
   Engagement,
   EngagementNumberListResponse,
   GcpEngagementEntity,
-} from '../../types/engagement';
+} from '../../types/engagement.ts';
 import type {
   EngagementStatusValue,
   EngagementTypeValue,
-} from '../../data/engagementChoices';
+} from '../../data/engagementChoices.ts';
 
 const ENTITY_SET = 'gcp_engagementses';
 const BASE_URL = `/_api/${ENTITY_SET}`;
@@ -91,6 +91,43 @@ const listEngagements = async (): Promise<Engagement[]> => {
     }
   );
   return (res?.value ?? []).map(mapGcpEngagement);
+};
+
+const buildEngagementsBySlotQuery = (slotId: string): string => {
+  if (!isGuid(slotId)) throw new Error('A valid slot ID is required.');
+  return buildODataQuery({
+    select: DEFAULT_ENGAGEMENT_SELECT,
+    filter: `_gcp_slot_value eq ${slotId}`,
+    orderby: 'createdon asc',
+  });
+};
+
+type EngagementListPageIo = {
+  getPage: (
+    url: string,
+  ) => Promise<ODataListResponse<GcpEngagementEntity>>;
+};
+
+const defaultEngagementListPageIo: EngagementListPageIo = {
+  getPage: (url) =>
+    powerPagesFetch<ODataListResponse<GcpEngagementEntity>>(url, {
+      method: 'GET',
+      headers: combinePrefer(pageSizeHeader(200), includeFormattedValues()),
+    }),
+};
+
+const listEngagementsBySlot = async (
+  slotId: string,
+  io: EngagementListPageIo = defaultEngagementListPageIo,
+): Promise<Engagement[]> => {
+  let url = `${BASE_URL}${buildEngagementsBySlotQuery(slotId)}`;
+  const rows: Engagement[] = [];
+  while (url) {
+    const response = await io.getPage(url);
+    rows.push(...(response?.value ?? []).map(mapGcpEngagement));
+    url = response?.['@odata.nextLink'] ?? '';
+  }
+  return rows;
 };
 
 // ── Create ───────────────────────────────────────────────────────────────────
@@ -188,13 +225,43 @@ const updateEngagement = async (
   });
 };
 
+const clearEngagementSlot = async (id: string): Promise<void> => {
+  if (!isGuid(id)) throw new Error('A valid engagement ID is required.');
+  await powerPagesFetch<void>(`${BASE_URL}(${id})`, {
+    method: 'PATCH',
+    json: { gcp_Slot: null },
+    headers: { 'If-Match': '*' },
+  });
+};
+
+const restoreEngagementSlot = async (
+  id: string,
+  slotId: string,
+): Promise<void> => {
+  if (!isGuid(id)) throw new Error('A valid engagement ID is required.');
+  if (!isGuid(slotId)) throw new Error('A valid slot ID is required.');
+  await powerPagesFetch<void>(`${BASE_URL}(${id})`, {
+    method: 'PATCH',
+    json: { 'gcp_Slot@odata.bind': odataBind('gcp_slots', slotId) },
+    headers: { 'If-Match': '*' },
+  });
+};
+
 export {
   getLatestCompletedEngagementNumberByRequest,
   listEngagementsByRequest,
   listEngagements,
+  listEngagementsBySlot,
+  buildEngagementsBySlotQuery,
   createEngagement,
   updateEngagementStatus,
   updateEngagement,
+  clearEngagementSlot,
+  restoreEngagementSlot,
   ENTITY_SET as ENGAGEMENT_ENTITY_SET,
 };
-export type { EngagementBinds, UpdateGcpEngagementInput };
+export type {
+  EngagementBinds,
+  EngagementListPageIo,
+  UpdateGcpEngagementInput,
+};

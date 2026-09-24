@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- f48675b4-13bf-459d-8a1d-f9a42f468dba
+append: false
+appendto: false
+create: false
+delete: true
+entitylogicalname: gcp_pccarequest
+entityname: PCCA Request - Admin Delete
+id: 1ac78aba-057c-46c0-956e-d569f7f91949
+read: true
+scope: 756150000
+write: false

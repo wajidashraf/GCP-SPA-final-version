@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- f48675b4-13bf-459d-8a1d-f9a42f468dba
+append: false
+appendto: false
+create: false
+delete: true
+entitylogicalname: gcp_otherrequests
+entityname: Other Request - Admin Delete
+id: 203c2657-1e99-4055-a70c-7da3b85770bb
+read: true
+scope: 756150000
+write: false

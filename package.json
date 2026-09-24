@@ -11,7 +11,9 @@
     "test:hoc-acceptance": "node --test tests/hocAcceptanceConclusions.test.ts tests/acceptReviewPayload.test.ts",
     "test:project-webapi-settings": "node --test tests/projectWebApiSettings.test.ts",
     "test:request-list": "node --test tests/requestListState.test.ts",
-    "test:review-comments": "node --test tests/reviewComments.test.ts"
+    "test:review-comments": "node --test tests/reviewComments.test.ts",
+    "test:signature-reuse": "node --test tests/signatureReuse.test.ts",
+    "test:slot-deletion": "node --test tests/slotDeletion.test.ts"
   },
   "dependencies": {
     "@azure/msal-browser": "^3.30.0",

@@ -327,6 +327,84 @@ fields, and exposes a project-only retry. Notification and navigation occur
 only after activation succeeds or is safely skipped. See
 `docs/superpowers/specs/2026-09-01-rtp-fr-project-activation-design.md`.
 
+### D-012: Administrator request deletion uses Power Pages Web API
+
+Decision date: 2026-09-06.
+
+The Requests list exposes a delete action only to the `Administrators` web
+role. The browser uses the same-origin Power Pages Web API through
+`powerPagesApi.ts`; the UI role check is only presentation, while table
+permissions provide the security boundary. Administrators have Global Read and
+Delete permission for `gcp_request`, every supported matter-specific child
+table, and PBL bidders. Requestor permissions remain unchanged. The legacy
+Authenticated Users permission for PBL bidders retains its existing
+create/read/write/append access but no longer grants delete access.
+
+Deletion is intentionally non-transactional and ordered PBL bidder rows first,
+then matter-specific child rows, then the parent request. A `404` is treated as
+an idempotent success so an administrator can safely retry. Other failures stop
+the sequence before the parent is deleted and surface a truthful partial-failure
+message. The operation does not delete SharePoint files, engagements,
+suggestions, signatures, audit rows, or other workflow data.
+
+### D-013: New request uploads share a 100 MiB quota
+
+Decision date: 2026-09-06.
+
+All newly selected files in one request share an exact 100 MiB
+(`104857600`-byte) frontend quota, including matter forms with multiple upload
+fields. Each form owns the combined total and passes it to every `FileUpload`,
+so replacement releases the old file's bytes and an over-limit selection is
+rejected before any upload starts. Existing persisted SharePoint documents are
+excluded in edit mode. Final-step validation and a submit-handler guard both
+block persistence while uploads are pending, failed, or missing their
+SharePoint URL.
+
+The upload Function defaults `MAX_FILE_BYTES` to `104857600`; deployments also
+need `FUNCTIONS_REQUEST_BODY_SIZE_LIMIT=125829120` (120 MiB) for multipart
+overhead. The existing Microsoft Graph upload-session implementation and 5 MiB
+chunks are unchanged. Because the Function materializes multipart form data,
+an `ArrayBuffer`, and a Node `Buffer`, verify hosting-plan memory and smoke-test
+near-limit files in GCP-Developer before production rollout.
+
+### D-014: Signature images are reusable, but signing remains per request
+
+Decision date: 2026-09-08.
+
+For Working GCPC signatures, an unsigned Pending Review request may preview the
+signed-in configured member's most recently saved signature image from another
+request. Review Acceptance applies the same behavior to the signed-in HOC or
+administrator, with HOC reuse requiring a matching Dataverse contact ID rather
+than the shared `HOC` marker alone. The preview is explicitly unconfirmed and
+does not count for the current request until the signer confirms it. Confirmation
+creates a new `gcp_signature` row bound to that request with its own Dataverse
+creation timestamp while reusing the existing SharePoint URL.
+
+The member may instead open the existing signature modal and draw or upload a
+replacement. That creates the current request's normal signature row and the
+newest image becomes the preview offered on later requests. A current-request
+signature is always authoritative over a reusable preview. This behavior uses
+the existing signature request lookup, signatory contact/email identity,
+signature URL, and creation timestamp; it does not require a Dataverse schema
+change.
+
+Confirmation is idempotent for ordinary retries in one client session through
+a current-request read before create. The existing table has no verified unique
+key for request plus signatory, so simultaneous confirmations from separate
+tabs are not database-atomic and may create duplicate audit rows. The UI counts
+the signer once; a hard uniqueness guarantee would require a confirmed
+Dataverse alternate key or an atomic server-side endpoint.
+
+### D-015: Deleting a booked slot preserves its engagements
+
+Decision date: 2026-09-24.
+
+Administrators may delete available and booked slots from Slot Management. A
+booked slot's linked engagements are preserved for history: the client clears
+their `gcp_Slot` lookup before deleting the slot and attempts to restore cleared
+links if the delete fails. Direct slot delete permission is granted only to the
+Administrators web role.
+
 ## Code standards
 
 - Strict TypeScript is enabled in both the SPA and Function projects.

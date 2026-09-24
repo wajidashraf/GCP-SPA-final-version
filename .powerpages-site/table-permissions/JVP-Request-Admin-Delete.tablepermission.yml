@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- f48675b4-13bf-459d-8a1d-f9a42f468dba
+append: false
+appendto: false
+create: false
+delete: true
+entitylogicalname: gcp_jvmrequest
+entityname: JVP Request - Admin Delete
+id: 3987488f-b91b-4bd3-912d-699b2d539b67
+read: true
+scope: 756150000
+write: false

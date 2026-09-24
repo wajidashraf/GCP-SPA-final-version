@@ -27,7 +27,8 @@
     "SHAREPOINT_ROOT_FOLDER": "GCP-Uploads",
 
     "_comment_limits": "── Upload limits ──",
-    "MAX_FILE_BYTES": "10485760",
+    "MAX_FILE_BYTES": "104857600",
+    "FUNCTIONS_REQUEST_BODY_SIZE_LIMIT": "125829120",
 
     "_comment_roles": "── Web-role management (Dataverse Web API, app-only) ──",
     "_comment_roles2": "The app (GRAPH_CLIENT_ID, or DATAVERSE_CLIENT_ID below) MUST be added as an Application User in the environment with a security role that can read/write contact + the web-role table + their N:N relationship.",

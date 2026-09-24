@@ -1783,18 +1783,23 @@ tr:last-child td {
 
 .rq-filters {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
-  gap: 0.75rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem 1rem;
   margin-top: 1rem;
   padding-top: 1rem;
   border-top: 1px solid rgba(201, 168, 76, 0.25);
   align-items: end;
 }
 
-/* Narrow screens: keep the fields equal but let them wrap. */
 @media (max-width: 860px) {
   .rq-filters {
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .rq-filters {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -1826,27 +1831,29 @@ tr:last-child td {
   font-size: 0.875rem;
 }
 
-.rq-clear-wrap {
+.rq-filter-toolbar {
   display: flex;
-  align-items: flex-end;
-  /* Bottom-align the icon button with the filter inputs (which sit below a
-     label). The header's bottom padding handles spacing to the table. */
-  margin-bottom: 0;
+  justify-content: flex-end;
+  margin-top: 0.75rem;
 }
 
 .rq-clear-btn {
   height: 38px;
-  width: 38px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0;
+  gap: 0.4rem;
+  padding: 0 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
   color: var(--accent-2);
   background: transparent;
   border: 1px solid var(--accent);
   border-radius: 8px;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: color 0.15s ease, background 0.15s ease,
+    border-color 0.15s ease, transform 0.1s ease;
+  touch-action: manipulation;
 }
 
 .rq-clear-btn:hover {
@@ -1856,6 +1863,36 @@ tr:last-child td {
 
 .rq-clear-btn:active {
   transform: scale(0.97);
+}
+
+.rq-clear-btn:focus-visible,
+.rq-open-btn:focus-visible {
+  outline: 3px solid rgba(201, 168, 76, 0.35);
+  outline-offset: 2px;
+}
+
+.rq-date-filter-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.rq-date-range {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.rq-date-error {
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: #fecaca;
 }
 
 /* ---------- Table ---------- */
@@ -1922,12 +1959,12 @@ tr:last-child td {
 /* Column widths */
 .col-req        { width: 11%; }
 .col-submission { width: 10%; }
-.col-matter     { width: 19%; }
-.col-requester  { width: 17%; }
-.col-project    { width: 12%; }
-.col-company    { width: 13%; }
+.col-matter     { width: 17%; }
+.col-requester  { width: 16%; }
+.col-project    { width: 11%; }
+.col-company    { width: 12%; }
 .col-status     { width: 10%; }
-.col-action     { width: 8%;  }
+.col-action     { width: 13%; }
 
 /* ---------- Cell typography ---------- */
 
@@ -2052,7 +2089,14 @@ tr:last-child td {
 .status-completed                 { background: #ecfdf5; color: #065f46; }
 .status-completed .rq-status-dot  { background: #10b981; }
 
-/* ---------- Open button ---------- */
+/* ---------- Row actions ---------- */
+
+.rq-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
 
 .rq-open-btn {
   display: inline-flex;
@@ -2084,6 +2128,68 @@ tr:last-child td {
 .rq-open-btn:active {
   transform: translateY(1px) scale(0.99);
   box-shadow: 0 1px 2px rgba(245, 158, 11, 0.25);
+}
+
+.rq-delete-btn {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: #b91c1c;
+  background: #fff;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.15s ease, border-color 0.15s ease,
+    transform 0.1s ease;
+}
+
+.rq-delete-btn:hover:not(:disabled) {
+  color: #991b1b;
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+
+.rq-delete-btn:active:not(:disabled) {
+  transform: translateY(1px) scale(0.98);
+}
+
+.rq-delete-btn:focus-visible {
+  outline: 3px solid rgba(185, 28, 28, 0.3);
+  outline-offset: 2px;
+}
+
+.rq-delete-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.rq-delete-modal-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: #991b1b;
+}
+
+.rq-delete-modal {
+  overscroll-behavior: contain;
+}
+
+.rq-delete-scope {
+  margin-bottom: 0;
+  padding: 0.75rem;
+  color: #7f1d1d;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+}
+
+.rq-delete-scope + .ui-msg {
+  margin-top: 1rem;
 }
 
 /* ---------- Empty state ---------- */
@@ -2832,6 +2938,37 @@ tr:last-child td {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.slot-card-delete-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 2px;
+}
+
+.slot-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  color: #b91c1c;
+  background: transparent;
+  border: 1px solid rgba(185, 28, 28, 0.3);
+  border-radius: var(--radius-sm);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.slot-delete-btn:hover:not(:disabled) {
+  background: rgba(185, 28, 28, 0.08);
+  border-color: #b91c1c;
+}
+
+.slot-delete-btn:focus-visible {
+  outline: 2px solid #b91c1c;
+  outline-offset: 2px;
 }
 
 /* Empty state */

@@ -48,7 +48,7 @@ export const getConfig = (): UploadConfig => {
     // Empty = upload directly into the library root (the drive root IS the
     // document library, e.g. "Shared Documents"). Set a value to nest uploads.
     sharepointRootFolder: optional('SHAREPOINT_ROOT_FOLDER', ''),
-    maxFileBytes: Number(optional('MAX_FILE_BYTES', '10485760')),
+    maxFileBytes: Number(optional('MAX_FILE_BYTES', '104857600')),
   };
   return cached;
 };

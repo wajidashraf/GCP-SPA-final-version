@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- f48675b4-13bf-459d-8a1d-f9a42f468dba
+append: false
+appendto: false
+create: false
+delete: true
+entitylogicalname: gcp_pblrequest
+entityname: PBL Request - Admin Delete
+id: f56ef882-e73b-4a91-8992-e33ae9ffd5f3
+read: true
+scope: 756150000
+write: false

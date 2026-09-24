@@ -3,7 +3,7 @@ adx_entitypermission_webrole:
 append: true
 appendto: true
 create: false
-delete: false
+delete: true
 entitylogicalname: gcp_request
 entityname: Request - Admin Global Access
 id: 2a7c3b58-4d9e-4fa2-c6b1-7e3a0d8f4c25

@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- f48675b4-13bf-459d-8a1d-f9a42f468dba
+append: false
+appendto: false
+create: false
+delete: true
+entitylogicalname: gcp_stsprequest
+entityname: STSP Request - Admin Delete
+id: 5cf3f499-90ed-41ec-b9be-2ddb4cd6d025
+read: true
+scope: 756150000
+write: false

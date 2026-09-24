@@ -24,6 +24,12 @@ import { requestCategoryChoices } from '../../data/requestChoices';
 import { toSelectOptions } from '../../data/types';
 import { listActiveProjects } from '../../shared/services/projectService';
 import { makeSharePointUploader } from '../../shared/uploadApi';
+import {
+  assertUploadsReady,
+  getUploadReadiness,
+  MAX_REQUEST_UPLOAD_BYTES,
+  sumUploadBytes,
+} from '../../shared/uploadQuota';
 import { documentsFromUploads } from '../../shared/documents';
 import type { GcpProject } from '../../types/project';
 import { submitCaaRequest } from './api';
@@ -172,6 +178,9 @@ const CaaForm = ({
 
   // Last-step general attachments (field: null — belongs to the request itself).
   const [attachments, setAttachments] = useState<UploadedFile[]>([]);
+  const uploadGroups = [orgChartFiles, attachments] as const;
+  const currentUploadBytes = sumUploadBytes(uploadGroups);
+  const uploadReadiness = getUploadReadiness(uploadGroups);
 
   // Edit mode: every existing document on this record is shown and removable —
   // request-level attachments and the per-field org-chart upload alike — so the
@@ -605,6 +614,8 @@ const CaaForm = ({
               value={orgChartFiles}
               onChange={setOrgChartFiles}
               uploader={orgChartUploader}
+              currentTotalBytes={currentUploadBytes}
+              maxTotalBytes={MAX_REQUEST_UPLOAD_BYTES}
             />
           </Col>
         </Row>
@@ -741,6 +752,8 @@ const CaaForm = ({
               value={attachments}
               onChange={setAttachments}
               uploader={attachmentsUploader}
+              currentTotalBytes={currentUploadBytes}
+              maxTotalBytes={MAX_REQUEST_UPLOAD_BYTES}
             />
           </Col>
           <Col xs={12}>
@@ -757,7 +770,7 @@ const CaaForm = ({
       validate: () => {
         if (!state.acknowledged)
           return 'You must acknowledge before submitting.';
-        return null;
+        return uploadReadiness.message;
       },
     },
   ];
@@ -788,6 +801,7 @@ const CaaForm = ({
   };
 
   const handleSubmit = async () => {
+    assertUploadsReady(uploadGroups);
     // Edit mode: delegate the PATCH to the caller, which has the record ids.
     if (isEdit) {
       if (!onEditSubmit) {

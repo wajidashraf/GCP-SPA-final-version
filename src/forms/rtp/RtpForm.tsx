@@ -20,6 +20,12 @@ import {
 } from '../../data/requestChoices';
 import { toSelectOptions } from '../../data/types';
 import { makeSharePointUploader } from '../../shared/uploadApi';
+import {
+  assertUploadsReady,
+  getUploadReadiness,
+  MAX_REQUEST_UPLOAD_BYTES,
+  sumUploadBytes,
+} from '../../shared/uploadQuota';
 import { documentsFromUploads } from '../../shared/documents';
 import type { DocumentLink } from '../../shared/documents';
 import { DocumentStrip } from '../../components/detail/DocumentStrip';
@@ -106,6 +112,9 @@ const RtpForm = ({
   // serializable). Upload to SharePoint immediately; because they're added on
   // the final step they belong to the request itself (field: null).
   const [attachments, setAttachments] = useState<UploadedFile[]>([]);
+  const uploadGroups = [attachments] as const;
+  const currentUploadBytes = sumUploadBytes(uploadGroups);
+  const uploadReadiness = getUploadReadiness(uploadGroups);
 
   // Edit mode: every existing document on this record is shown and removable —
   // request-level attachments and per-field uploads alike — so nothing is hidden
@@ -333,7 +342,7 @@ const RtpForm = ({
           <Col xs={12}>
             <TextAreaField
               name="projectDescription"
-              label="Project Description"
+              label="Remarks"
               value={state.projectDescription}
               placeholder="Provide a brief description of the project, including scope, objectives, and any relevant background information."
               onChange={(e) => set('projectDescription', e.target.value)}
@@ -395,6 +404,8 @@ const RtpForm = ({
               value={attachments}
               onChange={setAttachments}
               uploader={attachmentsUploader}
+              currentTotalBytes={currentUploadBytes}
+              maxTotalBytes={MAX_REQUEST_UPLOAD_BYTES}
             />
           </Col>
         </Row>
@@ -402,12 +413,13 @@ const RtpForm = ({
       validate: () => {
         if (!state.acknowledged)
           return 'You must acknowledge before submitting.';
-        return null;
+        return uploadReadiness.message;
       },
     },
   ];
 
   const handleSubmit = async () => {
+    assertUploadsReady(uploadGroups);
     // Edit mode: delegate the PATCH to the caller, which has the record ids.
     if (isEdit) {
       if (!onEditSubmit) {

@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- f48675b4-13bf-459d-8a1d-f9a42f468dba
+append: false
+appendto: false
+create: false
+delete: true
+entitylogicalname: gcp_cprrequestgcp
+entityname: CPR Request - Admin Delete
+id: bd23c516-d071-4c63-866e-78e95a82d655
+read: true
+scope: 756150000
+write: false

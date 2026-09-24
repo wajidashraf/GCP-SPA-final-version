@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- f48675b4-13bf-459d-8a1d-f9a42f468dba
+append: false
+appendto: false
+create: false
+delete: true
+entitylogicalname: gcp_requestcigcp
+entityname: CI Request - Admin Delete
+id: 982047f9-b288-461e-bb7d-76e1e1e268a4
+read: true
+scope: 756150000
+write: false

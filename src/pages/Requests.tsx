@@ -1,9 +1,27 @@
 import { useMemo, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowUpRight, BrushCleaning, CalendarCheck, CircleAlert, ShieldCheck, SlidersHorizontal, ChevronLeft, ChevronRight, FilterX, Loader2, Pencil, Plus } from 'lucide-react';
+import {
+  ArrowUpRight,
+  BrushCleaning,
+  CalendarCheck,
+  CalendarRange,
+  ChevronLeft,
+  ChevronRight,
+  CircleAlert,
+  FilterX,
+  Loader2,
+  Pencil,
+  Plus,
+  ShieldCheck,
+  SlidersHorizontal,
+  Trash2,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { InlineMessage } from '../components/ui';
+import DeleteRequestModal from '../components/requests/DeleteRequestModal';
+import type { DeleteRequestTarget } from '../components/requests/DeleteRequestModal';
 import RequireRole from '../components/RequireRole';
+import { useAuth } from '../context/AuthContext';
 import { useRequests } from '../shared/hooks/useRequests';
 import { getChoiceLabel, toSelectOptions } from '../data/types';
 import {
@@ -11,15 +29,21 @@ import {
   requestStatusChoices,
 } from '../data/requestChoices';
 import { matterChoices } from '../data/matterChoices';
-import { SelectField, TextField } from '../forms';
+import { DateField, SelectField, TextField } from '../forms';
 import {
   filterRequestList,
   formatSubmissionDate,
+  getSubmissionDateRangeError,
   parseRequestListState,
   serializeRequestListState,
 } from '../shared/requestListState';
 import type { RequestListState } from '../shared/requestListState';
 import { getRequestRowPresentation } from '../shared/requestListPresentation';
+import {
+  canDeleteRequests,
+  deleteRequestTree,
+  RequestDeletionError,
+} from '../shared/services/requestDeletionService';
 
 
 const PAGE_SIZE = 10;
@@ -73,9 +97,16 @@ type MatterMeta = { label: string; code: string; channel: string };
 export default function Requests() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const submittedId = searchParams.get('submitted');
   const [showSubmitted, setShowSubmitted] = useState(true);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteRequestTarget | null>(
+    null,
+  );
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
   const {
     items,
     totalCount,
@@ -85,6 +116,7 @@ export default function Requests() {
     integrityWarning,
     hasMore,
     loadMore,
+    refetch,
   } = useRequests({
     pageSize: SERVER_FETCH_SIZE,
     withFormattedValues: true,
@@ -108,6 +140,8 @@ export default function Requests() {
     company: companyFilter,
     status: statusFilter,
     matterType: typeFilter,
+    submittedFrom,
+    submittedTo,
     page,
   } = listState;
 
@@ -130,7 +164,12 @@ export default function Requests() {
     projectFilter !== '' ||
     companyFilter !== '' ||
     statusFilter !== '' ||
-    typeFilter !== '';
+    typeFilter !== '' ||
+    submittedFrom !== '' ||
+    submittedTo !== '';
+
+  const submissionDateRangeError = getSubmissionDateRangeError(listState);
+  const canDelete = canDeleteRequests(user?.roles ?? []);
 
   const filtered = useMemo(
     () => filterRequestList(items, listState, matterMetaByValue),
@@ -150,6 +189,8 @@ export default function Requests() {
         company: '',
         status: '',
         matterType: '',
+        submittedFrom: '',
+        submittedTo: '',
       },
       true,
     );
@@ -161,6 +202,42 @@ export default function Requests() {
         requestsReturnTo: `${location.pathname}${location.search}`,
       },
     });
+  };
+
+  const openDeleteConfirmation = (target: DeleteRequestTarget) => {
+    setDeleteError(null);
+    setDeleteSuccess(null);
+    setDeleteTarget(target);
+  };
+
+  const closeDeleteConfirmation = () => {
+    if (isDeleting) return;
+    setDeleteError(null);
+    setDeleteTarget(null);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget || isDeleting) return;
+
+    setIsDeleting(true);
+    setDeleteError(null);
+    const deletedRequestLabel = deleteTarget.request.title ?? deleteTarget.request.id;
+    try {
+      await deleteRequestTree(deleteTarget.request);
+    } catch (deleteFailure) {
+      setDeleteError(
+        deleteFailure instanceof RequestDeletionError
+          ? deleteFailure.message
+          : 'The request could not be deleted. Please try again.',
+      );
+      setIsDeleting(false);
+      return;
+    }
+
+    setDeleteTarget(null);
+    setDeleteSuccess(`Request ${deletedRequestLabel} was deleted.`);
+    setIsDeleting(false);
+    await refetch();
   };
 
   return (
@@ -194,90 +271,140 @@ export default function Requests() {
           <p className="rq-subtitle">Review and track all submitted requests</p>
 
           {/* Filters */}
+          {hasActiveFilters && (
+            <div className="rq-filter-toolbar">
+              <button
+                type="button"
+                className="rq-clear-btn"
+                onClick={clearFilters}
+              >
+                <BrushCleaning size={16} aria-hidden="true" />
+                Clear Filters
+              </button>
+            </div>
+          )}
           <div className="rq-filters">
             <div className="rq-field">
-            <TextField
-              name="projectFilter"
-              label="Project"
-              value={projectFilter}
-              onChange={(e) => updateListState({ project: e.target.value }, true)}
-              placeholder="Search project..."
-            />
-          </div>
-          <div className="rq-field">
-            <TextField
-              name="companyFilter"
-              label="Company"
-              value={companyFilter}
-              onChange={(e) => updateListState({ company: e.target.value }, true)}
-              placeholder="Search company..."
-            />
-          </div>
-          <div className="rq-field">
-            <TextField
-              name="matterTitleFilter"
-              label="Matter title"
-              value={matterTitleFilter}
-              onChange={(e) =>
-                updateListState({ matterTitle: e.target.value }, true)
-              }
-              placeholder="Search matter title..."
-            />
-          </div>
-          <div className="rq-field">
-            <SelectField
-              name="statusFilter"
-              label="Status"
-              value={statusFilter || '__all__'}
-              onChange={(e) =>
-                updateListState(
-                  { status: e.target.value === '__all__' ? '' : e.target.value },
-                  true,
-                )
-              }
-              options={[
-                { label: 'All statuses', value: '__all__' },
-                ...toSelectOptions(requestStatusChoices),
-              ]}
-            />
-          </div>
-          <div className="rq-field">
-            <SelectField
-              name="typeFilter"
-              label="Matter type"
-              value={typeFilter || '__all__'}
-              onChange={(e) =>
-                updateListState(
-                  {
-                    matterType:
-                      e.target.value === '__all__' ? '' : e.target.value,
-                  },
-                  true,
-                )
-              }
-              options={[
-                { label: 'All matter types', value: '__all__' },
-                ...matterChoices.map((m) => ({
-                  label: m.label,
-                  value: String(m.value),
-                })),
-              ]}
-            />
-          </div>
-
-            {hasActiveFilters && (
-              <div className="rq-clear-wrap">
-                <button
-                  type="button"
-                  className="rq-clear-btn mb-3"
-                  onClick={clearFilters}
-                  aria-label="Clear filters"
-                  title="Clear filters"
-                >
-                  <BrushCleaning size={16} aria-hidden="true" />
-                </button>
+              <TextField
+                name="projectFilter"
+                label="Project"
+                value={projectFilter}
+                onChange={(e) =>
+                  updateListState({ project: e.target.value }, true)
+                }
+                placeholder="Search project…"
+              />
+            </div>
+            <div className="rq-field">
+              <TextField
+                name="companyFilter"
+                label="Company"
+                value={companyFilter}
+                onChange={(e) =>
+                  updateListState({ company: e.target.value }, true)
+                }
+                placeholder="Search company…"
+              />
+            </div>
+            <div className="rq-field">
+              <TextField
+                name="matterTitleFilter"
+                label="Matter title"
+                value={matterTitleFilter}
+                onChange={(e) =>
+                  updateListState({ matterTitle: e.target.value }, true)
+                }
+                placeholder="Search matter title…"
+              />
+            </div>
+            <div className="rq-field">
+              <SelectField
+                name="statusFilter"
+                label="Status"
+                value={statusFilter || '__all__'}
+                onChange={(e) =>
+                  updateListState(
+                    {
+                      status:
+                        e.target.value === '__all__' ? '' : e.target.value,
+                    },
+                    true,
+                  )
+                }
+                options={[
+                  { label: 'All statuses', value: '__all__' },
+                  ...toSelectOptions(requestStatusChoices),
+                ]}
+              />
+            </div>
+            <div className="rq-field">
+              <SelectField
+                name="typeFilter"
+                label="Matter type"
+                value={typeFilter || '__all__'}
+                onChange={(e) =>
+                  updateListState(
+                    {
+                      matterType:
+                        e.target.value === '__all__' ? '' : e.target.value,
+                    },
+                    true,
+                  )
+                }
+                options={[
+                  { label: 'All matter types', value: '__all__' },
+                  ...matterChoices.map((m) => ({
+                    label: m.label,
+                    value: String(m.value),
+                  })),
+                ]}
+              />
+            </div>
+            <div className="rq-field rq-date-filter">
+              <div className="rq-date-filter-label">
+                <CalendarRange size={14} aria-hidden="true" />
+                Submission date
               </div>
-            )}
+              <div className="rq-date-range">
+                <DateField
+                  name="submittedFrom"
+                  label="From"
+                  value={submittedFrom}
+                  aria-invalid={Boolean(submissionDateRangeError)}
+                  aria-describedby={
+                    submissionDateRangeError
+                      ? 'rq-submission-date-error'
+                      : undefined
+                  }
+                  onChange={(e) =>
+                    updateListState({ submittedFrom: e.target.value }, true)
+                  }
+                />
+                <DateField
+                  name="submittedTo"
+                  label="To"
+                  value={submittedTo}
+                  aria-invalid={Boolean(submissionDateRangeError)}
+                  aria-describedby={
+                    submissionDateRangeError
+                      ? 'rq-submission-date-error'
+                      : undefined
+                  }
+                  onChange={(e) =>
+                    updateListState({ submittedTo: e.target.value }, true)
+                  }
+                />
+              </div>
+              {submissionDateRangeError ? (
+                <div
+                  id="rq-submission-date-error"
+                  className="rq-date-error"
+                  role="alert"
+                >
+                  {submissionDateRangeError}
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
 
@@ -292,6 +419,16 @@ export default function Requests() {
             successfully and is now in the review queue.
           </InlineMessage>
         )}
+
+        {deleteSuccess ? (
+          <InlineMessage
+            tone="success"
+            className="mb-3"
+            onDismiss={() => setDeleteSuccess(null)}
+          >
+            {deleteSuccess}
+          </InlineMessage>
+        ) : null}
 
         {/* Error */}
         {error && (
@@ -322,7 +459,9 @@ export default function Requests() {
                 <th className="col-project">Project</th>
                 <th className="col-company">Company</th>
                 <th className="col-status">Status</th>
-                <th className="col-action" />
+                <th className="col-action">
+                  <span className="visually-hidden">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -330,7 +469,7 @@ export default function Requests() {
                 <tr>
                   <td colSpan={8} className="rq-empty-state">
                     <Loader2 size={20} className="rq-spinner" aria-hidden="true" />
-                    Loading requests...
+                    Loading requests…
                   </td>
                 </tr>
               )}
@@ -388,6 +527,18 @@ export default function Requests() {
                         ? () => openRecord(r.id)
                         : undefined
                     }
+                    onKeyDown={
+                      presentation.isClickable
+                        ? (event) => {
+                            if (event.target !== event.currentTarget) return;
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              openRecord(r.id);
+                            }
+                          }
+                        : undefined
+                    }
+                    tabIndex={presentation.isClickable ? 0 : undefined}
                     className={
                       presentation.isClickable ? 'rq-row-clickable' : undefined
                     }
@@ -436,31 +587,51 @@ export default function Requests() {
                       </span>
                     </td>
                     <td>
-                      <button
-                        type="button"
-                        className="rq-open-btn"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (presentation.actionMode === 'edit') {
-                            navigate(`/requests/${r.id}/edit`);
-                          } else if (presentation.actionMode === 'normal') {
-                            openRecord(r.id);
-                          }
-                        }}
-                        title={`${action.label} request`}
-                        disabled={presentation.isDisabled}
-                      >
-                        {action.label}
-                        <action.Icon
-                          size={14}
-                          aria-hidden="true"
-                          className={
-                            presentation.actionMode === 'loading'
-                              ? 'rq-spinner'
-                              : undefined
-                          }
-                        />
-                      </button>
+                      <div className="rq-row-actions">
+                        <button
+                          type="button"
+                          className="rq-open-btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (presentation.actionMode === 'edit') {
+                              navigate(`/requests/${r.id}/edit`);
+                            } else if (presentation.actionMode === 'normal') {
+                              openRecord(r.id);
+                            }
+                          }}
+                          title={`${action.label} request`}
+                          disabled={presentation.isDisabled}
+                        >
+                          {action.label}
+                          <action.Icon
+                            size={14}
+                            aria-hidden="true"
+                            className={
+                              presentation.actionMode === 'loading'
+                                ? 'rq-spinner'
+                                : undefined
+                            }
+                          />
+                        </button>
+                        {canDelete ? (
+                          <button
+                            type="button"
+                            className="rq-delete-btn"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openDeleteConfirmation({
+                                request: r,
+                                matterLabel,
+                              });
+                            }}
+                            aria-label={`Delete request ${r.title ?? r.id}`}
+                            title="Delete request"
+                            disabled={isDeleting}
+                          >
+                            <Trash2 size={15} aria-hidden="true" />
+                          </button>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -520,7 +691,7 @@ export default function Requests() {
                 {isLoading ? (
                   <>
                     <Loader2 size={14} className="rq-spinner" aria-hidden="true" />
-                    Loading...
+                    Loading…
                   </>
                 ) : (
                   'Load more'
@@ -529,6 +700,14 @@ export default function Requests() {
             )}
           </div>
         </div>
+
+        <DeleteRequestModal
+          target={deleteTarget}
+          isDeleting={isDeleting}
+          error={deleteError}
+          onCancel={closeDeleteConfirmation}
+          onConfirm={() => void handleDeleteConfirm()}
+        />
       </div>
     </section>
   );

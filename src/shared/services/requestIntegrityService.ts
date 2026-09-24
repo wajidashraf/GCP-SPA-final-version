@@ -4,11 +4,11 @@ import {
   classifyRequestIntegrity,
   resolveChildKind,
 } from '../requestIntegrity.ts';
-import type {
-  ChildKind,
-  IntegrityEvidence,
-  RequestIntegrityState,
-} from '../requestIntegrity.ts';
+import type { ChildKind, IntegrityEvidence, RequestIntegrityState } from '../requestIntegrity.ts';
+import {
+  PBL_BIDDER_SOURCE,
+  REQUEST_CHILD_SOURCE_BY_KIND,
+} from '../requestChildSources.ts';
 import type { GcpRequest } from '../../types/request';
 
 type IntegrityLookupRow = Record<string, string | null | undefined>;
@@ -23,43 +23,6 @@ type IntegrityLookupQuery = {
 type IntegrityRowLoader = (
   query: IntegrityLookupQuery,
 ) => Promise<IntegrityLookupRow[]>;
-
-type IntegritySource = {
-  entitySet: string;
-  parentField: '_gcp_request_value' | '_gcp_requestlookup_value';
-  childIdField?: string;
-};
-
-const SOURCE_BY_KIND: Record<ChildKind, IntegritySource> = {
-  rtp: { entitySet: 'gcp_rtprequests', parentField: '_gcp_request_value' },
-  pbl: {
-    entitySet: 'gcp_pblrequests',
-    parentField: '_gcp_request_value',
-    childIdField: 'gcp_pblrequestid',
-  },
-  jvp: { entitySet: 'gcp_jvmrequests', parentField: '_gcp_request_value' },
-  stsp: { entitySet: 'gcp_stsprequests', parentField: '_gcp_request_value' },
-  caa: { entitySet: 'gcp_caarequests', parentField: '_gcp_request_value' },
-  pcca: { entitySet: 'gcp_pccarequests', parentField: '_gcp_request_value' },
-  pp: { entitySet: 'gcp_pprequests', parentField: '_gcp_request_value' },
-  vap: { entitySet: 'gcp_vaprequests', parentField: '_gcp_request_value' },
-  other: {
-    entitySet: 'gcp_otherrequestses',
-    parentField: '_gcp_requestlookup_value',
-  },
-  rpcca: {
-    entitySet: 'gcp_rpccarequestgcps',
-    parentField: '_gcp_request_value',
-  },
-  rpp: { entitySet: 'gcp_rpprequests', parentField: '_gcp_request_value' },
-  ci: { entitySet: 'gcp_requestcigcps', parentField: '_gcp_request_value' },
-  cpr: { entitySet: 'gcp_cprrequestgcps', parentField: '_gcp_request_value' },
-};
-
-const PBL_BIDDER_SOURCE = {
-  entitySet: 'gcp_pblbidderses',
-  parentField: '_gcp_pblrequest_value',
-} as const;
 
 const QUERY_CHUNK_SIZE = 20;
 const QUERY_PAGE_SIZE = 500;
@@ -115,7 +78,7 @@ const checkRequestIntegrity = async (
 
   await Promise.all(
     [...requestsByKind.entries()].map(async ([kind, group]) => {
-      const source = SOURCE_BY_KIND[kind];
+      const source = REQUEST_CHILD_SOURCE_BY_KIND[kind];
       try {
         for (const ids of chunkValues(
           group.map((request) => request.id),
@@ -123,7 +86,7 @@ const checkRequestIntegrity = async (
         )) {
           const select = [
             source.parentField,
-            ...(source.childIdField ? [source.childIdField] : []),
+            ...(kind === 'pbl' ? [source.idField] : []),
           ];
           const rows = await loadRows({
             entitySet: source.entitySet,
@@ -136,8 +99,8 @@ const checkRequestIntegrity = async (
             if (!parentId) continue;
             const normalizedParentId = normalizeId(parentId);
             childParentIds.add(normalizedParentId);
-            if (kind === 'pbl' && source.childIdField) {
-              const childId = row[source.childIdField];
+            if (kind === 'pbl') {
+              const childId = row[source.idField];
               if (childId) {
                 pblChildToParent.set(
                   normalizeId(childId),

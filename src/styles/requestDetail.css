@@ -1115,6 +1115,10 @@
   border-color: rgba(22, 163, 74, 0.35);
   background: var(--success-soft);
 }
+.sig-box--saved {
+  border-color: rgba(217, 168, 56, 0.55);
+  background: rgba(255, 247, 221, 0.55);
+}
 
 /* Signature image area */
 .sig-img-wrapper {
@@ -1129,6 +1133,9 @@
 }
 .sig-box--signed .sig-img-wrapper {
   border-bottom-color: rgba(22, 163, 74, 0.2);
+}
+.sig-box--saved .sig-img-wrapper {
+  border-bottom-color: rgba(217, 168, 56, 0.35);
 }
 
 .sig-img {
@@ -1215,6 +1222,45 @@
 .sig-sign-btn:hover {
   transform: translateY(-1px);
   box-shadow: var(--shadow);
+}
+.sig-sign-btn:disabled,
+.sig-replace-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+  transform: none;
+  box-shadow: none;
+}
+
+.sig-reuse-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+}
+
+.sig-replace-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  color: var(--navy);
+  background: transparent;
+  border: none;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sig-replace-btn:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.sig-sign-btn:focus-visible,
+.sig-replace-btn:focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: 2px;
 }
 
 /* ── Signature modal ─────────────────────────────────────────── */
@@ -1986,6 +2032,13 @@
   border-style: solid;
   border-color: var(--success, #10b981);
   background: rgba(16, 185, 129, 0.04);
+}
+
+.hoc-doc .hoc-sig-box--saved,
+.hoc-sig-box--saved {
+  border-style: solid;
+  border-color: var(--accent, #d4a72c);
+  background: rgba(212, 167, 44, 0.06);
 }
 .hoc-sig-img-wrapper {
   width: 180px;

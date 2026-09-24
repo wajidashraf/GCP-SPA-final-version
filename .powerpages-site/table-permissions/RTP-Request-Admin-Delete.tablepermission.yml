@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- f48675b4-13bf-459d-8a1d-f9a42f468dba
+append: false
+appendto: false
+create: false
+delete: true
+entitylogicalname: gcp_rtprequest
+entityname: RTP Request - Admin Delete
+id: 860b79fc-1337-4f9f-b263-a3f9faddaa4f
+read: true
+scope: 756150000
+write: false

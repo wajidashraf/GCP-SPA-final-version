@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- f48675b4-13bf-459d-8a1d-f9a42f468dba
+append: false
+appendto: false
+create: false
+delete: true
+entitylogicalname: gcp_vaprequest
+entityname: VAP Request - Admin Delete
+id: f9f0693f-6ff4-4ee6-a11a-3974d1467c8f
+read: true
+scope: 756150000
+write: false

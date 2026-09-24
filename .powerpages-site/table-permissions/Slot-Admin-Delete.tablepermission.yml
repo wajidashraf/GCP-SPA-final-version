@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- f48675b4-13bf-459d-8a1d-f9a42f468dba
+append: false
+appendto: false
+create: false
+delete: true
+entitylogicalname: gcp_slot
+entityname: Slot - Admin Delete
+id: 9c4d7e12-6f3a-4b58-9d21-7a6c8e5f1032
+read: true
+scope: 756150000
+write: false

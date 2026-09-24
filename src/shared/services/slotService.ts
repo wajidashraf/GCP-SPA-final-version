@@ -18,19 +18,25 @@ import {
   pageSizeHeader,
   powerPagesFetch,
   powerPagesFetchResponse,
-} from '../powerPagesApi';
-import type { ODataListResponse, ODataQuery } from '../powerPagesApi';
+  WebApiError,
+} from '../powerPagesApi.ts';
+import type { ODataListResponse, ODataQuery } from '../powerPagesApi.ts';
 import {
   SLOT_STATUS_AVAILABLE,
   type SlotStatusValue,
-} from '../../data/slotChoices';
+} from '../../data/slotChoices.ts';
 import {
   DEFAULT_SLOT_SELECT,
   mapGcpSlot,
   type CreateGcpSlotInput,
   type GcpSlotEntity,
   type Slot,
-} from '../../types/slot';
+} from '../../types/slot.ts';
+import {
+  clearEngagementSlot,
+  listEngagementsBySlot,
+  restoreEngagementSlot,
+} from './engagementService.ts';
 
 const ENTITY_SET = 'gcp_slots';
 const BASE_URL = `/_api/${ENTITY_SET}`;
@@ -258,12 +264,89 @@ const updateSlot = async (
   });
 };
 
+type SlotDeletionIo = {
+  listEngagementsBySlot: (
+    slotId: string,
+  ) => Promise<readonly { id: string }[]>;
+  clearEngagementSlot: (engagementId: string) => Promise<void>;
+  restoreEngagementSlot: (
+    engagementId: string,
+    slotId: string,
+  ) => Promise<void>;
+  deleteSlot: (slotId: string) => Promise<void>;
+};
+
+type DeleteSlotResult = {
+  detachedEngagementCount: number;
+};
+
+const deleteSlot = async (id: string): Promise<void> => {
+  if (!isGuid(id)) throw new Error('A valid slot ID is required.');
+  await powerPagesFetch<void>(`${BASE_URL}(${id})`, {
+    method: 'DELETE',
+    headers: { 'If-Match': '*' },
+  });
+};
+
+const restoreDetachedEngagements = async (
+  engagementIds: readonly string[],
+  slotId: string,
+  io: SlotDeletionIo,
+): Promise<void> => {
+  const outcomes = await Promise.allSettled(
+    engagementIds.map((id) => io.restoreEngagementSlot(id, slotId)),
+  );
+  if (outcomes.some((outcome) => outcome.status === 'rejected')) {
+    throw new Error(
+      'Slot deletion failed, and one or more engagement links could not be restored. Refresh the data and contact an administrator.',
+    );
+  }
+};
+
+const deleteSlotPreservingEngagements = async (
+  slotId: string,
+  io: SlotDeletionIo = {
+    listEngagementsBySlot,
+    clearEngagementSlot,
+    restoreEngagementSlot,
+    deleteSlot,
+  },
+): Promise<DeleteSlotResult> => {
+  if (!isGuid(slotId)) throw new Error('A valid slot ID is required.');
+  const engagements = await io.listEngagementsBySlot(slotId);
+  const detachedIds: string[] = [];
+
+  try {
+    for (const engagement of engagements) {
+      try {
+        await io.clearEngagementSlot(engagement.id);
+        detachedIds.push(engagement.id);
+      } catch (error) {
+        const isDeterministicClientFailure =
+          error instanceof WebApiError && error.status >= 400 && error.status < 500;
+        if (!isDeterministicClientFailure) detachedIds.push(engagement.id);
+        throw error;
+      }
+    }
+    await io.deleteSlot(slotId);
+  } catch (error) {
+    if (detachedIds.length > 0) {
+      await restoreDetachedEngagements(detachedIds, slotId, io);
+    }
+    throw error;
+  }
+
+  return { detachedEngagementCount: detachedIds.length };
+};
+
 export {
   listSlots,
   createSlot,
   listAvailableSlotsWithin,
   updateSlotStatus,
   updateSlot,
+  deleteSlot,
+  deleteSlotPreservingEngagements,
   MAX_ATTENDEES,
   ENTITY_SET as SLOT_ENTITY_SET,
 };
@@ -276,4 +359,6 @@ export type {
   UpdateSlotInput,
   UpdateSlotOptions,
   SlotAttendeeInput,
+  SlotDeletionIo,
+  DeleteSlotResult,
 };

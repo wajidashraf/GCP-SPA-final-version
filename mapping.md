@@ -51,7 +51,7 @@ Set on `gcp_request` for every submission (see each form's `api.ts`):
 | 2 Project | Registration Type | SelectField | `gcp_registrationtype` | `gcp_rtprequest` |
 | 2 Project | Tender Closing Date | DateField | `gcp_tenderclosingdate` | `gcp_rtprequest` |
 | 2 Project | Project Name | TextField | `gcp_projectname` (+ parent `gcp_project_name`) | `gcp_rtprequest` |
-| 2 Project | Project Description | TextAreaField | `gcp_projectdescription` (+ parent `gcp_projectdiscription`) | `gcp_rtprequest` |
+| 2 Project | Remarks | TextAreaField | `gcp_projectdescription` (+ parent `gcp_projectdiscription`) | `gcp_rtprequest` |
 | 3 Confirm | Acknowledgement | CheckboxField | `gcp_acknowledgement` (both parent + child) | both |
 | 3 Confirm | Mark as special project | CheckboxField | `gcp_specialproject` | `gcp_rtprequest` |
 | 3 Confirm | Attachments | FileUpload → SharePoint | parent `gcp_documentsurl` (request-level, `field: null`) | `gcp_request` |

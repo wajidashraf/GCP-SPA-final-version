@@ -3,7 +3,14 @@ import { CheckCircle2, ClipboardCheck, Loader2, PenLine } from 'lucide-react';
 import { InlineMessage, LoadingState } from '../ui';
 import { SignatureModal } from './SignatureModal';
 import { SignatureImage } from './SignatureImage';
-import { listSignaturesForRequest, completeReview } from '../../shared/services/signatureService';
+import {
+  completeReview,
+  confirmReusableSignature,
+  getSignatureBoxState,
+  isUsableSignature,
+  listLatestReusableSignature,
+  listSignaturesForRequest,
+} from '../../shared/services/signatureService';
 import type { GcpSignature } from '../../shared/services/signatureService';
 import {
   listSignatoryMembers,
@@ -24,12 +31,26 @@ type SignatureSectionProps = {
 type SignatureBoxProps = {
   member: SignatoryMemberDto;
   signature: GcpSignature | undefined;
+  reusableSignature: GcpSignature | null;
   canSign: boolean;
+  confirming: boolean;
   onSign: () => void;
+  onConfirm: () => void;
 };
 
-const SignatureBox = ({ member, signature, canSign, onSign }: SignatureBoxProps) => {
-  const hasSig = !!signature?.signUrl;
+const SignatureBox = ({
+  member,
+  signature,
+  reusableSignature,
+  canSign,
+  confirming,
+  onSign,
+  onConfirm,
+}: SignatureBoxProps) => {
+  const state = getSignatureBoxState(signature, reusableSignature);
+  const hasSig = state === 'signed';
+  const hasReusableSig = state === 'reusable';
+  const displayedSignature = hasSig ? signature : reusableSignature;
   const dateStr = signature?.createdOn
     ? new Date(signature.createdOn).toLocaleDateString(undefined, {
         day: '2-digit',
@@ -39,12 +60,18 @@ const SignatureBox = ({ member, signature, canSign, onSign }: SignatureBoxProps)
     : null;
 
   return (
-    <div className={`sig-box${hasSig ? ' sig-box--signed' : ''}`}>
+    <div
+      className={`sig-box${hasSig ? ' sig-box--signed' : ''}${hasReusableSig ? ' sig-box--saved' : ''}`}
+    >
       <div className="sig-img-wrapper">
-        {hasSig ? (
+        {displayedSignature?.signUrl ? (
           <SignatureImage
-            src={signature.signUrl!}
-            alt={`Signature of ${member.name}`}
+            src={displayedSignature.signUrl}
+            alt={
+              hasSig
+                ? `Signature of ${member.name}`
+                : `Saved signature preview for ${member.name}`
+            }
             className="sig-img"
           />
         ) : (
@@ -64,9 +91,43 @@ const SignatureBox = ({ member, signature, canSign, onSign }: SignatureBoxProps)
         </strong>
         <span className="sig-role">Member of Working GCPC</span>
         <span className="sig-date">
-          {dateStr ? `Signed: ${dateStr}` : 'Not yet signed'}
+          {dateStr
+            ? `Signed: ${dateStr}`
+            : hasReusableSig
+              ? 'Saved signature — not yet confirmed for this request'
+              : 'Not yet signed'}
         </span>
-        {canSign && !hasSig ? (
+        {canSign && hasReusableSig ? (
+          <div className="sig-reuse-actions">
+            <button
+              type="button"
+              className="sig-sign-btn"
+              onClick={onConfirm}
+              disabled={confirming}
+            >
+              {confirming ? (
+                <>
+                  <Loader2 size={13} aria-hidden="true" className="sig-spin" />
+                  Confirming…
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 size={13} aria-hidden="true" />
+                  Confirm Signature
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              className="sig-replace-btn"
+              onClick={onSign}
+              disabled={confirming}
+            >
+              <PenLine size={12} aria-hidden="true" />
+              Draw/Upload Different
+            </button>
+          </div>
+        ) : canSign && !hasSig ? (
           <button
             type="button"
             className="sig-sign-btn"
@@ -96,7 +157,12 @@ const SignatureSection = ({
   const [loadingSignatures, setLoadingSignatures] = useState(true);
   const [membersError, setMembersError] = useState<string | null>(null);
   const [sigsError, setSigsError] = useState<string | null>(null);
+  const [reusableSignature, setReusableSignature] = useState<GcpSignature | null>(null);
+  const [loadingReusable, setLoadingReusable] = useState(true);
+  const [reusableError, setReusableError] = useState<string | null>(null);
   const [signingMember, setSigningMember] = useState<SignatoryMemberDto | null>(null);
+  const [confirmingMemberId, setConfirmingMemberId] = useState<string | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
   const [completing, setCompleting] = useState(false);
   const [completeError, setCompleteError] = useState<string | null>(null);
 
@@ -142,15 +208,15 @@ const SignatureSection = ({
   const prepared = members.filter((m) => m.group === 'prepared');
   const confirmed = members.filter((m) => m.group === 'confirmed');
 
-  const isSigned = (member: SignatoryMemberDto) =>
-    signatures.some(
-      (s) => s.signatoryEmail?.toLowerCase() === member.email.toLowerCase(),
-    );
-
   const signatureFor = (member: SignatoryMemberDto) =>
     signatures.find(
-      (s) => s.signatoryEmail?.toLowerCase() === member.email.toLowerCase(),
+      (s) =>
+        s.signatoryEmail?.toLowerCase() === member.email.toLowerCase() &&
+        isUsableSignature(s),
     );
+
+  const isSigned = (member: SignatoryMemberDto) =>
+    signatureFor(member) != null;
 
   // A signatory member may only sign their own box: the logged-in user's
   // email must match the member's email. Role is intentionally NOT checked —
@@ -160,6 +226,70 @@ const SignatureSection = ({
     !!currentUserEmail &&
     currentUserEmail.toLowerCase() === member.email.toLowerCase();
 
+  const currentUserMember = members.find(canMemberSign);
+  const currentUserSignature = currentUserMember
+    ? signatureFor(currentUserMember)
+    : undefined;
+  const currentUserMemberId = currentUserMember?.id ?? null;
+  const currentUserMemberEmail = currentUserMember?.email ?? null;
+  const hasCurrentUserSignature = currentUserSignature != null;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (loadingMembers || loadingSignatures) {
+      return () => { cancelled = true; };
+    }
+    if (
+      membersError ||
+      sigsError ||
+      !currentUserMemberId ||
+      !currentUserMemberEmail ||
+      hasCurrentUserSignature
+    ) {
+      setReusableSignature(null);
+      setReusableError(null);
+      setLoadingReusable(false);
+      return () => { cancelled = true; };
+    }
+
+    setReusableSignature(null);
+    setReusableError(null);
+    setLoadingReusable(true);
+    void listLatestReusableSignature({
+      requestId,
+      signatoryEmail: currentUserMemberEmail,
+      signatoryContactId: currentUserContactId,
+    })
+      .then((savedSignature) => {
+        if (!cancelled) setReusableSignature(savedSignature);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setReusableError(
+            err instanceof Error
+              ? err.message
+              : 'Failed to load your saved signature.',
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingReusable(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [
+    currentUserContactId,
+    currentUserMemberEmail,
+    currentUserMemberId,
+    hasCurrentUserSignature,
+    loadingMembers,
+    loadingSignatures,
+    membersError,
+    requestId,
+    sigsError,
+  ]);
+
   const preparedSignedCount = prepared.filter(isSigned).length;
   const confirmedSignedCount = confirmed.filter(isSigned).length;
   const isComplete =
@@ -168,7 +298,32 @@ const SignatureSection = ({
   const canCompleteReview = isComplete && (isAdmin() || hasRole('Reviewer'));
 
   const handleSign = (member: SignatoryMemberDto) => {
+    setConfirmError(null);
     setSigningMember(member);
+  };
+
+  const handleConfirmReusable = async (member: SignatoryMemberDto) => {
+    if (!reusableSignature?.signUrl || !canMemberSign(member)) return;
+    setConfirmError(null);
+    setConfirmingMemberId(member.id);
+    try {
+      await confirmReusableSignature({
+        requestId,
+        signatoryEmail: member.email,
+        signatoryContactId: currentUserContactId,
+        signUrl: reusableSignature.signUrl,
+      });
+      setReusableSignature(null);
+      await loadSignatures();
+    } catch (err) {
+      setConfirmError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to confirm your saved signature.',
+      );
+    } finally {
+      setConfirmingMemberId(null);
+    }
   };
 
   const handleSigned = async () => {
@@ -191,7 +346,7 @@ const SignatureSection = ({
     }
   };
 
-  const isLoading = loadingMembers || loadingSignatures;
+  const isLoading = loadingMembers || loadingSignatures || loadingReusable;
 
   if (!isSignatoryApiConfigured) {
     return (
@@ -242,6 +397,19 @@ const SignatureSection = ({
         </InlineMessage>
       ) : null}
 
+      {reusableError ? (
+        <InlineMessage tone="warning" className="mb-3">
+          Your saved signature could not be loaded. You can still draw or upload
+          a signature for this request.
+        </InlineMessage>
+      ) : null}
+
+      {confirmError ? (
+        <InlineMessage tone="error" className="mb-3">
+          {confirmError}
+        </InlineMessage>
+      ) : null}
+
       {!isLoading && !membersError ? (
         <>
           {/* Prepared group */}
@@ -256,8 +424,15 @@ const SignatureSection = ({
                     key={member.id}
                     member={member}
                     signature={signatureFor(member)}
+                    reusableSignature={
+                      canMemberSign(member) && !signatureFor(member)
+                        ? reusableSignature
+                        : null
+                    }
                     canSign={canMemberSign(member)}
+                    confirming={confirmingMemberId === member.id}
                     onSign={() => handleSign(member)}
+                    onConfirm={() => void handleConfirmReusable(member)}
                   />
                 ))
               )}
@@ -276,8 +451,15 @@ const SignatureSection = ({
                     key={member.id}
                     member={member}
                     signature={signatureFor(member)}
+                    reusableSignature={
+                      canMemberSign(member) && !signatureFor(member)
+                        ? reusableSignature
+                        : null
+                    }
                     canSign={canMemberSign(member)}
+                    confirming={confirmingMemberId === member.id}
                     onSign={() => handleSign(member)}
+                    onConfirm={() => void handleConfirmReusable(member)}
                   />
                 ))
               )}

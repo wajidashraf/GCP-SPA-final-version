@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- f48675b4-13bf-459d-8a1d-f9a42f468dba
+append: false
+appendto: false
+create: false
+delete: true
+entitylogicalname: gcp_rpprequest
+entityname: RPP Request - Admin Delete
+id: c2e76be9-7b4d-48c4-b0bb-c5e2f08ea0b8
+read: true
+scope: 756150000
+write: false

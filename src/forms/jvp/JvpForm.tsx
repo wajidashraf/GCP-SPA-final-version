@@ -22,6 +22,12 @@ import { requestCategoryChoices } from '../../data/requestChoices';
 import { toSelectOptions } from '../../data/types';
 import { listActiveProjects } from '../../shared/services/projectService';
 import { makeSharePointUploader } from '../../shared/uploadApi';
+import {
+  assertUploadsReady,
+  getUploadReadiness,
+  MAX_REQUEST_UPLOAD_BYTES,
+  sumUploadBytes,
+} from '../../shared/uploadQuota';
 import { documentsFromUploads } from '../../shared/documents';
 import type { GcpProject } from '../../types/project';
 import { submitJvpRequest } from './api';
@@ -148,6 +154,13 @@ const JvpForm = ({
 
   // Last-step general attachments (field: null — belongs to the request itself).
   const [attachments, setAttachments] = useState<UploadedFile[]>([]);
+  const uploadGroups = [
+    cashflowFiles,
+    costStructureFiles,
+    attachments,
+  ] as const;
+  const currentUploadBytes = sumUploadBytes(uploadGroups);
+  const uploadReadiness = getUploadReadiness(uploadGroups);
 
   // Edit mode: every existing document on this record is shown and removable —
   // request-level attachments and the per-field cashflow / cost-structure uploads
@@ -528,6 +541,8 @@ const JvpForm = ({
             value={cashflowFiles}
             onChange={setCashflowFiles}
             uploader={cashflowUploader}
+            currentTotalBytes={currentUploadBytes}
+            maxTotalBytes={MAX_REQUEST_UPLOAD_BYTES}
           />
           <RepeatableTextField
             label="Technical Capabilities & Resources"
@@ -558,6 +573,8 @@ const JvpForm = ({
             value={costStructureFiles}
             onChange={setCostStructureFiles}
             uploader={costStructureUploader}
+            currentTotalBytes={currentUploadBytes}
+            maxTotalBytes={MAX_REQUEST_UPLOAD_BYTES}
           />
           <DynamicTableSection
             title="Risk Review & Mitigation"
@@ -599,6 +616,8 @@ const JvpForm = ({
               value={attachments}
               onChange={setAttachments}
               uploader={attachmentsUploader}
+              currentTotalBytes={currentUploadBytes}
+              maxTotalBytes={MAX_REQUEST_UPLOAD_BYTES}
             />
           </Col>
           <Col xs={12}>
@@ -615,7 +634,7 @@ const JvpForm = ({
       validate: () => {
         if (!state.acknowledged)
           return 'You must acknowledge before submitting.';
-        return null;
+        return uploadReadiness.message;
       },
     },
   ];
@@ -655,6 +674,7 @@ const JvpForm = ({
   };
 
   const handleSubmit = async () => {
+    assertUploadsReady(uploadGroups);
     // Edit mode: delegate the PATCH to the caller, which has the record ids.
     if (isEdit) {
       if (!onEditSubmit) {

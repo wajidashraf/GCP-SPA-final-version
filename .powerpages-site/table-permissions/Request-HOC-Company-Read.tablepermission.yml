@@ -2,7 +2,7 @@ adx_entitypermission_webrole:
 - 7a1e229c-567b-4bbf-ae02-522e59efcff2
 accountrelationship: gcp_request_Company_account
 append: false
-appendto: false
+appendto: true
 create: false
 delete: false
 entitylogicalname: gcp_request

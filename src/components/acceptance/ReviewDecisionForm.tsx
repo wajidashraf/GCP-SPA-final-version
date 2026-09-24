@@ -34,7 +34,12 @@ import {
   getRequestById,
   pollRequestStatus,
 } from '../../shared/services/requestService';
-import { listSignaturesForRequest } from '../../shared/services/signatureService';
+import {
+  confirmReusableSignature,
+  isUsableSignature,
+  listLatestReusableSignature,
+  listSignaturesForRequest,
+} from '../../shared/services/signatureService';
 import type { GcpSignature } from '../../shared/services/signatureService';
 import { getChoiceLabel } from '../../data/types';
 import { soaCodeChoices } from '../../data/soaChoices';
@@ -111,7 +116,11 @@ export default function ReviewDecisionForm() {
 
   // ── HOC signature ─────────────────────────────────────────────────────────
   const [hocSig, setHocSig] = useState<GcpSignature | null>(null);
-  const [loadingSig, setLoadingSig] = useState(false);
+  const [loadingSig, setLoadingSig] = useState(true);
+  const [reusableHocSig, setReusableHocSig] = useState<GcpSignature | null>(null);
+  const [loadingReusableSig, setLoadingReusableSig] = useState(false);
+  const [reusableSigError, setReusableSigError] = useState<string | null>(null);
+  const [confirmingReusableSig, setConfirmingReusableSig] = useState(false);
   const [showSignModal, setShowSignModal] = useState(false);
 
   const loadHocSig = useCallback(async () => {
@@ -119,7 +128,13 @@ export default function ReviewDecisionForm() {
     setLoadingSig(true);
     try {
       const all = await listSignaturesForRequest(id);
-      setHocSig(all.find((s) => s.signatoryEmail === 'HOC') ?? null);
+      setHocSig(
+        all.find(
+          (signature) =>
+            signature.signatoryEmail?.toUpperCase() === 'HOC' &&
+            isUsableSignature(signature),
+        ) ?? null,
+      );
     } catch {
       setHocSig(null);
     } finally {
@@ -128,6 +143,66 @@ export default function ReviewDecisionForm() {
   }, [id]);
 
   useEffect(() => { void loadHocSig(); }, [loadHocSig]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (loadingSig || hocSig || !canSign || !id || !user?.contactId) {
+      setReusableHocSig(null);
+      setReusableSigError(null);
+      setLoadingReusableSig(false);
+      return () => { cancelled = true; };
+    }
+
+    setReusableHocSig(null);
+    setReusableSigError(null);
+    setLoadingReusableSig(true);
+    void listLatestReusableSignature({
+      requestId: id,
+      signatoryEmail: 'HOC',
+      signatoryContactId: user.contactId,
+    })
+      .then((signature) => {
+        if (!cancelled) setReusableHocSig(signature);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setReusableSigError(
+            err instanceof Error
+              ? err.message
+              : 'Failed to load your saved signature.',
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingReusableSig(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [canSign, hocSig, id, loadingSig, user?.contactId]);
+
+  const handleConfirmReusableSignature = async () => {
+    if (!id || !user?.contactId || !isUsableSignature(reusableHocSig)) return;
+    setConfirmingReusableSig(true);
+    setReusableSigError(null);
+    try {
+      await confirmReusableSignature({
+        requestId: id,
+        signatoryEmail: 'HOC',
+        signatoryContactId: user.contactId,
+        signUrl: reusableHocSig.signUrl,
+      });
+      setReusableHocSig(null);
+      await loadHocSig();
+    } catch (err) {
+      setReusableSigError(
+        err instanceof Error
+          ? err.message
+          : 'Failed to confirm your saved signature.',
+      );
+    } finally {
+      setConfirmingReusableSig(false);
+    }
+  };
 
   // A signature is saved before the final acceptance PATCH. Keep status 6
   // editable so a user can resume and submit after a refresh or interrupted
@@ -170,7 +245,7 @@ export default function ReviewDecisionForm() {
       setFormError('Please select a conclusion code before submitting.');
       return;
     }
-    if (!hocSig) {
+    if (!isUsableSignature(hocSig)) {
       setFormError('Please add your digital signature before submitting.');
       return;
     }
@@ -215,6 +290,8 @@ export default function ReviewDecisionForm() {
     }
   };
 
+  const hasReusableHocSig = isUsableSignature(reusableHocSig);
+  const displayedHocSig = hocSig ?? (hasReusableHocSig ? reusableHocSig : null);
   const sigDateStr = hocSig?.createdOn
     ? new Date(hocSig.createdOn).toLocaleString('en-MY', {
         day: '2-digit',
@@ -234,8 +311,7 @@ export default function ReviewDecisionForm() {
       })
     : null;
   const signerName =
-    hocSig?.signatoryName ??
-    (hocSig ? 'Head of Company' : user?.name || 'Head of Company');
+    displayedHocSig?.signatoryName ?? user?.name ?? 'Head of Company';
   const selectedOption = visibleCodeOptions.find(
     (option) => option.value === selectedCode,
   );
@@ -413,14 +489,16 @@ export default function ReviewDecisionForm() {
                   <small>The Head of Company must sign before this acceptance can be submitted.</small>
                 </div>
               </div>
-              <div className={`hoc-sig-box${hocSig ? ' hoc-sig-box--signed' : ''}`}>
+              <div className={`hoc-sig-box${hocSig ? ' hoc-sig-box--signed' : ''}${hasReusableHocSig && !hocSig ? ' hoc-sig-box--saved' : ''}`}>
                 <div className="hoc-sig-img-wrapper">
-                  {loadingSig ? (
+                  {loadingSig || loadingReusableSig ? (
                     <Loader2 size={20} className="sig-spin" aria-hidden="true" />
-                  ) : hocSig?.signUrl ? (
+                  ) : displayedHocSig?.signUrl ? (
                     <SignatureImage
-                      src={hocSig.signUrl}
-                      alt={`Signature of ${signerName}`}
+                      src={displayedHocSig.signUrl}
+                      alt={hocSig
+                        ? `Signature of ${signerName}`
+                        : `Saved signature preview for ${signerName}`}
                       className="hoc-sig-img"
                     />
                   ) : (
@@ -436,9 +514,43 @@ export default function ReviewDecisionForm() {
                   </strong>
                   <span className="hoc-sig-role">Head of Company</span>
                   <span className="hoc-sig-date">
-                    {sigDateStr ? `Digitally signed: ${sigDateStr} MYT` : 'Not yet signed'}
+                    {sigDateStr
+                      ? `Digitally signed: ${sigDateStr} MYT`
+                      : hasReusableHocSig
+                        ? 'Saved signature — not yet confirmed for this request'
+                        : 'Not yet signed'}
                   </span>
-                  {!hocSig && !submitting ? (
+                  {!hocSig && hasReusableHocSig && !submitting ? (
+                    <div className="sig-reuse-actions no-print">
+                      <button
+                        type="button"
+                        className="sig-sign-btn"
+                        onClick={() => void handleConfirmReusableSignature()}
+                        disabled={!canSign || confirmingReusableSig}
+                      >
+                        {confirmingReusableSig ? (
+                          <>
+                            <Loader2 size={13} className="sig-spin" aria-hidden="true" />
+                            Confirming…
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 size={13} aria-hidden="true" />
+                            Confirm Signature
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className="sig-replace-btn"
+                        onClick={() => setShowSignModal(true)}
+                        disabled={!canSign || confirmingReusableSig}
+                      >
+                        <PenLine size={12} aria-hidden="true" />
+                        Draw/Upload Different
+                      </button>
+                    </div>
+                  ) : !hocSig && !submitting ? (
                     <button
                       type="button"
                       className="sig-sign-btn no-print"
@@ -483,6 +595,12 @@ export default function ReviewDecisionForm() {
               {submitError ? (
                 <InlineMessage tone="error" title="Couldn't submit" className="no-print">
                   {submitError}
+                </InlineMessage>
+              ) : null}
+              {reusableSigError ? (
+                <InlineMessage tone="warning" className="no-print">
+                  Your saved signature could not be loaded or confirmed. You can
+                  still draw or upload a signature for this request.
                 </InlineMessage>
               ) : null}
               {submitSuccess ? (

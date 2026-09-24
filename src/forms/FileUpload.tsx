@@ -1,6 +1,14 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { CSSProperties, DragEvent } from 'react';
 import { Check, FileText, Pencil, Trash2, Upload } from 'lucide-react';
+import {
+  checkUploadAddition,
+  checkUploadReplacement,
+  formatQuotaExceededMessage,
+  formatUploadBytes,
+  MAX_REQUEST_UPLOAD_BYTES,
+  sumUploadBytes,
+} from '../shared/uploadQuota.ts';
 
 type UploadedFile = {
   id: string;
@@ -26,7 +34,11 @@ type Uploader = (
 ) => Promise<{ webUrl: string; id: string }>;
 
 interface FileUploadProps {
-  maxFileSize?: number; // bytes, default 10_485_760 (10 MB)
+  maxFileSize?: number; // bytes, default 104_857_600 (100 MiB)
+  /** Current bytes selected across every upload field in this request. */
+  currentTotalBytes?: number;
+  /** Combined byte limit across every upload field in this request. */
+  maxTotalBytes?: number;
   maxFiles?: number; // default 10
   accept?: string[]; // mime types
   value?: UploadedFile[]; // controlled
@@ -64,12 +76,6 @@ const getExt = (name: string): string => {
 };
 
 const isImage = (file: File): boolean => file.type.startsWith('image/');
-
-const formatBytes = (bytes: number): string => {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-};
 
 const CHIP_WIDTH = 92;
 
@@ -126,6 +132,15 @@ const styles: Record<string, CSSProperties> = {
     color: ACCENT_DEEP,
     background: '#EEF0FF',
     border: `1px solid ${ACCENT}33`,
+    borderRadius: 8,
+  },
+  quotaError: {
+    marginTop: 8,
+    padding: '6px 10px',
+    fontSize: 12,
+    color: DANGER,
+    background: '#FEF2F2',
+    border: '1px solid #FECACA',
     borderRadius: 8,
   },
   strip: {
@@ -277,7 +292,9 @@ const ProgressRing = ({ progress }: { progress: number }) => {
 };
 
 const FileUpload = ({
-  maxFileSize = 10_485_760,
+  maxFileSize = MAX_REQUEST_UPLOAD_BYTES,
+  currentTotalBytes,
+  maxTotalBytes = MAX_REQUEST_UPLOAD_BYTES,
   maxFiles = 10,
   accept,
   value,
@@ -309,6 +326,10 @@ const FileUpload = ({
   const [dragOver, setDragOver] = useState(false);
   const [focused, setFocused] = useState(false);
   const [hovered, setHovered] = useState<string | null>(null);
+  const [quotaError, setQuotaError] = useState<string | null>(null);
+
+  const effectiveTotalBytes =
+    currentTotalBytes ?? sumUploadBytes([filesRef.current]);
 
   const setFiles = (next: UploadedFile[]) => {
     filesRef.current = next;
@@ -390,6 +411,25 @@ const FileUpload = ({
     if (disabled || incoming.length === 0) return;
     const remaining = maxFiles - files.length;
     const accepted = incoming.slice(0, Math.max(0, remaining));
+    if (accepted.length === 0) return;
+
+    const incomingBytes = accepted.reduce((sum, file) => sum + file.size, 0);
+    const decision = checkUploadAddition(
+      effectiveTotalBytes,
+      incomingBytes,
+      maxTotalBytes,
+    );
+    if (!decision.allowed) {
+      setQuotaError(
+        formatQuotaExceededMessage(
+          effectiveTotalBytes,
+          incomingBytes,
+          maxTotalBytes,
+        ),
+      );
+      return;
+    }
+    setQuotaError(null);
 
     const entries: UploadedFile[] = accepted.map((file) => ({
       id: genId(),
@@ -418,17 +458,39 @@ const FileUpload = ({
       replaceIdRef.current = null;
       const file = list[0];
       if (!file) return;
+      const previous = filesRef.current.find((item) => item.id === replacingId);
+      if (!previous) return;
+      const decision = checkUploadReplacement(
+        effectiveTotalBytes,
+        previous.file.size,
+        file.size,
+        maxTotalBytes,
+      );
+      if (!decision.allowed) {
+        setQuotaError(
+          formatQuotaExceededMessage(
+            Math.max(0, effectiveTotalBytes - previous.file.size),
+            file.size,
+            maxTotalBytes,
+          ),
+        );
+        return;
+      }
+      setQuotaError(null);
       const error = validate(file);
+      // Give a replacement a new identity so a slower upload for the previous
+      // file cannot update this entry after it has been replaced.
+      const replacementId = genId();
       setFiles(
         filesRef.current.map((f) =>
           f.id === replacingId
-            ? { ...f, file, progress: 0, preview: undefined, url: undefined, remoteId: undefined, error }
+            ? { id: replacementId, file, progress: 0, preview: undefined, url: undefined, remoteId: undefined, error }
             : f
         )
       );
       if (!error) {
-        if (isImage(file)) buildPreview(replacingId, file);
-        startUpload(replacingId, file);
+        if (isImage(file)) buildPreview(replacementId, file);
+        startUpload(replacementId, file);
         onUpload?.([file]);
       }
       return;
@@ -444,6 +506,7 @@ const FileUpload = ({
   };
 
   const handleRemove = (id: string) => {
+    setQuotaError(null);
     setFiles(filesRef.current.filter((f) => f.id !== id));
   };
 
@@ -514,9 +577,16 @@ const FileUpload = ({
       </div>
 
       <p style={styles.hint}>
-        Allowed: PDF, Word, Excel, JPG, PNG. Max size:{' '}
-        {formatBytes(maxFileSize)}.
+        Allowed: PDF, Word, Excel, JPG, PNG. Combined usage:{' '}
+        {formatUploadBytes(effectiveTotalBytes)} of{' '}
+        {formatUploadBytes(maxTotalBytes)}.
       </p>
+
+      {quotaError ? (
+        <div style={styles.quotaError} role="alert">
+          {quotaError}
+        </div>
+      ) : null}
 
       {atLimit ? (
         <div style={styles.banner}>

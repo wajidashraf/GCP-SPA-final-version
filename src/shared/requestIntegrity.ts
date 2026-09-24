@@ -28,7 +28,9 @@ type IntegrityEvidence = {
 
 const normalizeId = (value: string): string => value.trim().toLowerCase();
 
-const resolveChildKind = (request: GcpRequest): ChildKind | null => {
+const resolveChildKind = (
+  request: Pick<GcpRequest, 'soaCode' | 'matter'>,
+): ChildKind | null => {
   switch (request.soaCode) {
     case 1:
       return 'rtp';

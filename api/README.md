@@ -102,7 +102,13 @@ config appsettings set`). Locally, copy `local.settings.json.example` →
 | `SHAREPOINT_SITE_PATH` | Fallback: `/sites/<your-site>` |
 | `SHAREPOINT_LIBRARY` | Fallback: library display name (default `Documents`) |
 | `SHAREPOINT_ROOT_FOLDER` | Top folder for uploads (default `GCP-Uploads`) |
-| `MAX_FILE_BYTES` | Max upload size (default `10485760` = 10 MB) |
+| `MAX_FILE_BYTES` | Max incoming file size (default `104857600` = 100 MiB) |
+| `FUNCTIONS_REQUEST_BODY_SIZE_LIMIT` | Function HTTP request ceiling (`125829120` = 120 MiB), leaving room for multipart overhead around a 100 MiB file |
+
+The upload handler materializes the multipart form data, an `ArrayBuffer`, and a
+Node `Buffer` while processing a file. Verify that the selected Function hosting
+plan has enough memory before enabling 100 MiB uploads, then smoke-test near the
+limit in GCP-Developer.
 
 > This project uses a **single** app registration (`GCP-Nexus`) for both the
 > token audience and Graph — set `API_CLIENT_ID` and `GRAPH_CLIENT_ID` to the

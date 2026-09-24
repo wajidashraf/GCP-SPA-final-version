@@ -1,5 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import Modal from 'react-bootstrap/Modal';
 import {
   ArrowLeft,
   CalendarClock,
@@ -7,12 +8,16 @@ import {
   Loader2,
   Pencil,
   Plus,
+  Trash2,
   Users,
 } from 'lucide-react';
 import { InlineMessage } from '../components/ui';
 import { SlotFormModal } from '../components/slots/SlotFormModal';
 import type { AttendeeOption } from '../components/slots/SlotFormModal';
-import { listSlots } from '../shared/services/slotService';
+import {
+  deleteSlotPreservingEngagements,
+  listSlots,
+} from '../shared/services/slotService';
 import { SLOT_STATUS_AVAILABLE } from '../data/slotChoices';
 import type { Slot } from '../types/slot';
 import { listContactsInRole } from '../shared/webRoleApi';
@@ -67,6 +72,10 @@ export default function SlotManagement() {
   const [createdNotice, setCreatedNotice] = useState(false);
   const [editTarget, setEditTarget] = useState<Slot | null>(null);
   const [savedNotice, setSavedNotice] = useState(false);
+  const [deletedNotice, setDeletedNotice] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Slot | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [reviewers, setReviewers] = useState<AttendeeOption[]>([]);
   const [reviewersError, setReviewersError] = useState<string | null>(null);
 
@@ -140,6 +149,34 @@ export default function SlotManagement() {
     void load();
   };
 
+  const openDeleteConfirmation = (slot: Slot) => {
+    setDeleteError(null);
+    setDeleteTarget(slot);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget || deleting) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const result = await deleteSlotPreservingEngagements(deleteTarget.id);
+      setSlots((current) => current.filter((slot) => slot.id !== deleteTarget.id));
+      setDeletedNotice(
+        result.detachedEngagementCount > 0
+          ? `Slot deleted. ${result.detachedEngagementCount} linked engagement${result.detachedEngagementCount === 1 ? '' : 's'} preserved.`
+          : 'Slot deleted successfully.',
+      );
+      setDeleteTarget(null);
+      await load();
+    } catch (err) {
+      setDeleteError(
+        err instanceof Error ? err.message : 'Failed to delete the slot.',
+      );
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <section className="section">
       <div className="container">
@@ -179,6 +216,16 @@ export default function SlotManagement() {
             onDismiss={() => setSavedNotice(false)}
           >
             Slot updated successfully.
+          </InlineMessage>
+        )}
+
+        {deletedNotice && (
+          <InlineMessage
+            tone="success"
+            className="mb-3"
+            onDismiss={() => setDeletedNotice(null)}
+          >
+            {deletedNotice}
           </InlineMessage>
         )}
 
@@ -320,6 +367,18 @@ export default function SlotManagement() {
                       </>
                     )}
                   </div>
+
+                  <div className="slot-card-delete-footer">
+                    <button
+                      type="button"
+                      className="slot-delete-btn"
+                      onClick={() => openDeleteConfirmation(slot)}
+                      aria-label={`Delete ${slot.title || 'slot'}`}
+                    >
+                      <Trash2 size={13} aria-hidden="true" />
+                      Delete
+                    </button>
+                  </div>
                 </article>
               );
             })}
@@ -343,6 +402,65 @@ export default function SlotManagement() {
         onSaved={handleSaved}
         contacts={contacts}
       />
+
+      <Modal
+        show={deleteTarget !== null}
+        onHide={deleting ? undefined : () => setDeleteTarget(null)}
+        centered
+        backdrop="static"
+        aria-labelledby="slot-delete-title"
+      >
+        <Modal.Header closeButton={!deleting}>
+          <Modal.Title id="slot-delete-title" className="vd-card-title">
+            Delete slot
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <p>
+            Delete <strong>{deleteTarget?.title || 'this slot'}</strong>? This
+            cannot be undone.
+          </p>
+          {deleteTarget?.status !== SLOT_STATUS_AVAILABLE ? (
+            <InlineMessage tone="warning">
+              Linked engagement records will be preserved. Only their slot link
+              will be removed.
+            </InlineMessage>
+          ) : null}
+          {deleteError ? (
+            <InlineMessage tone="error" className="mt-3">
+              {deleteError}
+            </InlineMessage>
+          ) : null}
+        </Modal.Body>
+        <Modal.Footer>
+          <button
+            type="button"
+            className="vd-btn-secondary"
+            onClick={() => setDeleteTarget(null)}
+            disabled={deleting}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="eng-cancel-btn eng-cancel-btn--solid"
+            onClick={() => void handleDelete()}
+            disabled={deleting}
+          >
+            {deleting ? (
+              <>
+                <Loader2 size={14} className="rq-spinner" aria-hidden="true" />
+                Deleting…
+              </>
+            ) : (
+              <>
+                <Trash2 size={14} aria-hidden="true" />
+                Delete slot
+              </>
+            )}
+          </button>
+        </Modal.Footer>
+      </Modal>
     </section>
   );
 }
