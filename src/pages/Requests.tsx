@@ -58,6 +58,25 @@ const statusDisplayLabel: Record<string, string> = {
   R: 'Booked',
 };
 
+// Filter copy only; option values remain the existing Dataverse status values.
+const statusFilterLabel: Record<string, string> = {
+  FR: 'For Record (FR)',
+  R: 'Booked (R)',
+  'Pending Ack': 'Pending Acknowledgement',
+  ACK: 'Acknowledged (ACK)',
+  'Pending Endorse': 'Pending Endorsement',
+  E: 'Endorsed (E)',
+  RS: 'Re-Submit (RS)',
+  NC3: 'Non-compliant (NC3)',
+  NC4: 'Non-compliant (NC4)',
+  W: 'Waived (W)',
+};
+
+const statusFilterOptions = toSelectOptions(requestStatusChoices).map((option) => ({
+  ...option,
+  label: statusFilterLabel[option.label] ?? option.label,
+}));
+
 const statusClass: Record<string, string> = {
   New: 'status-new',
   Draft: 'status-new',
@@ -333,7 +352,7 @@ export default function Requests() {
                 }
                 options={[
                   { label: 'All statuses', value: '__all__' },
-                  ...toSelectOptions(requestStatusChoices),
+                  ...statusFilterOptions,
                 ]}
               />
             </div>
