@@ -12,12 +12,7 @@ import {
 } from 'lucide-react';
 import { InlineMessage } from '../components/ui';
 import { EditEngagementModal } from '../components/engagements/EditEngagementModal';
-import {
-  listEngagements,
-  updateEngagementStatus,
-} from '../shared/services/engagementService';
-import { updateSlotStatus } from '../shared/services/slotService';
-import { SLOT_STATUS_AVAILABLE } from '../data/slotChoices';
+import { loadBookingManagementEngagements, saveEngagementBooking } from '../shared/engagementBookingApi';
 import {
   ENGAGEMENT_STATUS_CANCELLED,
   ENGAGEMENT_STATUS_COMPLETED,
@@ -75,7 +70,7 @@ export default function EngagementManagement() {
     setLoading(true);
     setLoadError(null);
     try {
-      const items = await listEngagements();
+      const items = await loadBookingManagementEngagements();
       setEngagements(items.filter((e) => e.name && e.number));
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : String(err));
@@ -110,15 +105,11 @@ export default function EngagementManagement() {
   };
 
   const confirmCancel = async () => {
-    if (!cancelTarget) return;
+    if (!cancelTarget || cancelling) return;
     setCancelling(true);
     try {
-      await updateEngagementStatus(cancelTarget.id, ENGAGEMENT_STATUS_CANCELLED);
-      if (cancelTarget.slotId) {
-        await updateSlotStatus(cancelTarget.slotId, SLOT_STATUS_AVAILABLE).catch(
-          () => undefined
-        );
-      }
+      if (!cancelTarget.requestId) throw new Error('This engagement has no associated request. Contact your administrator.');
+      await saveEngagementBooking({ action: 'cancel', requestId: cancelTarget.requestId, engagementId: cancelTarget.id, expectedVersion: cancelTarget.version });
       setEngagements((prev) =>
         prev.map((e) =>
           e.id === cancelTarget.id
@@ -128,8 +119,8 @@ export default function EngagementManagement() {
       );
       setCancelTarget(null);
       setNotice('Engagement cancelled and its slot freed.');
-    } catch {
-      setLoadError('Failed to cancel engagement. Please try again.');
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Failed to cancel engagement. Please refresh before retrying.');
     } finally {
       setCancelling(false);
     }

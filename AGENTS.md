@@ -112,8 +112,10 @@ Report unresolved conflicts instead of guessing.
 - Azure Functions:
   - from `api/`, `npm run build` compiles TypeScript;
   - `npm start` builds and runs Functions Core Tools.
-- There is currently no real automated test suite or lint script. Do not report
-  `api/npm test` as meaningful coverage; it is a placeholder.
+- Focused Node tests live under `tests/` (`*.test.ts`). From `api/`, `npm test`
+  builds and runs the booking tests under `api/tests/`; the former placeholder
+  was replaced on 2026-10-15. There is no lint script. These checks do not
+  replace signed-in Power Pages runtime tests.
 - Validate proportionally: at minimum build the affected TypeScript project.
   Runtime Power Pages behavior, table permissions, portal tokens, and server
   logic require a signed-in deployed-site smoke test.

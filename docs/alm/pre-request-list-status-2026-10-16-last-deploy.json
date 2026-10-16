@@ -1,0 +1,32 @@
+{
+  "stageName": "PowerPagesProduction",
+  "environmentId": "f99a8105-8032-ea69-966d-145edf57bc94",
+  "siteId": "517038c0-eca4-4529-a872-f613ea02ad32",
+  "siteUrl": "https://gcp-nexus-prod.powerappsportals.com",
+  "deployedAt": "2026-10-16T04:06:38.929Z",
+  "verifiedAt": "2026-10-16T04:06:57.531Z",
+  "uploadSucceeded": true,
+  "restartSucceeded": true,
+  "eventsCompleted": 71,
+  "eventsTotal": 71,
+  "artifacts": [
+    {
+      "name": "index-BB_POdJ5.js",
+      "id": "399aafa6-9db6-4e41-be12-05265c91522e",
+      "sha256": "98979c27b2b118d89315edfa9bc3883d1a762b63ab26e1ad39979a8518b483d9",
+      "matchesBuild": true
+    },
+    {
+      "name": "index-DMnDV12K.css",
+      "id": "191a6572-40ad-4729-a7a5-81a67ace092a",
+      "sha256": "da9d0ec8030674622a8210c1394c7baa044c7ec330b7f26066cf0f0b08cfd1d9",
+      "matchesBuild": true
+    }
+  ],
+  "fieldSettings": 25,
+  "tablePermissions": 53,
+  "unchangedPermissions": 53,
+  "backendDeployment": "5d7808f72ae148298419b6c526dfd07b",
+  "authenticatedBookingSaveVerified": false,
+  "change": "Booking cache, synchronous-create workflow and stale editor fixes"
+}

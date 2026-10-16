@@ -1,4 +1,4 @@
 description: Allowed fields for gcp_pccarequest Web API access
 id: acfb47d8-5ed5-49ff-b3e2-6cd1463166da
 name: Webapi/gcp_pccarequest/fields
-value: '*'
+value: _gcp_company_value,_gcp_project_value,_gcp_request_value,createdon,gcp_Company,gcp_Project,gcp_Request,gcp_acknowledgement,gcp_company,gcp_constructioncostrm,gcp_costfromcontractbq,gcp_internalcost,gcp_occarequestname,gcp_pccarequestid,gcp_pricerevenuefromcontractbq,gcp_project,gcp_remarks,gcp_request,gcp_totalcostrm,gcp_totalrevenuerm

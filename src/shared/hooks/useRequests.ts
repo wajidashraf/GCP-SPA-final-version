@@ -13,6 +13,8 @@ import type {
 import type { GcpRequest } from '../../types/request';
 import { checkRequestIntegrity } from '../services/requestIntegrityService';
 import type { RequestIntegrityState } from '../requestIntegrity';
+import { loadRequestStatuses } from '../engagementBookingApi';
+import { refreshRequestListStatuses } from '../requestStatusPresentation';
 
 type UseRequestsState = {
   items: GcpRequest[];
@@ -60,22 +62,24 @@ const useRequests = (options: ListRequestsOptions = {}): UseRequestsState => {
     setIntegrityLoading(true);
     setIntegrityWarning(null);
     if (!append) setIntegrityById(new Map());
+    if (!append) setItems([]);
     try {
       const result: ListRequestsResult = await listRequests({
         ...optionsRef.current,
         nextLink: link,
       });
+      const freshItems = await refreshRequestListStatuses(result.items, loadRequestStatuses);
       if (!isCurrentLoad()) return;
-      setItems((prev) => (append ? [...prev, ...result.items] : result.items));
+      setItems((prev) => (append ? [...prev, ...freshItems] : freshItems));
       setTotalCount(result.totalCount);
       setNextLink(result.nextLink);
 
       let checked: Map<string, RequestIntegrityState>;
       try {
-        checked = await checkRequestIntegrity(result.items);
+        checked = await checkRequestIntegrity(freshItems);
       } catch {
         checked = new Map(
-          result.items.map((request) => [request.id, 'unknown' as const]),
+          freshItems.map((request) => [request.id, 'unknown' as const]),
         );
       }
       if (!isCurrentLoad()) return;

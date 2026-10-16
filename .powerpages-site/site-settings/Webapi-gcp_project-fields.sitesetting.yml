@@ -1,4 +1,4 @@
 description: Allowed fields for gcp_projects Web API access
 id: de8ac975-1c61-4f48-bc61-246a990a1f22
 name: Webapi/gcp_projects/fields
-value: '*'
+value: _gcp_company_value,createdon,gcp_Company,gcp_company,gcp_projectcode,gcp_projectname,gcp_projectsid,gcp_projectstatus,modifiedon

@@ -1,4 +1,4 @@
 description: Allowed fields for gcp_pblbidders Web API access
 id: 0a1857e3-4c37-4e3f-bb90-f6998a65ffd1
 name: Webapi/gcp_pblbidders/fields
-value: '*'
+value: _gcp_companyname_value,_gcp_pblrequest_value,createdon,gcp_CompanyName,gcp_PBLRequest,gcp_acknowledgment,gcp_company,gcp_companyname,gcp_justificationforlt3bidders,gcp_location,gcp_pblbiddername,gcp_pblbiddersid,gcp_pblrequest,gcp_person_in_charge,gcp_piccontactnumber,gcp_recommendedby,gcp_sector,gcp_sourcesfrom

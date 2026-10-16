@@ -10,6 +10,7 @@ import './styles/verifyData.css';
 import './styles/requestReview.css';
 import './styles/engagement.css';
 import './styles/emailTemplates.css';
+import './styles/requestPrint.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

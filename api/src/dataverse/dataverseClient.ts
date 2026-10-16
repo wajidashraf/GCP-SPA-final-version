@@ -105,6 +105,22 @@ export const dvPost = async (relativePath: string, json: unknown): Promise<void>
   if (!res.ok) throw await parseError(res);
 };
 
+/** Send a multipart transaction once. A transport failure must be reconciled
+ * by the caller; blindly retrying a booking mutation is not safe. */
+export const dvPostRaw = async (
+  relativePath: string,
+  body: string,
+  contentType: string,
+): Promise<Response> => {
+  const res = await fetch(dataverseUrl(relativePath), {
+    method: 'POST',
+    headers: { ...(await baseHeaders()), 'Content-Type': contentType },
+    body,
+  });
+  if (!res.ok) throw await parseError(res);
+  return res;
+};
+
 /** PATCH a Dataverse record (used for field updates). */
 export const dvPatch = async (relativePath: string, json: unknown): Promise<void> => {
   const res = await fetch(dataverseUrl(relativePath), {

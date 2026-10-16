@@ -40,6 +40,10 @@ import {
 import type { RequestListState } from '../shared/requestListState';
 import { getRequestRowPresentation } from '../shared/requestListPresentation';
 import {
+  getRequestStatusDisplayLabel,
+  requestStatusFilterOptions,
+} from '../shared/requestStatusPresentation';
+import {
   canDeleteRequests,
   deleteRequestTree,
   RequestDeletionError,
@@ -48,34 +52,6 @@ import {
 
 const PAGE_SIZE = 10;
 const SERVER_FETCH_SIZE = 100;
-
-// Display-only overrides for a few status pills. The underlying Dataverse
-// labels (FR / RS / R) still drive styling and the row action; only the text
-// shown to the user is friendlier here.
-const statusDisplayLabel: Record<string, string> = {
-  FR: 'For Record',
-  RS: 'Re-Submit',
-  R: 'Booked',
-};
-
-// Filter copy only; option values remain the existing Dataverse status values.
-const statusFilterLabel: Record<string, string> = {
-  FR: 'For Record (FR)',
-  R: 'Booked (R)',
-  'Pending Ack': 'Pending Acknowledgement',
-  ACK: 'Acknowledged (ACK)',
-  'Pending Endorse': 'Pending Endorsement',
-  E: 'Endorsed (E)',
-  RS: 'Re-Submit (RS)',
-  NC3: 'Non-compliant (NC3)',
-  NC4: 'Non-compliant (NC4)',
-  W: 'Waived (W)',
-};
-
-const statusFilterOptions = toSelectOptions(requestStatusChoices).map((option) => ({
-  ...option,
-  label: statusFilterLabel[option.label] ?? option.label,
-}));
 
 const statusClass: Record<string, string> = {
   New: 'status-new',
@@ -352,7 +328,7 @@ export default function Requests() {
                 }
                 options={[
                   { label: 'All statuses', value: '__all__' },
-                  ...statusFilterOptions,
+                  ...requestStatusFilterOptions,
                 ]}
               />
             </div>
@@ -526,7 +502,7 @@ export default function Requests() {
                 );
                 const displayStatus =
                   presentation.actionMode === 'normal'
-                    ? statusDisplayLabel[statusLabel] ?? statusLabel
+                    ? getRequestStatusDisplayLabel(r.status)
                     : presentation.displayStatus;
                 const statusCls = statusClass[presentation.displayStatus] ?? '';
                 const action =

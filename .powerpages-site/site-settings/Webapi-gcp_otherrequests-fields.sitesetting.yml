@@ -1,4 +1,4 @@
 description: Allowed fields for gcp_otherrequests Web API access
 id: 30d9c1a6-a364-4736-bfbc-fc947c27af9f
 name: Webapi/gcp_otherrequests/fields
-value: '*'
+value: _gcp_company_value,_gcp_project_value,_gcp_requestlookup_value,createdon,gcp_Company,gcp_Project,gcp_Requestlookup,gcp_acknowledgement,gcp_company,gcp_descriptionofmatters,gcp_otherrequestsid,gcp_project,gcp_projectcode,gcp_requestlookup,gcp_requestname

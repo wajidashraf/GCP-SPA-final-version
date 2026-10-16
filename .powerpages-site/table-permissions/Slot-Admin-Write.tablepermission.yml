@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- f48675b4-13bf-459d-8a1d-f9a42f468dba
+append: true
+appendto: true
+create: true
+delete: false
+entitylogicalname: gcp_slot
+entityname: Slot - Admin Write
+id: 7057f8bc-fce5-4084-9fb3-ee98a4c0e216
+read: true
+scope: 756150000
+write: true

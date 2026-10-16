@@ -1,0 +1,12 @@
+adx_entitypermission_webrole:
+- f48675b4-13bf-459d-8a1d-f9a42f468dba
+append: true
+appendto: false
+create: false
+delete: false
+entitylogicalname: gcp_engagements
+entityname: Engagement - Admin Write
+id: 54cde937-87ae-4ce5-a316-28697778aa45
+read: true
+scope: 756150000
+write: true

@@ -6,19 +6,17 @@ import { InlineMessage } from '../ui';
 import {
   ENGAGEMENT_TYPE_PHYSICAL,
   ENGAGEMENT_TYPE_VIRTUAL,
+  ENGAGEMENT_STATUS_SCHEDULED,
   engagementLocationOptions,
   engagementTypeChoices,
   OTHER_LOCATION_VALUE,
 } from '../../data/engagementChoices';
 import { toSelectOptions } from '../../data/types';
-import { SLOT_STATUS_AVAILABLE, SLOT_STATUS_BOOKED } from '../../data/slotChoices';
-import {
-  listAvailableSlotsWithin,
-  updateSlotStatus,
-} from '../../shared/services/slotService';
-import { updateEngagement } from '../../shared/services/engagementService';
+import { loadEngagementBooking, saveEngagementBooking } from '../../shared/engagementBookingApi';
+import { availableEngagementSlots, withCurrentEngagementSlot } from '../../shared/engagementBookingSlots';
 import type { Engagement } from '../../types/engagement';
 import type { Slot } from '../../types/slot';
+import type { EngagementTypeValue } from '../../data/engagementChoices';
 
 type EditEngagementModalProps = {
   show: boolean;
@@ -82,36 +80,52 @@ const EditEngagementModal = ({
   const [customLocation, setCustomLocation] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savedEngagement, setSavedEngagement] = useState<Engagement | null>(null);
+  const [loading, setLoading] = useState(false);
 
   // Initialise form state whenever a new engagement is opened.
   useEffect(() => {
     if (!show || !engagement) return;
-    setType(String(engagement.type ?? ENGAGEMENT_TYPE_VIRTUAL));
-    const init = resolveInitialLocation(engagement.location);
-    setLocation(init.location);
-    setCustomLocation(init.custom);
-    setMonth('');
+    setSavedEngagement(null);
+    setSlots([]);
     setSelectedSlotId('');
+    setLoading(true);
     setError(null);
 
     let cancelled = false;
-    listAvailableSlotsWithin(6)
-      .then((s) => {
-        if (!cancelled) setSlots(s);
+    loadEngagementBooking(engagement.requestId ?? '')
+      .then((snapshot) => {
+        if (cancelled) return;
+        const latest = snapshot.engagements.find(item => item.id === engagement.id);
+        if (!latest || latest.status !== ENGAGEMENT_STATUS_SCHEDULED || snapshot.request.status !== 3) {
+          throw new Error('This booking has changed. Close and refresh the request before editing.');
+        }
+        setSavedEngagement(latest);
+        setType(String(latest.type ?? ENGAGEMENT_TYPE_VIRTUAL));
+        const init = resolveInitialLocation(latest.location);
+        setLocation(init.location);
+        setCustomLocation(init.custom);
+        setMonth(snapshot.slots[0]?.date ? monthKeyOf(snapshot.slots[0].date) : '');
+        setSelectedSlotId(latest.slotId ?? '');
+        setSlots(withCurrentEngagementSlot(snapshot.slots, snapshot.currentSlot, latest));
       })
-      .catch(() => {
-        if (!cancelled) setSlots([]);
-      });
+      .catch((err) => {
+        if (!cancelled) {
+          setSlots([]);
+          setError(err instanceof Error ? err.message : 'Could not load available slots. Close and reopen the booking to retry.');
+        }
+      }).finally(() => { if (!cancelled) setLoading(false); });
     return () => {
       cancelled = true;
     };
   }, [show, engagement]);
 
   const isPhysical = Number(type) === ENGAGEMENT_TYPE_PHYSICAL;
+  const availableSlots = useMemo(() => availableEngagementSlots(slots, savedEngagement?.slotId), [slots, savedEngagement?.slotId]);
 
   const monthOptions = useMemo(() => {
     const counts = new Map<string, { label: string; count: number }>();
-    for (const s of slots) {
+    for (const s of availableSlots) {
       if (!s.date) continue;
       const key = monthKeyOf(s.date);
       const existing = counts.get(key);
@@ -129,16 +143,16 @@ const EditEngagementModal = ({
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([value, { label, count }]) => ({
         value,
-        label: `${label} (${count} slot${count === 1 ? '' : 's'} available)`,
+        label: `${label} (${count} slot${count === 1 ? '' : 's'})`,
       }));
-  }, [slots]);
+  }, [availableSlots]);
 
   const slotsForMonth = useMemo(() => {
     if (!month) return [];
-    return slots
+    return availableSlots
       .filter((s) => s.date && monthKeyOf(s.date) === month)
       .sort((a, b) => (a.start ?? '').localeCompare(b.start ?? ''));
-  }, [slots, month]);
+  }, [availableSlots, month]);
 
   const handleClose = () => {
     if (submitting) return;
@@ -146,7 +160,8 @@ const EditEngagementModal = ({
   };
 
   const handleSave = async () => {
-    if (!engagement) return;
+    const engagement = savedEngagement;
+    if (!engagement || submitting || loading) return;
     setError(null);
 
     let resolvedLocation: string | null = null;
@@ -159,45 +174,23 @@ const EditEngagementModal = ({
       }
     }
 
-    const newSlot =
-      selectedSlotId && selectedSlotId !== engagement.slotId
-        ? slots.find((s) => s.id === selectedSlotId) ?? null
-        : null;
+    if (!engagement.requestId || !selectedSlotId || !slots.some((slot) => slot.id === selectedSlotId)) {
+      setError('Select an available slot. If the current booking could not be loaded, close and reopen it.');
+      return;
+    }
 
     setSubmitting(true);
     try {
-      await updateEngagement(
-        engagement.id,
-        {
-          gcp_engagementtype: Number(type) as typeof ENGAGEMENT_TYPE_VIRTUAL,
-          gcp_location: resolvedLocation,
-          ...(newSlot
-            ? {
-                gcp_engagementdate: newSlot.date
-                  ? new Date(newSlot.date).toISOString()
-                  : undefined,
-                gcp_starttime: newSlot.start,
-                gcp_endtime: newSlot.end,
-              }
-            : {}),
-        },
-        newSlot
-          ? {
-              slotId: newSlot.id,
-              attendeeContactId: newSlot.attendees[0]?.contactId ?? null,
-            }
-          : {}
-      );
-
-      // Re-book/free slots when the slot changed.
-      if (newSlot) {
-        await updateSlotStatus(newSlot.id, SLOT_STATUS_BOOKED);
-        if (engagement.slotId) {
-          await updateSlotStatus(engagement.slotId, SLOT_STATUS_AVAILABLE).catch(
-            () => undefined
-          );
-        }
-      }
+      await saveEngagementBooking({
+        action: 'reschedule',
+        requestId: engagement.requestId,
+        engagementId: engagement.id,
+        expectedVersion: engagement.version,
+        slotId: selectedSlotId,
+        name: engagement.name ?? '',
+        type: Number(type) as EngagementTypeValue,
+        location: resolvedLocation,
+      });
       onSaved();
     } catch (err) {
       setError(
@@ -205,6 +198,7 @@ const EditEngagementModal = ({
           ? `Failed to update engagement: ${err.message}`
           : 'Failed to update engagement. Please try again.'
       );
+    } finally {
       setSubmitting(false);
     }
   };
@@ -252,16 +246,18 @@ const EditEngagementModal = ({
           )}
 
           {/* Current slot */}
-          <div className="slot-endtime">
+          <button type="button" className={`eng-slot${selectedSlotId === savedEngagement?.slotId ? ' is-selected' : ''}`}
+            onClick={() => setSelectedSlotId(savedEngagement?.slotId ?? '')}
+            disabled={submitting || loading || !slots.some(slot => slot.id === savedEngagement?.slotId)}>
             <span className="slot-endtime-label">Current slot</span>
             <span className="slot-endtime-value">
-              {engagement?.startTime
-                ? `${fmtDateShort(engagement.date)}, ${fmtTime(
-                    engagement.startTime
-                  )} – ${fmtTime(engagement.endTime)}`
-                : '—'}
+              {savedEngagement?.startTime
+                ? `${fmtDateShort(savedEngagement.date)}, ${fmtTime(
+                    savedEngagement.startTime
+                  )} – ${fmtTime(savedEngagement.endTime)}`
+                : loading ? 'Loading current booking…' : 'Unavailable'}
             </span>
-          </div>
+          </button>
 
           {/* Reschedule — pick a different available slot */}
           <SelectField
@@ -274,11 +270,11 @@ const EditEngagementModal = ({
               setMonth(e.target.value);
               setSelectedSlotId('');
             }}
-            isReadOnly={submitting}
+            isReadOnly={submitting || loading}
             helpText={
               monthOptions.length === 0
-                ? 'No available slots in the next 6 months — slot stays unchanged.'
-                : 'Leave unselected to keep the current slot.'
+                ? 'No slots could be loaded. Close and reopen the booking to retry.'
+                : 'The current booking is selected. Choose another slot to reschedule.'
             }
           />
 
@@ -371,7 +367,7 @@ const EditEngagementModal = ({
             type="button"
             className="slot-btn slot-btn-primary"
             onClick={() => void handleSave()}
-            disabled={submitting}
+            disabled={submitting || loading || !savedEngagement}
           >
             {submitting ? (
               <>

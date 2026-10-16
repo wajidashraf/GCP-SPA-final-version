@@ -72,6 +72,7 @@ const DocumentCard = ({ doc, onPreview, onRemove }: DocumentCardProps) => {
       <div className="rd-doc-name" title={doc.name}>
         {truncateName(doc.name)}
       </div>
+      <a className="rd-doc-print-name" href={doc.url}>{doc.name}</a>
     </div>
   );
 };

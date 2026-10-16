@@ -1,4 +1,4 @@
 description: Allowed fields for gcp_engagements Web API access
 id: 46607cd4-fcf8-4900-a21d-3194ce641a27
 name: Webapi/gcp_engagements/fields
-value: '*'
+value: _gcp_request_value,_gcp_slot_value,createdon,gcp_AttendeeEmail,gcp_EngagementCreatedBy,gcp_Request,gcp_Slot,gcp_attendeeemail,gcp_endtime,gcp_engagementcreatedby,gcp_engagementdate,gcp_engagementnumber,gcp_engagementsid,gcp_engagementstatus,gcp_engagementtype,gcp_location,gcp_name,gcp_request,gcp_slot,gcp_starttime

@@ -11,7 +11,54 @@ This is the living onboarding and architecture document for the repository.
 Update it when architecture, integration boundaries, deployment behavior, or
 major implementation decisions change.
 
+**Implementation update — 2026-10-15:** The approved request-history, printing,
+form, and transactional booking changes were developed on
+`feature/request-history-print-rescheduling`, based on `03681c9`. At the initial
+rollout they had not yet been committed or pushed. The shared Function backend was published with explicit
+approval, and the requested GCP-Developer SPA/permissions were uploaded and the
+dev site restarted successfully. Deployed bundle hashes and permission records
+match the build/design. The user chose to finish with deployment checks only;
+signed-in runtime checks were skipped. See
+[the rollout record](docs/request-history-booking-rollout-2026-10-15.md) for
+verification, configuration prerequisites, and the signed-in smoke-test matrix.
+The subsequent local presentation follow-up hides the new Request Detail
+booking/history panels and stops history-only loading, while retaining the
+original signing/workflow actions and requester/admin Edit Booking through the
+engagement form. Print follows the remaining displayed sections. The follow-up
+upload to the explicitly authorized dev site completed successfully (74/74
+events); its restart and live verification command was declined by the approval
+prompt and did not run. See the rollout record's presentation follow-up section.
+The later lookup-write/booking-guard release includes this same presentation
+change and completed the dev restart, live settings/permissions readback, and
+bundle verification; see the lookup-write incident record for current status.
+The audit header above describes the original July audit, not today's HEAD.
+
+**GitHub publication — 2026-10-16:** The user requested committing and pushing
+the verified October release to `wajidashraf/GCP-SPA-final-version` on
+`feature/request-history-print-rescheduling`. The release includes source,
+Power Pages metadata/bundle, regression tests and rollout evidence. Machine-local
+credentials, staging packages and browser captures are excluded. The published
+production state is recorded in `docs/alm/last-deploy.json`.
+
 ## Executive summary
+
+**Booking follow-up — 2026-10-16:** Portal-token-authorized booking reads now
+bypass the Power Pages cache for original requesters and administrators; admin
+slot/engagement management uses the same fresh source. The current booking is
+separate from availability counts. Creation guards the request before creating
+the engagement because existing synchronous workflows update its parent.
+Reschedule/cancel compare the editor's saved engagement version. See the
+[cache/workflow incident](docs/booking-cache-workflow-fix-2026-10-16.md) for
+evidence, validation and rollout status. Existing workflows, schema, permissions
+and business records are unchanged by this fix.
+
+**Requests list follow-up — 2026-10-16:** The list refreshes each loaded page's
+request statuses before applying client filters. A minimal authenticated batch
+read evaluates the selected site's deployed request-read grants and returns only
+authorized ID/status pairs. Existing Global/Contact/Account scopes and implicit
+authenticated membership are preserved; there is no client status override or
+data repair. See the [list-status incident](docs/request-list-status-refresh-2026-10-16.md)
+for validation and rollout status.
 
 GCP Nexus digitizes GCP/GCPC contract-procurement request submission, review,
 engagement, acceptance, acknowledgement, endorsement, role management, and
@@ -420,6 +467,65 @@ Administrators web role.
 - Do not generate `.js` files beside `.ts`/`.tsx`; TypeScript emission belongs
   in build output.
 
+### D-016: Booking changes use an authorized Dataverse transaction
+
+Decision date: 2026-10-15. Shared backend deployed on 15 October; the shared-slot
+follow-up and matching SPA were verified in dev and production on 16 October.
+
+The SPA sends create/reschedule/cancel operations to
+`POST /api/engagementBookings` using the existing portal-token mechanism. The
+Function pins the issuing portal's environment and site, reads the original
+requestor, and independently authorizes that contact or a site administrator.
+Reschedule requires request R (`3`) and the existing Scheduled engagement.
+Creation is allowed at Ready for Engagement (`2`) or R after cancellation.
+
+Reschedule reserves the new slot, updates the existing engagement, releases the
+old slot, and guards the request version in one conditional Dataverse change
+set. Same-slot edits conditionally guard the existing reservation without
+releasing it. Every response operation must succeed; uncertain responses are
+reconciled with saved state, never blindly replayed. Deterministic create IDs
+bind one operation to one portal/contact/request without a new database key.
+All three existing tables must already support optimistic concurrency; the
+endpoint checks metadata and fails closed rather than changing the schema.
+
+Authenticated Users retain direct slot/engagement read but lose direct mutation
+and association grants. Explicit administrator grants preserve slot management
+and engagement detach/restore for slot deletion. Backend application privileges
+and explicit per-portal environment/site mappings must be verified before the
+matching permission/frontend release. Cancellation retains the prior owner
+two-hour release rule and administrator always-release policy. Successful
+rescheduling releases the previous valid slot only when no other Scheduled
+engagement still references it. Historical shared slots remain Booked while the
+current engagement moves, preserving the other reservations. Same-slot edits
+display and preserve the engagement's saved dates when a slot was reused.
+See [the shared-slot incident](docs/booking-shared-slot-fix-2026-10-15.md).
+Cancellation also supports engagements detached by administrator slot deletion:
+it conditionally cancels the engagement while retaining request R, allowing
+subsequent booking without touching the deleted slot.
+
+The API build generates its choice mirror from `src/data/*Choices.ts`; the
+compiled artifact is self-contained. No Dataverse schema or choice value changes
+are part of this delivery.
+
+### D-017: Request history and print use persisted evidence
+
+Decision date: 2026-10-15. Implementation is local; deployment is pending.
+
+Request Detail loads saved signatures independently of the current signatory
+roster, displays saved acceptance conclusions/date, and displays persisted
+acknowledgement/endorsement bodies without regenerating templates. Existing
+validated metadata suffixes are removed only for display. Historical acceptance
+has no complete original-form, submit-actor, or selected-signature snapshot;
+the UI states that limitation rather than inferring missing facts.
+
+All history reads remain same-origin and use existing portal table permissions
+after parent access. Child/bidder/signature collections are paginated, and
+multiple child records retain their distinct fields. RTP Remarks is included.
+The original requester and administrator receive a Print action. Print waits
+for saved data and signature images, rejects a changed request or unavailable
+image, expands collapsed sections, and excludes unsaved/action controls. An
+application Print button cannot prevent a reader from using browser print.
+
 ## Build, validation, and local development
 
 ### SPA
@@ -430,8 +536,9 @@ npm run dev
 npm run build
 ```
 
-`npm run build` runs `tsc -b` and Vite. There is no lint script and no automated
-frontend test suite.
+`npm run build` runs `tsc -b` and Vite. There is no lint script. Focused Node
+tests live under `tests/`; run all `*.test.ts` files with `node --test`. These
+verify logic and metadata, not a deployed portal session.
 
 ### Azure Functions
 
@@ -442,8 +549,11 @@ npm run build
 npm start
 ```
 
-`api/npm test` is a placeholder that prints "no tests yet"; it is not test
-coverage. Functions Core Tools are required for local hosting.
+From `api/`, `npm test` now builds the API and runs the booking tests under
+`api/tests/`. This replaces the earlier placeholder. Functions Core Tools are
+required for local hosting. The build reads the canonical choices in the root
+`src/data/` folder; publish the compiled API artifact, not an isolated source
+folder without those build inputs.
 
 ### Runtime validation
 
@@ -454,6 +564,85 @@ affected roles.
 
 ## Deployment context
 
+### 2026-10-16 shared-slot rescheduling fix
+
+The shared Function hotfix permits moving an existing booking away from a
+historical shared slot while retaining that slot as Booked for its other
+Scheduled engagement. Destination availability and all owner/admin, request
+stage, binding, atomic version, and reconciliation checks remain enforced.
+Both editors show the current engagement's saved dates when its slot was reused,
+and previous submission errors clear when loading another request. The fresh
+root/API suites passed 191/87 tests. Dev and production uploads/restarts passed;
+all 53 permissions were preserved, field settings matched, and deployed bytes
+matched the build. Production homepage/assets returned HTTP 200 and exact served
+bytes at 03:13 UTC / 06:13 Riyadh on 16 October. No business records were changed
+by verification. Signed-in booking saves remain unverified. See the
+[shared-slot rollout record](docs/booking-shared-slot-fix-2026-10-15.md).
+
+### 2026-10-15 production release
+
+After initially holding the release, the user authorized the changes required
+for production booking and deployment. The shared Function's blank production
+site mapping was filled with the verified production site ID; the dev mapping
+and all other settings were preserved. Backend probes passed for both origins.
+Live production metadata verified all required tables, columns, privileges, and
+booking concurrency. The fresh SPA build passed; PAC completed at 100%, 71/71
+events, and production restart succeeded. Readback verified 25 explicit field
+settings across 24 tables, all 53 intended permissions, unchanged 49 unrelated
+permissions, and exact asset bytes. Public HTTP checks confirmed the homepage
+and both new assets return 200 and served bytes match the build. No business
+records or schema were modified. Signed-in PP/JVP submissions and booking
+operations remain unverified because the isolated browser still lacks a portal
+session. See [the production release record](docs/production-preflight-2026-10-15.md)
+for hashes, rollback snapshot, and historical authorization details.
+
+### 2026-10-15 Request Detail action alignment
+
+Edit, Edit Booking, and Print are grouped on the right with 8px gaps and
+responsive wrapping. The fresh SPA build and synthetic desktop/mobile layout
+checks passed. The authorized dev upload completed at 74/74 events, dev
+restart succeeded, deployed bundle bytes matched the build, and existing
+field settings/table permissions were verified unchanged. See
+[the action alignment rollout](docs/request-history-booking-rollout-2026-10-15.md)
+for artifact hashes and runtime verification limits.
+
+### 2026-10-15 Web API lookup-write follow-up
+
+The reported PP/JVP submit failure identified an omission in the first explicit
+column migration: exact navigation write names such as `gcp_RequestorName`
+must be retained alongside logical/read lookup forms. Fresh metadata validated
+55 additions across 20 settings. A durable audit now covers actual read/write
+usage for all 23 direct SPA table services (386 distinct table/column pairs),
+including dynamic attendee clearing. The root suite passes 188 tests.
+The UI also suppresses duplicate booking creation when a scheduled engagement
+already exists and explains a Ready-plus-Scheduled inconsistency. The user
+explicitly requested leaving the old REQ-0095 booking/state unchanged.
+See [the lookup-write incident record](docs/webapi-lookup-writes-2026-10-15.md)
+for exact additions, scope, validation, and deployment status. No table
+permissions or Dataverse schema changes are included. The dev upload succeeded
+at 74/74 events; all 26 field settings and unchanged 53 table permissions were
+read back, deployed bundle bytes matched the build, and dev restart succeeded.
+An initial post-restart 503 recovered on a fresh navigation to Microsoft
+sign-in. Signed-in browser/submission verification remains pending user
+authentication, as recorded in the incident report.
+
+### 2026-10-15 Web API column migration
+
+The Requests-list GET failed with HTTP 403 / `90040122` for both administrator
+and requestor sessions because the live `Webapi/gcp_request/fields` value was
+still `*`. The Microsoft wildcard retirement applies to authenticated users as
+well. Twenty-three wildcard settings were replaced and deployed to dev with
+explicit column lists verified against current dev metadata and actual service/form usage;
+contact's existing explicit list was retained. Existing request permissions
+already enforce Global trusted-role reads and Contact-scoped ordinary-user
+reads and were preserved. The site has duplicate live fields records for
+projects and signatory members; both copies were aligned using conditional
+updates. Live readback verified 26 explicit records for 24 tables and unchanged
+table permissions, followed by a successful dev restart. Signed-in user
+confirmation is pending. Future values must stay aligned with the local
+canonical settings. See [the incident record](docs/webapi-authorization-2026-10-15.md)
+for deployment/verification status and the separate related-table access caveat.
+
 The existing Claude instructions recorded:
 
 | Environment | Environment ID | Recorded org/host |
@@ -463,8 +652,9 @@ The existing Claude instructions recorded:
 
 These are operational identifiers, not proof of current external state. Run
 `pac org who` and confirm the intended target before any authorized deployment.
-The repository's latest commit is a production-deploy commit dated 2026-07-14,
-but Git cannot prove that every external component is currently healthy.
+The original July audit inspected a production-deploy commit dated 2026-07-14.
+Subsequent source commits and local implementation do not establish current
+external deployment or health; verify the actual authorized target.
 
 Deployment order:
 
@@ -518,6 +708,20 @@ HTTP triggers, and left Azure app settings unchanged. The notification endpoint
 was reachable and returned `401` without a portal token, confirming that its
 authentication boundary remained active. A signed-in Power Pages smoke test is
 still required to validate the complete notification flow.
+
+### 2026-10-15 shared backend and development release
+
+The 2026-10-15 approved shared Function publish used an isolated runtime package
+under ignored `.deployment-staging/`, preserving API development dependencies.
+The package contains `host.json`, package manifests, compiled `dist/` (including
+`dist/generated/bookingChoices.js`), and production `node_modules`, with no local
+settings. The installed Core Tools npm launcher was missing its implementation;
+Azure CLI ZIP deployment succeeded instead. All 12 functions registered and
+app-setting fingerprints remained unchanged. The matching dev SPA/permissions
+upload and dev restart succeeded; production Power Pages was not uploaded.
+Deployed SPA bytes and permission metadata were verified, but signed-in runtime
+tests were skipped at the user's request. Full evidence is in the
+[2026-10-15 rollout record](docs/request-history-booking-rollout-2026-10-15.md).
 
 ### Preserved operational notes from 2026-06-06
 
@@ -576,9 +780,11 @@ These are audit findings, not permission to change production:
   `content = """`; it should eventually be cleaned and renamed while preserving
   Git history.
 - The June 2026 permissions audit is a snapshot. Its missing request-write and
-  append-to findings appear fixed in current YAML, but current metadata still
-  shows broad Global write for Authenticated Users on engagements and many child
-  request tables.
+  append-to findings appear fixed in current YAML. The October booking release
+  removed ordinary-user engagement/slot writes, but authenticated users retain
+  Global engagement/signature reads and broad Global writes on many child
+  request tables. Parent request scope alone does not isolate direct child API
+  access; see the October authorization incident record.
 - `Webapi/error/innererror` is still `true` in checked-in site settings despite
   the file description saying to disable it before production.
 - `src/shared/signatoryApi.ts` retains temporary debug logging marked for

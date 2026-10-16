@@ -123,18 +123,18 @@ Also mirrored onto the child row: `gcp_requesteremail`, `gcp_category`, `gcp_mat
 | Step | Field | Component | Target column | Table |
 |---|---|---|---|---|
 | 1 Basic Information | Matter / Category / Requestor Name / Requestor Email / Company | Select/Text (read-only) | parent (see common) | `gcp_request` |
-| 2 Project Details | Project Name | SelectField | parent `gcp_Project` lookup + `gcp_project_name` | `gcp_request` |
-| 2 Project Details | Project Code | TextField (read-only auto) | parent `gcp_projectcode` | `gcp_request` |
-| 2 Project Details | Company Name | SelectField (read-only) | parent `gcp_Company` lookup (set in step 1) | `gcp_request` |
-| 2 Project Details | Tender/Proposal Submission Date | DateField | `gcp_tenderproposalsubmissiondate` (ISO datetime) | `gcp_stsprequest` |
-| 2 Project Details | Tender Validity Period (Days) | TextField | `gcp_tendervalidityperiod` | `gcp_stsprequest` |
-| 3 PIC | Team Leader | TextField | `gcp_teamleader` | `gcp_stsprequest` |
-| 3 PIC | Financial Matters | TextField | `gcp_financialmatters` | `gcp_stsprequest` |
-| 3 PIC | Technical Matters | TextField | `gcp_technicalmatters` | `gcp_stsprequest` |
-| 3 PIC | Contract Matters | TextField | `gcp_contractmatters` | `gcp_stsprequest` |
-| 3 PIC | Procurement Matters | TextField | `gcp_procurementmatters` | `gcp_stsprequest` |
-| 3 PIC | Costing And Estimation Matters | TextField | `gcp_costingandestimationmatters` | `gcp_stsprequest` |
-| 3 PIC | Implementation Stage | TextField | `gcp_implementationstage` | `gcp_stsprequest` |
+| 3 Project Details | Project Name | SelectField | parent `gcp_Project` lookup + `gcp_project_name` | `gcp_request` |
+| 3 Project Details | Project Code | TextField (read-only auto) | parent `gcp_projectcode` | `gcp_request` |
+| 3 Project Details | Company Name | SelectField (read-only) | parent `gcp_Company` lookup (set in step 1) | `gcp_request` |
+| 3 Project Details | Tender/Proposal Submission Date | DateField | `gcp_tenderproposalsubmissiondate` (ISO datetime) | `gcp_stsprequest` |
+| 3 Project Details | Tender Validity Period (Days) | TextField | `gcp_tendervalidityperiod` | `gcp_stsprequest` |
+| 2 PIC | Team Leader | TextField | `gcp_teamleader` | `gcp_stsprequest` |
+| 2 PIC | Financial Matters | TextField | `gcp_financialmatters` | `gcp_stsprequest` |
+| 2 PIC | Technical Matters | TextField | `gcp_technicalmatters` | `gcp_stsprequest` |
+| 2 PIC | Contract Matters | TextField | `gcp_contractmatters` | `gcp_stsprequest` |
+| 2 PIC | Procurement Matters | TextField | `gcp_procurementmatters` | `gcp_stsprequest` |
+| 2 PIC | Costing And Estimation Matters | TextField | `gcp_costingandestimationmatters` | `gcp_stsprequest` |
+| 2 PIC | Implementation Stage | TextField | `gcp_implementationstage` | `gcp_stsprequest` |
 | 4 ST/SP Info | Brief on the background of matters for review | TextAreaField | `gcp_backgroundreview` | `gcp_stsprequest` |
 | 4 ST/SP Info | Scope of Works | TextAreaField | `gcp_scopeofworks` | `gcp_stsprequest` |
 | 4 ST/SP Info | Key Terms | TextAreaField | `gcp_keyterms` | `gcp_stsprequest` |

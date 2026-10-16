@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
@@ -16,6 +16,7 @@ import {
   MessageSquare,
   MessageSquarePlus,
   Pencil,
+  Printer,
   Save,
   Send,
   ShieldCheck,
@@ -86,6 +87,12 @@ import { AddSuggestionModal } from "../components/suggestions/AddSuggestionModal
 import { SuggestionsViewModal } from "../components/suggestions/SuggestionsViewModal";
 import { SignatureSection } from "../components/signatures";
 import { getRequestsReturnPath } from "../shared/requestListState";
+import { canCreateEngagementBooking, canRescheduleEngagementBooking, isRequestOwnerOrAdmin } from '../shared/engagementBookingPolicy';
+import { useRequestEngagements } from '../shared/hooks/useRequestEngagements';
+import { printRequestRecord } from '../shared/requestPrint';
+import { getRequestStatusDisplayLabel } from '../shared/requestStatusPresentation';
+import { combineDetailRecordFields } from '../shared/requestDetailRecordFields';
+import { ENGAGEMENT_STATUS_SCHEDULED } from '../data/engagementChoices';
 
 const statusClass: Record<string, string> = {
   New: "status-new",
@@ -136,6 +143,7 @@ const rtpDetailFields: FieldDef<GcpRtpRequest>[] = [
     get: (r) => r.tenderClosingDate,
   },
   { label: "Special Project", kind: "boolean", get: (r) => r.specialProject },
+  { label: "Remarks", kind: "multiline", full: true, get: (r) => r.projectDescription },
 ];
 
 // Parent (gcp_request) fields that belong in Section 2 (Detail Information).
@@ -221,25 +229,12 @@ const buildDetailFields = (
   request: GcpRequest,
   child: ChildData | null,
 ): RenderedField[] => {
-  let groups: RenderedField[][];
-  if (child?.type === "rtp") {
-    // RTP: show only the four registration fields, not the parent leftovers.
-    groups = child.records.map((rec) => buildFields(rtpDetailFields, rec));
-  } else {
-    groups = [buildFields(parentDetailFields, request)];
-    if (child) groups.push(flattenChildFields(child));
-  }
-
-  const seen = new Set<string>();
-  const out: RenderedField[] = [];
-  for (const group of groups) {
-    for (const field of group) {
-      if (BASIC_INFO_LABELS.has(field.label) || seen.has(field.label)) continue;
-      seen.add(field.label);
-      out.push(field);
-    }
-  }
-  return out;
+  const groups = child?.type === 'rtp'
+    ? child.records.map((record) => buildFields(rtpDetailFields, record))
+    : child && child.type !== 'unsupported'
+      ? child.records.map((record) => flattenChildFields({ ...child, records: [record] } as ChildData))
+      : [];
+  return combineDetailRecordFields(buildFields(parentDetailFields, request), groups, BASIC_INFO_LABELS);
 };
 
 /** Note shown inside Section 2 when no structured child detail is available. */
@@ -272,6 +267,9 @@ export default function RequestDetail() {
   const { request, child, isLoading, error, childError, refetch } =
     useRequestDetail(id);
   const { user, isLoading: authLoading } = useAuth();
+  const recordRef = useRef<HTMLElement>(null);
+  const [printing, setPrinting] = useState(false);
+  const [printError, setPrintError] = useState<string | null>(null);
 
   // ── Record-level access ──────────────────────────────────────────────────
   // Client-side UX guard (the authoritative boundary is the gcp_request table
@@ -291,7 +289,7 @@ export default function RequestDetail() {
       hasRole("Main Committee");
     if (elevated) return false;
     const isOwner =
-      !!user?.contactId && request.requestorContactId === user.contactId;
+      isRequestOwnerOrAdmin(request.requestorContactId, { contactId: user?.contactId, isAdmin: false });
     if (isOwner) return false;
     const isHocForCompany =
       hasRole("HOC") &&
@@ -300,6 +298,15 @@ export default function RequestDetail() {
     if (isHocForCompany) return false;
     return true;
   }, [request, authLoading, user]);
+
+  const accessibleRequestId = !authLoading && !accessDenied ? request?.id : null;
+  const bookingActor = { contactId: user?.contactId, isAdmin: isAdmin() };
+  const bookingHistory = useRequestEngagements(accessibleRequestId, !!request && isRequestOwnerOrAdmin(request.requestorContactId, bookingActor));
+  const bookingRequest = request ? { ...request, ...bookingHistory.bookingRequest } : null;
+  const canPrint = !authLoading && !!request && !accessDenied && isRequestOwnerOrAdmin(request.requestorContactId, bookingActor);
+  const scheduledBookings = bookingHistory.items.filter((engagement) => engagement.status === ENGAGEMENT_STATUS_SCHEDULED);
+  const canEditBooking = !!request && !authLoading && !accessDenied && !bookingHistory.loading && !bookingHistory.error &&
+    scheduledBookings.length === 1 && !!bookingRequest && canRescheduleEngagementBooking(bookingRequest, bookingActor);
 
   useEffect(() => {
     if (!accessDenied) return;
@@ -349,9 +356,10 @@ export default function RequestDetail() {
       request.soaCode != null
         ? getChoiceLabel(soaCodeChoices, request.soaCode)
         : null;
+    const currentStatus = bookingRequest?.status ?? request.status;
     const statusLabel =
-      request.status != null
-        ? (getChoiceLabel(requestStatusChoices, request.status) ?? null)
+      currentStatus != null
+        ? (getChoiceLabel(requestStatusChoices, currentStatus) ?? null)
         : null;
     const outcomeLabel =
       request.outcome != null
@@ -370,7 +378,7 @@ export default function RequestDetail() {
         ? (statusClass[outcomeLabel] ?? "status-new")
         : "",
     };
-  }, [request]);
+  }, [request, bookingRequest?.status]);
 
   const isResubmittedForReview = request
     ? isRequestResubmittedForReview(request)
@@ -439,7 +447,6 @@ export default function RequestDetail() {
   const bidders = child?.type === "pbl" ? child.bidders : null;
   const detailNote = childDetailNote(child);
   const isNew = meta?.statusLabel === "New";
-  const isReadyForEngagement = meta?.statusLabel === "Ready for Engagement";
   // Status "R" (value 3) → reviewer can record a decision + comment on the request.
   const isReview = meta?.statusLabel === "R";
   const isReviewerCommentCycleOpen =
@@ -571,8 +578,27 @@ export default function RequestDetail() {
     }
   };
 
+  const printBlocked = isLoading || Boolean(childError) || !verifierInfoLoaded || Boolean(verifierInfoError) || isEditingReviewComment;
+  const handlePrint = async () => {
+    if (!canPrint || !recordRef.current || printing) return;
+    setPrintError(null);
+    if (printBlocked) {
+      setPrintError(isEditingReviewComment ? 'Save or cancel the current comment edit before printing.' : 'Wait for all request sections to load, or retry the missing information before printing.');
+      return;
+    }
+    setPrinting(true);
+    try {
+      await printRequestRecord(recordRef.current);
+    } catch (err) {
+      setPrintError(err instanceof Error ? err.message : 'Could not prepare the complete request for printing.');
+    } finally {
+      setPrinting(false);
+    }
+  };
+
   return (
-    <section className="rd-page">
+    <section className="rd-page rd-request-record" ref={recordRef} key={id}
+      data-request-id={accessibleRequestId ?? ''} data-print-ready={!printBlocked && !!accessibleRequestId ? 'true' : 'false'}>
       <div className="container">
         <div className="rd-back">
           <button
@@ -610,7 +636,7 @@ export default function RequestDetail() {
           </InlineMessage>
         ) : null}
 
-        {request && meta && !accessDenied ? (
+        {request && meta && !authLoading && !accessDenied ? (
           <>
             {/* ── Header ─────────────────────────────────────────────── */}
             <header className="rd-hero">
@@ -645,7 +671,7 @@ export default function RequestDetail() {
                     {meta.statusLabel ? (
                       <span className={`rq-status-pill ${meta.statusCls}`}>
                         <span className="rq-status-dot" />
-                        {meta.statusLabel}
+                        {getRequestStatusDisplayLabel(bookingRequest?.status ?? request.status)}
                       </span>
                     ) : (
                       "—"
@@ -698,17 +724,41 @@ export default function RequestDetail() {
                   Acknowledged
                 </span>
               ) : null}
-              {canEdit ? (
-                <button
-                  type="button"
-                  className="rd-recordbar-edit"
-                  onClick={() => navigate(`/requests/${request.id}/edit`)}
-                >
-                  <Pencil size={14} aria-hidden="true" />
-                  Edit
-                </button>
+              {canEdit || canEditBooking || canPrint ? (
+                <div className="rd-recordbar-actions no-print" role="group" aria-label="Request actions">
+                  {canEdit ? (
+                    <button
+                      type="button"
+                      className="rd-recordbar-edit no-print"
+                      onClick={() => navigate(`/requests/${request.id}/edit`)}
+                    >
+                      <Pencil size={14} aria-hidden="true" />
+                      Edit
+                    </button>
+                  ) : null}
+                  {canEditBooking ? (
+                    <button type="button" className="rd-recordbar-edit no-print" onClick={() => navigate(`/requests/${request.id}/engagement?edit=1`)}>
+                      <CalendarCheck size={14} aria-hidden="true" /> Edit Booking
+                    </button>
+                  ) : null}
+                  {canPrint ? (
+                    <button type="button" className="rd-recordbar-edit no-print" disabled={printing} onClick={() => void handlePrint()}>
+                      <Printer size={14} aria-hidden="true" /> {printing ? 'Preparing print…' : 'Print'}
+                    </button>
+                  ) : null}
+                </div>
               ) : null}
             </div>
+            {printError ? (
+              <InlineMessage tone="error" title="Request could not be printed" className="no-print">
+                {printError}
+                <button type="button" className="vd-btn-secondary" onClick={() => {
+                  setPrintError(null);
+                  void refetch();
+                  void loadVerifierInfo();
+                }}>Reload request information</button>
+              </InlineMessage>
+            ) : null}
 
             {Number(request.status) === 16 &&
             Number(request.outcome) === 4 ? (
@@ -914,7 +964,7 @@ export default function RequestDetail() {
                       !verifierInfoError &&
                       isReviewerCommentCycleOpen &&
                       (!hasSavedReviewerComment || isEditingReviewComment) ? (
-                        <div className="rd-review-comment-editor mb-3">
+                        <div className="rd-review-comment-editor mb-3 no-print">
                           <TextAreaField
                             id="reviewer-comment"
                             label="Reviewer Comment"
@@ -980,8 +1030,18 @@ export default function RequestDetail() {
               </div>
             ) : null}
 
+            {bookingHistory.error && canCreateEngagementBooking(bookingRequest ?? request, bookingActor) ? (
+              <InlineMessage tone="error" title="Booking actions could not be loaded" className="no-print">
+                {bookingHistory.error}
+                <button type="button" className="vd-btn-secondary" onClick={() => void bookingHistory.refetch()}>
+                  Retry booking actions
+                </button>
+              </InlineMessage>
+            ) : null}
+
             {/* Draft Review → book an engagement/meeting with the reviewer. */}
-            {isReadyForEngagement ? (
+            {(bookingRequest?.status === 2 || (bookingRequest?.status === 3 && scheduledBookings.length === 0)) &&
+            !bookingHistory.loading && !bookingHistory.error && scheduledBookings.length === 0 && canCreateEngagementBooking(bookingRequest ?? request, bookingActor) ? (
               <div className="rd-actions">
                 <button
                   type="button"
@@ -1108,6 +1168,7 @@ export default function RequestDetail() {
 
             {/* ── Signatures section (Pending Review status) ──────────── */}
             {isPendingReview ? (
+              <div className="no-print">
               <SignatureSection
                 requestId={request.id}
                 currentUserEmail={user?.email ?? null}
@@ -1115,6 +1176,7 @@ export default function RequestDetail() {
                 currentUserLoginHint={user?.email ?? undefined}
                 onReviewCompleted={() => void refetch()}
               />
+              </div>
             ) : null}
 
             {/* Complete Review (6) → HOC acceptance (both channels): select a

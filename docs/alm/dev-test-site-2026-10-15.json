@@ -1,0 +1,155 @@
+{
+  "url": "https://gcp-nexus.powerappsportals.com",
+  "stageName": "GCP-Developer",
+  "runAt": "2026-10-15T19:58:19.239Z",
+  "runOutcome": "passed-with-warnings",
+  "scope": "Request Detail action alignment deployment; read-only availability and artifact verification",
+  "summary": {
+    "total": 9,
+    "automated": 6,
+    "manual": 3,
+    "passed": 6,
+    "failed": 0,
+    "skipped": 3
+  },
+  "categories": [
+    {
+      "id": "site-load",
+      "name": "Site Load",
+      "tests": [
+        {
+          "id": "site-recovered",
+          "name": "Restarted dev portal reaches its private-site login gate",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "Restarted dev portal reaches its private-site login gate",
+          "steps": [],
+          "expected": "Restarted dev portal reaches its private-site login gate",
+          "actual": "After dev restart, read-only GET / returned the expected HTTP 302 redirect to login.windows.net.",
+          "validates": "Web API lookup-write and booking-guard dev release"
+        }
+      ]
+    },
+    {
+      "id": "authentication",
+      "name": "Authentication",
+      "tests": [
+        {
+          "id": "private-gate",
+          "name": "Private-site gate remains active",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "Private-site gate remains active",
+          "steps": [],
+          "expected": "Private-site gate remains active",
+          "actual": "Private-site GET / redirects to the Microsoft identity provider. No login was automated.",
+          "validates": "Web API lookup-write and booking-guard dev release"
+        }
+      ]
+    },
+    {
+      "id": "deployment",
+      "name": "Deployment Evidence",
+      "tests": [
+        {
+          "id": "upload",
+          "name": "Authorized dev upload completed cleanly",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "Authorized dev upload completed cleanly",
+          "steps": [],
+          "expected": "Authorized dev upload completed cleanly",
+          "actual": "PAC 100%, 74/74 events; upload succeeded in 218.73 seconds without an upload error.",
+          "validates": "Web API lookup-write and booking-guard dev release"
+        },
+        {
+          "id": "restart",
+          "name": "Exact authorized dev site restarted",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "Exact authorized dev site restarted",
+          "steps": [],
+          "expected": "Exact authorized dev site restarted",
+          "actual": "Restart returned success:true for gcp-nexus.powerappsportals.com.",
+          "validates": "Web API lookup-write and booking-guard dev release"
+        },
+        {
+          "id": "fields",
+          "name": "Every deployed fields setting matches the verified plan",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "Every deployed fields setting matches the verified plan",
+          "steps": [],
+          "expected": "Every deployed fields setting matches the verified plan",
+          "actual": "{\"verifiedAt\":\"2026-10-15T19:56:03.481Z\",\"tables\":24,\"fieldRecords\":26,\"exactNavigationNamesAdded\":55,\"knownDuplicatesAligned\":[],\"permissionRecords\":53,\"permissionsUnchanged\":true,\"permissionFingerprint\":\"938fe01d465cc9ce9d63bdcb3dfe6d02ab599ad01c0400e6ebe37da92291fae3\"}",
+          "validates": "Web API lookup-write and booking-guard dev release"
+        },
+        {
+          "id": "artifacts",
+          "name": "Deployed bundles match the fresh build",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "Deployed bundles match the fresh build",
+          "steps": [],
+          "expected": "Deployed bundles match the fresh build",
+          "actual": "[{\"name\":\"index-BW7hEKrW.js\",\"id\":\"e17c0f22-1ff3-4fd8-94b2-ac1ab5786fcc\",\"matchesBuild\":true,\"sha256\":\"7054ad58b9003d759df25f7d1c898279283e31523a040b24078e85eabb9c4f33\"},{\"name\":\"index-DMnDV12K.css\",\"id\":\"191a6572-40ad-4729-a7a5-81a67ace092a\",\"matchesBuild\":true,\"sha256\":\"da9d0ec8030674622a8210c1394c7baa044c7ec330b7f26066cf0f0b08cfd1d9\"}]",
+          "validates": "Web API lookup-write and booking-guard dev release"
+        }
+      ]
+    },
+    {
+      "id": "auth-pages",
+      "name": "Authenticated Pages",
+      "tests": [
+        {
+          "id": "pp-jvp",
+          "name": "Signed-in PP/JVP form navigation",
+          "severity": "high",
+          "type": "manual",
+          "status": "skipped",
+          "description": "Signed-in PP/JVP form navigation",
+          "steps": [],
+          "expected": "Signed-in PP/JVP form navigation",
+          "actual": "Signed-in application checks were not run for this repeat deployment; the isolated browser session remains signed out. No business records were modified.",
+          "validates": "Web API lookup-write and booking-guard dev release"
+        }
+      ]
+    },
+    {
+      "id": "auth-api",
+      "name": "Authenticated API",
+      "tests": [
+        {
+          "id": "submit",
+          "name": "Signed-in PP/JVP submission runtime",
+          "severity": "high",
+          "type": "manual",
+          "status": "skipped",
+          "description": "Signed-in PP/JVP submission runtime",
+          "steps": [],
+          "expected": "Signed-in PP/JVP submission runtime",
+          "actual": "Signed-in application checks were not run for this repeat deployment; the isolated browser session remains signed out. No business records were modified.",
+          "validates": "Web API lookup-write and booking-guard dev release"
+        },
+        {
+          "id": "booking",
+          "name": "Signed-in booking page guard",
+          "severity": "high",
+          "type": "manual",
+          "status": "skipped",
+          "description": "Signed-in booking page guard",
+          "steps": [],
+          "expected": "Signed-in booking page guard",
+          "actual": "Signed-in application checks were not run for this repeat deployment; the isolated browser session remains signed out. No business records were modified.",
+          "validates": "Web API lookup-write and booking-guard dev release"
+        }
+      ]
+    }
+  ]
+}

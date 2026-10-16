@@ -1,0 +1,31 @@
+{
+  "stageName": "PowerPagesProduction",
+  "environmentId": "f99a8105-8032-ea69-966d-145edf57bc94",
+  "siteId": "517038c0-eca4-4529-a872-f613ea02ad32",
+  "siteUrl": "https://gcp-nexus-prod.powerappsportals.com",
+  "deployedAt": "2026-10-16T03:11:36.200Z",
+  "verifiedAt": "2026-10-16T03:13:17.054Z",
+  "uploadSucceeded": true,
+  "restartSucceeded": true,
+  "eventsCompleted": 71,
+  "eventsTotal": 71,
+  "artifacts": [
+    {
+      "name": "index-BBqXTnKg.js",
+      "id": "6608bf14-45aa-4bc7-9580-775731d47356",
+      "sha256": "382aea37a557e9800a8bfbe53837979fa663d296796b96352d6cca58ea53111f",
+      "matchesBuild": true
+    },
+    {
+      "name": "index-DMnDV12K.css",
+      "id": "191a6572-40ad-4729-a7a5-81a67ace092a",
+      "sha256": "da9d0ec8030674622a8210c1394c7baa044c7ec330b7f26066cf0f0b08cfd1d9",
+      "matchesBuild": true
+    }
+  ],
+  "fieldSettings": 25,
+  "tablePermissions": 53,
+  "unchangedPermissions": 53,
+  "backendDeployment": "c6011b0e68614d4281c41a05bec71156",
+  "authenticatedBookingSaveVerified": false
+}

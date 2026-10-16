@@ -17,6 +17,7 @@ import {
   powerPagesFetchResponse,
 } from '../powerPagesApi.ts';
 import type { ODataListResponse } from '../powerPagesApi.ts';
+import { collectRequestPages } from '../requestHistory.ts';
 
 const ENTITY_SET = 'gcp_signatures';
 const BASE_URL = `/_api/${ENTITY_SET}`;
@@ -175,16 +176,22 @@ const buildLatestReusableSignatureQuery = (
 const listSignaturesForRequest = async (
   requestId: string,
 ): Promise<GcpSignature[]> => {
+  if (!isGuid(requestId)) throw new Error('A valid request ID is required.');
   const query = buildODataQuery({
     select: SIGNATURE_SELECT,
     filter: `_gcp_request_value eq ${requestId}`,
     orderby: 'createdon asc',
   });
-  const res = await powerPagesFetch<ODataListResponse<GcpSignatureEntity>>(
-    `${BASE_URL}${query}`,
-    { method: 'GET', headers: includeFormattedValues() },
-  );
-  return (res?.value ?? []).map(mapSignature);
+  return collectRequestPages(async (nextLink) => {
+    const res = await powerPagesFetch<ODataListResponse<GcpSignatureEntity>>(
+      nextLink ?? `${BASE_URL}${query}`,
+      { method: 'GET', headers: includeFormattedValues() },
+    );
+    if (!res || !Array.isArray(res.value)) {
+      throw new Error('Signature history returned an invalid response. Retry loading the history.');
+    }
+    return { items: res.value.map(mapSignature), nextLink: res['@odata.nextLink'] };
+  });
 };
 
 const listLatestReusableSignature = async (

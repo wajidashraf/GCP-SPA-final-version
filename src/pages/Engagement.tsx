@@ -7,7 +7,7 @@
 //   • Form  — pick an available reviewer slot and schedule a new engagement.
 // A request may only have one *scheduled* engagement at a time.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import Modal from 'react-bootstrap/Modal';
@@ -18,24 +18,20 @@ import {
   CheckCircle2,
   Clock,
   MapPin,
+  Pencil,
   Plus,
 } from 'lucide-react';
 import { InlineMessage, LoadingState } from '../components/ui';
 import { SelectField, TextField } from '../forms';
 import { useAuth } from '../context/AuthContext';
-import { getRequestById, updateRequest } from '../shared/services/requestService';
-import {
-  listAvailableSlotsWithin,
-  updateSlotStatus,
-} from '../shared/services/slotService';
-import {
-  createEngagement,
-  listEngagementsByRequest,
-  updateEngagementStatus,
-} from '../shared/services/engagementService';
+import { getRequestById } from '../shared/services/requestService';
 import type { Engagement as EngagementRecord } from '../types/engagement';
 import type { Slot } from '../types/slot';
-import { SLOT_STATUS_AVAILABLE, SLOT_STATUS_BOOKED } from '../data/slotChoices';
+import type { GcpRequest } from '../types/request';
+import { loadEngagementBooking, saveEngagementBooking } from '../shared/engagementBookingApi';
+import { availableEngagementSlots, withCurrentEngagementSlot } from '../shared/engagementBookingSlots';
+import { canCreateEngagementBooking, canRescheduleEngagementBooking, isRequestOwnerOrAdmin } from '../shared/engagementBookingPolicy';
+import { isAdmin } from '../utils/authorization';
 import {
   ENGAGEMENT_STATUS_CANCELLED,
   ENGAGEMENT_STATUS_COMPLETED,
@@ -44,6 +40,7 @@ import {
   ENGAGEMENT_TYPE_VIRTUAL,
   engagementLocationOptions,
   engagementTypeChoices,
+  type EngagementTypeValue,
   OTHER_LOCATION_VALUE,
 } from '../data/engagementChoices';
 import { getChoiceLabel, toSelectOptions } from '../data/types';
@@ -105,7 +102,10 @@ export default function Engagement() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
+  const administrator = isAdmin();
+  const editRequested = searchParams.get('edit') === '1';
+  const createOperationId = useRef(crypto.randomUUID());
 
   const matterType = Number(searchParams.get('type')) || null;
   const matterLabel = useMemo(
@@ -117,6 +117,8 @@ export default function Engagement() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [requestTitle, setRequestTitle] = useState<string | null>(null);
+  const [request, setRequest] = useState<GcpRequest | null>(null);
+  const [editingEngagement, setEditingEngagement] = useState<EngagementRecord | null>(null);
   const [engagements, setEngagements] = useState<EngagementRecord[]>([]);
   const [slots, setSlots] = useState<Slot[]>([]);
 
@@ -139,23 +141,32 @@ export default function Engagement() {
   const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
-    if (!id) return;
+    if (!id || authLoading) return;
     let cancelled = false;
     setLoading(true);
     setLoadError(null);
+    setSubmitError(null);
     (async () => {
       try {
-        const [request, engs, availableSlots] = await Promise.all([
-          getRequestById(id),
-          listEngagementsByRequest(id),
-          listAvailableSlotsWithin(6).catch(() => [] as Slot[]),
-        ]);
+        const [displayRequest, snapshot] = await Promise.all([getRequestById(id), loadEngagementBooking(id)]);
+        const savedRequest = displayRequest ? { ...displayRequest, ...snapshot.request } : null;
+        if (!savedRequest || !isRequestOwnerOrAdmin(savedRequest.requestorContactId, { contactId: user?.contactId, isAdmin: administrator })) {
+          throw new Error('Only the original requester or an administrator can manage this booking.');
+        }
+        const { engagements: engs, slots: availableSlots, currentSlot } = snapshot;
+        const scheduled = engs.filter((eng) => eng.status === ENGAGEMENT_STATUS_SCHEDULED);
+        if (scheduled.length > 1) throw new Error('More than one active booking was found. Contact your administrator before making changes.');
         if (cancelled) return;
-        const visible = engs.filter((e) => e.name && e.number);
-        setRequestTitle(request?.title ?? null);
-        setEngagements(visible);
-        setSlots(availableSlots);
-        setMode(visible.length > 0 ? 'list' : 'form');
+        setRequest(savedRequest);
+        setRequestTitle(savedRequest.title);
+        setEngagements(engs);
+        setSlots(withCurrentEngagementSlot(availableSlots, currentSlot, scheduled[0] ?? null));
+        setEditingEngagement(null);
+        if (editRequested && scheduled[0] && canRescheduleEngagementBooking(savedRequest, { contactId: user?.contactId, isAdmin: administrator })) {
+          startEditing(scheduled[0]);
+        } else {
+          setMode(engs.length > 0 ? 'list' : 'form');
+        }
       } catch (err) {
         if (!cancelled)
           setLoadError(err instanceof Error ? err.message : 'Failed to load engagement data.');
@@ -166,12 +177,30 @@ export default function Engagement() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, authLoading, user?.contactId, administrator, editRequested]);
 
   const hasScheduled = useMemo(
     () => engagements.some((e) => e.status === ENGAGEMENT_STATUS_SCHEDULED),
     [engagements]
   );
+  const bookingStatusMismatch = request?.status === 2 && hasScheduled;
+  const actor = { contactId: user?.contactId, isAdmin: administrator };
+  const canCreate = !!request && canCreateEngagementBooking(request, actor, hasScheduled);
+  const canReschedule = !!request && canRescheduleEngagementBooking(request, actor);
+
+  function startEditing(engagement: EngagementRecord) {
+    setEditingEngagement(engagement);
+    setName(engagement.name ?? '');
+    setType(String(engagement.type ?? ENGAGEMENT_TYPE_VIRTUAL));
+    const preset = engagementLocationOptions.some((option) => option.value === engagement.location);
+    setLocation(engagement.location ? (preset ? engagement.location : OTHER_LOCATION_VALUE) : '');
+    setCustomLocation(preset ? '' : engagement.location ?? '');
+    setMonth(engagement.date ? monthKeyOf(engagement.date) : '');
+    setSelectedSlotId(engagement.slotId ?? '');
+    setSubmitError(null);
+    setScheduledBlock(false);
+    setMode('form');
+  }
 
   const nextNumber = useMemo(() => {
     const completed = engagements.filter(
@@ -181,9 +210,10 @@ export default function Engagement() {
   }, [engagements]);
 
   // Months that have available slots, with counts.
+  const availableSlots = useMemo(() => availableEngagementSlots(slots, editingEngagement?.slotId), [slots, editingEngagement?.slotId]);
   const monthOptions = useMemo(() => {
     const counts = new Map<string, { label: string; count: number }>();
-    for (const s of slots) {
+    for (const s of availableSlots) {
       if (!s.date) continue;
       const key = monthKeyOf(s.date);
       const existing = counts.get(key);
@@ -201,16 +231,16 @@ export default function Engagement() {
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([value, { label, count }]) => ({
         value,
-        label: `${label} (${count} slot${count === 1 ? '' : 's'} available)`,
+        label: `${label} (${count} slot${count === 1 ? '' : 's'})`,
       }));
-  }, [slots]);
+  }, [availableSlots]);
 
   const slotsForMonth = useMemo(() => {
     if (!month) return [];
-    return slots
+    return availableSlots
       .filter((s) => s.date && monthKeyOf(s.date) === month)
       .sort((a, b) => (a.start ?? '').localeCompare(b.start ?? ''));
-  }, [slots, month]);
+  }, [availableSlots, month]);
 
   const selectedSlot = useMemo(
     () => slots.find((s) => s.id === selectedSlotId) ?? null,
@@ -222,24 +252,36 @@ export default function Engagement() {
   const goBack = () => navigate(id ? `/requests/${id}` : '/requests');
 
   const startNewEngagement = () => {
+    if (!canCreate) return;
     if (hasScheduled) {
       setScheduledBlock(true);
       return;
     }
     setScheduledBlock(false);
+    setEditingEngagement(null);
+    setName('');
+    setMonth('');
+    setSelectedSlotId('');
+    setSuccess(false);
+    createOperationId.current = crypto.randomUUID();
     setMode('form');
   };
 
   // ── Submit ──────────────────────────────────────────────────────────────
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (submitting || success) return;
     setSubmitError(null);
 
     if (!id) {
       setSubmitError('Missing request ID.');
       return;
     }
-    if (hasScheduled) {
+    if (editingEngagement ? !canReschedule : !canCreate) {
+      setSubmitError('This request is not eligible for this booking action. Refresh the request before continuing.');
+      return;
+    }
+    if (hasScheduled && !editingEngagement) {
       setScheduledBlock(true);
       return;
     }
@@ -264,30 +306,17 @@ export default function Engagement() {
 
     setSubmitting(true);
     try {
-      await createEngagement(
-        {
-          gcp_name: name.trim(),
-          gcp_engagementnumber: nextNumber,
-          gcp_engagementdate: selectedSlot.date
-            ? new Date(selectedSlot.date).toISOString()
-            : new Date().toISOString(),
-          gcp_starttime: selectedSlot.start,
-          gcp_endtime: selectedSlot.end,
-          gcp_engagementtype: Number(type) as typeof ENGAGEMENT_TYPE_VIRTUAL,
-          gcp_engagementstatus: ENGAGEMENT_STATUS_SCHEDULED,
-          gcp_location: resolvedLocation,
-        },
-        {
-          slotId: selectedSlot.id,
-          requestId: id,
-          createdByContactId: user?.contactId,
-          attendeeContactId: selectedSlot.attendees[0]?.contactId ?? null,
-        }
-      );
-      // Mark the slot as booked so it leaves the available pool.
-      await updateSlotStatus(selectedSlot.id, SLOT_STATUS_BOOKED);
-      // Advance request status to R (3).
-      await updateRequest(id, { gcp_requeststatus: 3 });
+      await saveEngagementBooking({
+        action: editingEngagement ? 'reschedule' : 'create',
+        requestId: id,
+        engagementId: editingEngagement?.id,
+        expectedVersion: editingEngagement?.version,
+        slotId: selectedSlot.id,
+        name: name.trim(),
+        type: Number(type) as EngagementTypeValue,
+        location: resolvedLocation,
+        operationId: createOperationId.current,
+      });
       setSuccess(true);
       setTimeout(goBack, 1500);
     } catch (err) {
@@ -302,18 +331,10 @@ export default function Engagement() {
 
   // ── Cancel ────────────────────────────────────────────────────────────────
   const confirmCancel = async () => {
-    if (!cancelTarget) return;
+    if (!cancelTarget || !id || cancelling || !canReschedule) return;
     setCancelling(true);
     try {
-      await updateEngagementStatus(cancelTarget.id, ENGAGEMENT_STATUS_CANCELLED);
-      if (cancelTarget.slotId && cancelTarget.startTime) {
-        const msTilStart = new Date(cancelTarget.startTime).getTime() - Date.now();
-        if (msTilStart > 2 * 60 * 60 * 1000) {
-          await updateSlotStatus(cancelTarget.slotId, SLOT_STATUS_AVAILABLE).catch(
-            () => undefined
-          );
-        }
-      }
+      await saveEngagementBooking({ action: 'cancel', requestId: id, engagementId: cancelTarget.id, expectedVersion: cancelTarget.version });
       setEngagements((prev) =>
         prev.map((e) =>
           e.id === cancelTarget.id
@@ -322,8 +343,16 @@ export default function Engagement() {
         )
       );
       setCancelTarget(null);
-    } catch {
-      setSubmitError('Failed to cancel engagement. Please try again.');
+      try {
+        const snapshot = await loadEngagementBooking(id);
+        setSlots(snapshot.slots);
+        setEngagements(snapshot.engagements);
+        setRequest(previous => previous ? { ...previous, ...snapshot.request } : previous);
+      } catch {
+        setSubmitError('Cancellation was saved, but available slots could not be reloaded. Refresh the request before making another booking.');
+      }
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'The cancellation result could not be confirmed. Refresh before retrying.');
     } finally {
       setCancelling(false);
     }
@@ -360,21 +389,19 @@ export default function Engagement() {
                       {requestTitle ?? 'Request'}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    className="rd-verify-btn"
-                    onClick={startNewEngagement}
-                  >
+                  {canCreate ? <button type="button" className="rd-verify-btn" onClick={startNewEngagement}>
                     <Plus size={16} aria-hidden="true" />
                     Create Engagement
-                  </button>
+                  </button> : null}
                 </header>
 
                 <div className="eng-body">
-                  {scheduledBlock ? (
-                    <InlineMessage tone="warning" title="Engagement already scheduled">
-                      Please complete or cancel the existing scheduled engagement
-                      before creating a new one.
+                  {submitError ? <InlineMessage tone="error" title="Booking update">{submitError}</InlineMessage> : null}
+                  {hasScheduled || scheduledBlock ? (
+                    <InlineMessage tone="warning" title={bookingStatusMismatch ? 'Booking status needs attention' : 'Engagement already scheduled'}>
+                      {bookingStatusMismatch
+                        ? 'This request is marked Ready for Engagement, but it already has a scheduled engagement. Contact your administrator to check the request and booking status before making changes.'
+                        : 'This request already has a scheduled engagement. A new engagement can be created only after the current engagement is completed or cancelled.'}
                     </InlineMessage>
                   ) : null}
 
@@ -386,7 +413,7 @@ export default function Engagement() {
                   ) : (
                     <div className="eng-list">
                       {engagements.map((eng) => {
-                        const canCancel = eng.status === ENGAGEMENT_STATUS_SCHEDULED;
+                        const canCancel = canReschedule && eng.status === ENGAGEMENT_STATUS_SCHEDULED;
                         const typeLabel =
                           eng.typeLabel ??
                           getChoiceLabel(engagementTypeChoices, eng.type ?? -1) ??
@@ -417,6 +444,11 @@ export default function Engagement() {
                                 >
                                   {eng.statusLabel ?? 'Scheduled'}
                                 </span>
+                                {canCancel ? (
+                                  <button type="button" className="vd-btn-secondary" onClick={() => startEditing(eng)}>
+                                    <Pencil size={14} aria-hidden="true" /> Edit Booking
+                                  </button>
+                                ) : null}
                                 {canCancel ? (
                                   <button
                                     type="button"
@@ -456,8 +488,8 @@ export default function Engagement() {
                 <header className="eng-head">
                   <div>
                     <h1 className="eng-title">
-                      Schedule Engagement
-                      <span className="eng-ref">{nextNumber}</span>
+                      {editingEngagement ? 'Edit Booking' : 'Schedule Engagement'}
+                      <span className="eng-ref">{editingEngagement?.number ?? nextNumber}</span>
                     </h1>
                     <p className="eng-sub">
                       {matterLabel ? `${matterLabel} · ` : ''}
@@ -468,18 +500,24 @@ export default function Engagement() {
 
                 <form className="eng-body" onSubmit={handleSubmit} noValidate>
                   {success ? (
-                    <InlineMessage tone="success" title="Engagement scheduled">
+                    <InlineMessage tone="success" title={editingEngagement ? 'Booking updated' : 'Engagement scheduled'}>
                       Redirecting back to the request…
                     </InlineMessage>
                   ) : null}
 
-                  {hasScheduled ? (
+                  {hasScheduled && !editingEngagement ? (
                     <InlineMessage tone="warning" title="Engagement already scheduled">
                       You already have a scheduled engagement for this request.
                       Complete or cancel it before scheduling a new one.
                     </InlineMessage>
                   ) : null}
 
+                  {editingEngagement ? (
+                    <InlineMessage tone="info" title="Update the existing booking">
+                      Choose another available slot or keep the current slot. After a successful move, the previous slot is released unless another booking still uses it. The request remains Booked (R).
+                    </InlineMessage>
+                  ) : null}
+                  {!editingEngagement && !canCreate ? <InlineMessage tone="warning">This request is not currently available for booking.</InlineMessage> : null}
                   <TextField
                     name="engagementName"
                     label="Engagement Name"
@@ -493,7 +531,7 @@ export default function Engagement() {
                   <SelectField
                     name="month"
                     label="Select Month"
-                    isRequired
+                    isRequired={!editingEngagement}
                     placeholder="Choose a month to view available slots"
                     options={monthOptions}
                     value={month}
@@ -509,10 +547,19 @@ export default function Engagement() {
                     }
                   />
 
+                  {editingEngagement ? (
+                    <button type="button" className={`eng-slot${selectedSlotId === editingEngagement.slotId ? ' is-selected' : ''}`}
+                      onClick={() => setSelectedSlotId(editingEngagement.slotId ?? '')}
+                      disabled={submitting || !slots.some(slot => slot.id === editingEngagement.slotId)}>
+                      <span className="eng-slot-date">Current booking — {fmtDateShort(editingEngagement.date)}</span>
+                      <span className="eng-slot-time">{fmtTime(editingEngagement.startTime)} – {fmtTime(editingEngagement.endTime)}</span>
+                    </button>
+                  ) : null}
+
                   {month ? (
                     <div className="eng-slots">
                       <span className="rd-field-label">
-                        Available Time Slots{' '}
+                                Available Time Slots{' '}
                         <span className="eng-slot-count">
                           ({slotsForMonth.length} available)
                         </span>
@@ -604,10 +651,10 @@ export default function Engagement() {
                     <button
                       type="submit"
                       className="rd-verify-btn"
-                      disabled={submitting || success}
+                      disabled={submitting || success || (editingEngagement ? !canReschedule : !canCreate)}
                     >
                       <CalendarPlus size={16} aria-hidden="true" />
-                      Schedule Engagement
+                      {editingEngagement ? 'Save Booking Changes' : 'Schedule Engagement'}
                     </button>
                   </div>
                 </form>
@@ -625,7 +672,7 @@ export default function Engagement() {
         <Modal.Body>
           <p className="mb-2">Are you sure you want to cancel this engagement?</p>
           <InlineMessage tone="warning">
-            This marks the engagement as cancelled and frees its time slot.
+            This cancels the engagement. Its slot is released when the cancellation policy permits it.
           </InlineMessage>
         </Modal.Body>
         <Modal.Footer>

@@ -16,9 +16,9 @@ import { SlotFormModal } from '../components/slots/SlotFormModal';
 import type { AttendeeOption } from '../components/slots/SlotFormModal';
 import {
   deleteSlotPreservingEngagements,
-  listSlots,
 } from '../shared/services/slotService';
 import { SLOT_STATUS_AVAILABLE } from '../data/slotChoices';
+import { loadBookingManagementSlots } from '../shared/engagementBookingApi';
 import type { Slot } from '../types/slot';
 import { listContactsInRole } from '../shared/webRoleApi';
 import { getCurrentUser } from '../services/authService';
@@ -83,8 +83,7 @@ export default function SlotManagement() {
     setLoading(true);
     setLoadError(null);
     try {
-      const { items } = await listSlots();
-      setSlots(items);
+      setSlots(await loadBookingManagementSlots());
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : String(err));
     } finally {

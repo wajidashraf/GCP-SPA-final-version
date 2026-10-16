@@ -21,6 +21,7 @@ import {
   WebApiError,
 } from '../powerPagesApi.ts';
 import type { ODataListResponse, ODataQuery } from '../powerPagesApi.ts';
+import { normalizeRequestNextLink } from '../requestHistory.ts';
 import {
   SLOT_STATUS_AVAILABLE,
   type SlotStatusValue,
@@ -185,14 +186,29 @@ const listAvailableSlotsWithin = async (months = 6): Promise<Slot[]> => {
     filter,
     orderby: 'gcp_date asc',
   };
-  const res = await powerPagesFetch<ODataListResponse<GcpSlotEntity>>(
-    `${BASE_URL}${buildODataQuery(query)}`,
-    {
+  const slots: Slot[] = [];
+  const seen = new Set<string>();
+  let url: string | undefined = `${BASE_URL}${buildODataQuery(query)}`;
+  while (url) {
+    const res: ODataListResponse<GcpSlotEntity> = await powerPagesFetch(url, {
       method: 'GET',
       headers: combinePrefer(pageSizeHeader(200), includeFormattedValues()),
-    }
+    });
+    slots.push(...(res?.value ?? []).map(mapGcpSlot));
+    url = res?.['@odata.nextLink'] ? normalizeRequestNextLink(res['@odata.nextLink']) : undefined;
+    if (url && seen.has(url)) throw new Error('Slot pagination repeated a page. Reload the booking.');
+    if (url) seen.add(url);
+  }
+  return slots;
+};
+
+const getSlotById = async (id: string): Promise<Slot> => {
+  if (!isGuid(id)) throw new Error('A valid slot ID is required.');
+  const row = await powerPagesFetch<GcpSlotEntity>(
+    `${BASE_URL}(${id})${buildODataQuery({ select: DEFAULT_SLOT_SELECT })}`,
+    { method: 'GET', headers: includeFormattedValues() },
   );
-  return (res?.value ?? []).map(mapGcpSlot);
+  return mapGcpSlot(row);
 };
 
 // ── Update slot status (book / free) ─────────────────────────────────────────
@@ -340,6 +356,7 @@ const deleteSlotPreservingEngagements = async (
 };
 
 export {
+  getSlotById,
   listSlots,
   createSlot,
   listAvailableSlotsWithin,

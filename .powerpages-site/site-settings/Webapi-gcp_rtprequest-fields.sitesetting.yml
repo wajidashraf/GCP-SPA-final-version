@@ -1,4 +1,4 @@
 description: Allowed fields for gcp_rtprequest Web API access
 id: e80dd8ab-34f5-401c-9e99-238fd2c354da
 name: Webapi/gcp_rtprequest/fields
-value: "*"
+value: _gcp_clientsname_value,_gcp_company_value,_gcp_request_value,_gcp_requester_value,_gcp_verifiedby_value,createdon,gcp_ClientsName,gcp_Company,gcp_Request,gcp_Requester,gcp_Verifiedby,gcp_acknowledgement,gcp_category,gcp_client_name_text,gcp_clientsname,gcp_company,gcp_formtype,gcp_matters,gcp_projectcode,gcp_projectdescription,gcp_projectname,gcp_proposalname,gcp_registrationtype,gcp_request,gcp_requester,gcp_requesteremail,gcp_requeststatus,gcp_rtprequestid,gcp_specialproject,gcp_specialprojectwithapprovedwaiver,gcp_tenderclosingdate,gcp_verifiedby,modifiedon

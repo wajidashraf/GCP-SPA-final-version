@@ -2,7 +2,7 @@
 // A collapsible, labelled card that lays out resolved fields in a responsive
 // definition grid. Used for the Basic Information block and every child section.
 
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import type { ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -28,7 +28,7 @@ const DetailSection = ({
   defaultOpen = true,
 }: DetailSectionProps) => {
   const [open, setOpen] = useState(defaultOpen);
-  const bodyId = `rd-sec-${title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`;
+  const bodyId = `rd-sec-${useId()}`;
 
   return (
     <section className={`rd-section ${open ? 'is-open' : 'is-closed'}`}>
@@ -51,26 +51,24 @@ const DetailSection = ({
         <ChevronDown size={18} className="rd-section-chevron" aria-hidden="true" />
       </button>
 
-      {open ? (
-        <div className="rd-section-body" id={bodyId}>
-          {fields.length > 0 ? (
-            <dl className="rd-grid">
-              {fields.map((f, i) => (
-                <div
-                  key={`${f.label}-${i}`}
-                  className={`rd-field${f.full ? ' rd-field--full' : ''}${
-                    f.empty ? ' rd-field--empty' : ''
-                  }`}
-                >
-                  <dt className="rd-field-label">{f.label}</dt>
-                  <dd className="rd-field-value">{f.value}</dd>
-                </div>
-              ))}
-            </dl>
-          ) : null}
-          {children}
-        </div>
-      ) : null}
+      <div className="rd-section-body" id={bodyId} hidden={!open}>
+        {fields.length > 0 ? (
+          <dl className="rd-grid">
+            {fields.map((f, i) => (
+              <div
+                key={`${f.label}-${i}`}
+                className={`rd-field${f.full ? ' rd-field--full' : ''}${
+                  f.empty ? ' rd-field--empty' : ''
+                }`}
+              >
+                <dt className="rd-field-label">{f.label}</dt>
+                <dd className="rd-field-value">{f.value}</dd>
+              </div>
+            ))}
+          </dl>
+        ) : null}
+        {children}
+      </div>
     </section>
   );
 };

@@ -1,0 +1,249 @@
+{
+  "url": "https://gcp-nexus-prod.powerappsportals.com",
+  "stageName": "PowerPagesProduction",
+  "runAt": "2026-10-15T20:25:01.562Z",
+  "runOutcome": "passed-with-warnings",
+  "scope": "Production deployment artifact/configuration checks and anonymous runtime smoke test; authenticated workflow coverage incomplete",
+  "summary": {
+    "critical": 1,
+    "high": 13,
+    "medium": 0,
+    "low": 2,
+    "total": 16,
+    "automated": 13,
+    "manual": 3,
+    "passed": 13,
+    "failed": 0,
+    "skipped": 3
+  },
+  "categories": [
+    {
+      "id": "site-load",
+      "name": "Site Load",
+      "tests": [
+        {
+          "id": "homepage",
+          "name": "Production homepage responds",
+          "severity": "critical",
+          "type": "automated",
+          "status": "passed",
+          "description": "Production homepage responds",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "HTTP 200 at 2026-10-15T20:23:25.427Z",
+          "validates": "Authorized production deployment"
+        },
+        {
+          "id": "asset-0",
+          "name": "index-BW7hEKrW.js is served from the fresh build",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "index-BW7hEKrW.js is served from the fresh build",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "HTTP 200; referenced by homepage: true; byte match: true",
+          "validates": "Authorized production deployment"
+        },
+        {
+          "id": "asset-1",
+          "name": "index-DMnDV12K.css is served from the fresh build",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "index-DMnDV12K.css is served from the fresh build",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "HTTP 200; referenced by homepage: true; byte match: true",
+          "validates": "Authorized production deployment"
+        }
+      ]
+    },
+    {
+      "id": "authentication",
+      "name": "Authentication",
+      "tests": [
+        {
+          "id": "anonymous-gate",
+          "name": "Anonymous browser is directed to sign-in",
+          "severity": "low",
+          "type": "automated",
+          "status": "passed",
+          "description": "Anonymous browser is directed to sign-in",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "New SPA renders its Microsoft sign-in dialog at /login; portal user/contact absent.",
+          "validates": "Authorized production deployment"
+        }
+      ]
+    },
+    {
+      "id": "web-api",
+      "name": "Web API Configuration and Backend Boundaries",
+      "tests": [
+        {
+          "id": "explicit-fields",
+          "name": "All deployed column allow lists match the release",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "All deployed column allow lists match the release",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "25 settings across 24 tables, including the duplicate signatory-member record.",
+          "validates": "Authorized production deployment"
+        },
+        {
+          "id": "permission-readback",
+          "name": "Booking grants match and unrelated permissions are preserved",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "Booking grants match and unrelated permissions are preserved",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "53 permissions verified; 49 unrelated permissions unchanged.",
+          "validates": "Authorized production deployment"
+        },
+        {
+          "id": "backend-0",
+          "name": "gcp-nexus.powerappsportals.com: engagementBookings requires authentication",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "gcp-nexus.powerappsportals.com: engagementBookings requires authentication",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "HTTP 401; CORS https://gcp-nexus.powerappsportals.com. No valid token or business operation sent.",
+          "validates": "Authorized production deployment"
+        },
+        {
+          "id": "backend-1",
+          "name": "gcp-nexus.powerappsportals.com: notifications/event requires authentication",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "gcp-nexus.powerappsportals.com: notifications/event requires authentication",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "HTTP 401; CORS https://gcp-nexus.powerappsportals.com. No valid token or business operation sent.",
+          "validates": "Authorized production deployment"
+        },
+        {
+          "id": "backend-2",
+          "name": "gcp-nexus.powerappsportals.com: uploadFile requires authentication",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "gcp-nexus.powerappsportals.com: uploadFile requires authentication",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "HTTP 401; CORS https://gcp-nexus.powerappsportals.com. No valid token or business operation sent.",
+          "validates": "Authorized production deployment"
+        },
+        {
+          "id": "backend-3",
+          "name": "gcp-nexus-prod.powerappsportals.com: engagementBookings requires authentication",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "gcp-nexus-prod.powerappsportals.com: engagementBookings requires authentication",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "HTTP 401; CORS https://gcp-nexus-prod.powerappsportals.com. No valid token or business operation sent.",
+          "validates": "Authorized production deployment"
+        },
+        {
+          "id": "backend-4",
+          "name": "gcp-nexus-prod.powerappsportals.com: notifications/event requires authentication",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "gcp-nexus-prod.powerappsportals.com: notifications/event requires authentication",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "HTTP 401; CORS https://gcp-nexus-prod.powerappsportals.com. No valid token or business operation sent.",
+          "validates": "Authorized production deployment"
+        },
+        {
+          "id": "backend-5",
+          "name": "gcp-nexus-prod.powerappsportals.com: uploadFile requires authentication",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "gcp-nexus-prod.powerappsportals.com: uploadFile requires authentication",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "HTTP 401; CORS https://gcp-nexus-prod.powerappsportals.com. No valid token or business operation sent.",
+          "validates": "Authorized production deployment"
+        }
+      ]
+    },
+    {
+      "id": "auth-pages",
+      "name": "Authenticated Pages",
+      "tests": [
+        {
+          "id": "detail-actions",
+          "name": "Request Detail actions and layout",
+          "severity": "high",
+          "type": "manual",
+          "status": "skipped",
+          "description": "Request Detail actions and layout",
+          "steps": [],
+          "expected": "Signed-in production verification",
+          "actual": "Test browser has no production portal session; signed-in page not verified.",
+          "validates": "Authorized production deployment"
+        }
+      ]
+    },
+    {
+      "id": "auth-api",
+      "name": "Authenticated Workflows",
+      "tests": [
+        {
+          "id": "form-submissions",
+          "name": "PP/JVP form submissions",
+          "severity": "high",
+          "type": "manual",
+          "status": "skipped",
+          "description": "PP/JVP form submissions",
+          "steps": [],
+          "expected": "Signed-in production verification",
+          "actual": "No production submissions attempted; browser remains signed out.",
+          "validates": "Authorized production deployment"
+        },
+        {
+          "id": "rescheduling",
+          "name": "Original requester/admin booking edits",
+          "severity": "high",
+          "type": "manual",
+          "status": "skipped",
+          "description": "Original requester/admin booking edits",
+          "steps": [],
+          "expected": "Signed-in production verification",
+          "actual": "No production booking mutations attempted; browser remains signed out.",
+          "validates": "Authorized production deployment"
+        }
+      ]
+    },
+    {
+      "id": "console",
+      "name": "Console Health",
+      "tests": [
+        {
+          "id": "console-reload",
+          "name": "Reloaded production sign-in page has no console errors",
+          "severity": "low",
+          "type": "automated",
+          "status": "passed",
+          "description": "Reloaded production sign-in page has no console errors",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "Zero console errors and two warnings after reload. An earlier pre-deploy favicon 404 was not a release regression.",
+          "validates": "Authorized production deployment"
+        }
+      ]
+    }
+  ]
+}

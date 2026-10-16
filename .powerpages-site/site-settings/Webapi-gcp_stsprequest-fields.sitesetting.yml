@@ -1,4 +1,4 @@
 description: Allowed fields for gcp_stsprequest Web API access
 id: 6c17eec7-5ea2-46c7-b289-e1c8890f03d1
 name: Webapi/gcp_stsprequest/fields
-value: '*'
+value: _gcp_project_value,_gcp_request_value,createdon,gcp_Project,gcp_Request,gcp_backgroundreview,gcp_contractmatters,gcp_costbreakdown,gcp_costingandestimationmatters,gcp_financialmatters,gcp_financials,gcp_implementationstage,gcp_keyterms,gcp_procurementmatters,gcp_procurementstrategyworkpackages,gcp_project,gcp_request,gcp_riskidentificationmitigationplan,gcp_scopeofworks,gcp_sourcingreference,gcp_stsprequestid,gcp_stsprequestname,gcp_teamleader,gcp_technical,gcp_technicalmatters,gcp_tenderproposalsubmissiondate,gcp_tendervalidityperiod

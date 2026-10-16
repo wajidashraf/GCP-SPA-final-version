@@ -391,6 +391,71 @@ const StspForm = ({
       },
     },
     {
+      label: 'PIC',
+      render: () => (
+        <Row className="g-3">
+          <HalfCol>
+            <TextField
+              name="picTeamLeader"
+              label="Team Leader"
+              value={state.picTeamLeader}
+              onChange={(e) => set('picTeamLeader', e.target.value)}
+            />
+          </HalfCol>
+          <HalfCol>
+            <TextField
+              name="picFinancialMatters"
+              label="Financial Matters"
+              value={state.picFinancialMatters}
+              onChange={(e) => set('picFinancialMatters', e.target.value)}
+            />
+          </HalfCol>
+          <HalfCol>
+            <TextField
+              name="picTechnicalMatters"
+              label="Technical Matters"
+              value={state.picTechnicalMatters}
+              onChange={(e) => set('picTechnicalMatters', e.target.value)}
+            />
+          </HalfCol>
+          <HalfCol>
+            <TextField
+              name="picContractMatters"
+              label="Contract Matters"
+              value={state.picContractMatters}
+              onChange={(e) => set('picContractMatters', e.target.value)}
+            />
+          </HalfCol>
+          <HalfCol>
+            <TextField
+              name="picProcurementMatters"
+              label="Procurement Matters"
+              value={state.picProcurementMatters}
+              onChange={(e) => set('picProcurementMatters', e.target.value)}
+            />
+          </HalfCol>
+          <HalfCol>
+            <TextField
+              name="picCostingAndEstimationMatters"
+              label="Costing And Estimation Matters"
+              value={state.picCostingAndEstimationMatters}
+              onChange={(e) =>
+                set('picCostingAndEstimationMatters', e.target.value)
+              }
+            />
+          </HalfCol>
+          <HalfCol>
+            <TextField
+              name="picImplementationStage"
+              label="Implementation Stage"
+              value={state.picImplementationStage}
+              onChange={(e) => set('picImplementationStage', e.target.value)}
+            />
+          </HalfCol>
+        </Row>
+      ),
+    },
+    {
       label: 'Project Details',
       render: () => (
         <Row className="g-3">
@@ -462,71 +527,6 @@ const StspForm = ({
         if (!state.projectId) return 'Project is required.';
         return null;
       },
-    },
-    {
-      label: 'PIC',
-      render: () => (
-        <Row className="g-3">
-          <HalfCol>
-            <TextField
-              name="picTeamLeader"
-              label="Team Leader"
-              value={state.picTeamLeader}
-              onChange={(e) => set('picTeamLeader', e.target.value)}
-            />
-          </HalfCol>
-          <HalfCol>
-            <TextField
-              name="picFinancialMatters"
-              label="Financial Matters"
-              value={state.picFinancialMatters}
-              onChange={(e) => set('picFinancialMatters', e.target.value)}
-            />
-          </HalfCol>
-          <HalfCol>
-            <TextField
-              name="picTechnicalMatters"
-              label="Technical Matters"
-              value={state.picTechnicalMatters}
-              onChange={(e) => set('picTechnicalMatters', e.target.value)}
-            />
-          </HalfCol>
-          <HalfCol>
-            <TextField
-              name="picContractMatters"
-              label="Contract Matters"
-              value={state.picContractMatters}
-              onChange={(e) => set('picContractMatters', e.target.value)}
-            />
-          </HalfCol>
-          <HalfCol>
-            <TextField
-              name="picProcurementMatters"
-              label="Procurement Matters"
-              value={state.picProcurementMatters}
-              onChange={(e) => set('picProcurementMatters', e.target.value)}
-            />
-          </HalfCol>
-          <HalfCol>
-            <TextField
-              name="picCostingAndEstimationMatters"
-              label="Costing And Estimation Matters"
-              value={state.picCostingAndEstimationMatters}
-              onChange={(e) =>
-                set('picCostingAndEstimationMatters', e.target.value)
-              }
-            />
-          </HalfCol>
-          <HalfCol>
-            <TextField
-              name="picImplementationStage"
-              label="Implementation Stage"
-              value={state.picImplementationStage}
-              onChange={(e) => set('picImplementationStage', e.target.value)}
-            />
-          </HalfCol>
-        </Row>
-      ),
     },
     {
       label: 'ST/SP Information',

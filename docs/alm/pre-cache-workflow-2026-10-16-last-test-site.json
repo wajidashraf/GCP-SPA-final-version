@@ -1,0 +1,231 @@
+{
+  "url": "https://gcp-nexus-prod.powerappsportals.com",
+  "stageName": "PowerPagesProduction",
+  "runAt": "2026-10-16T03:14:07.460Z",
+  "runOutcome": "passed-with-warnings",
+  "scope": "Shared historical slot fix: deployment/configuration, anonymous availability, and local transaction planning with live reads; signed-in saves unverified",
+  "summary": {
+    "critical": 1,
+    "high": 15,
+    "medium": 0,
+    "low": 0,
+    "total": 16,
+    "automated": 14,
+    "manual": 2,
+    "passed": 14,
+    "failed": 0,
+    "skipped": 2
+  },
+  "categories": [
+    {
+      "id": "site-load",
+      "name": "Site Load",
+      "tests": [
+        {
+          "id": "homepage",
+          "name": "Production homepage is available",
+          "severity": "critical",
+          "type": "automated",
+          "status": "passed",
+          "description": "Production homepage is available",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "HTTP 200",
+          "validates": "Shared historical slot booking hotfix"
+        },
+        {
+          "id": "asset-0",
+          "name": "index-BBqXTnKg.js matches the fresh build",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "index-BBqXTnKg.js matches the fresh build",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "HTTP 200; homepage references asset: true; byte match: true",
+          "validates": "Shared historical slot booking hotfix"
+        },
+        {
+          "id": "asset-1",
+          "name": "index-DMnDV12K.css matches the fresh build",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "index-DMnDV12K.css matches the fresh build",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "HTTP 200; homepage references asset: true; byte match: true",
+          "validates": "Shared historical slot booking hotfix"
+        }
+      ]
+    },
+    {
+      "id": "web-api",
+      "name": "Configuration and Read-only Booking Checks",
+      "tests": [
+        {
+          "id": "fields",
+          "name": "Explicit field settings match the release",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "Explicit field settings match the release",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "25 settings across 24 tables.",
+          "validates": "Shared historical slot booking hotfix"
+        },
+        {
+          "id": "permissions",
+          "name": "All existing permissions are preserved",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "All existing permissions are preserved",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "53 permissions match; 53 unchanged against the pre-upload snapshot.",
+          "validates": "Shared historical slot booking hotfix"
+        },
+        {
+          "id": "plan-0",
+          "name": "REQ-1262: reschedule planning with live reads",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "REQ-1262: reschedule planning with live reads",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "Transaction plan captured locally; writes sent: 0. This is not a committed portal booking.",
+          "validates": "Shared historical slot booking hotfix"
+        },
+        {
+          "id": "plan-1",
+          "name": "REQ-1282: create planning with live reads",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "REQ-1282: create planning with live reads",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "Transaction plan captured locally; writes sent: 0. This is not a committed portal booking.",
+          "validates": "Shared historical slot booking hotfix"
+        },
+        {
+          "id": "backend-0",
+          "name": "gcp-nexus.powerappsportals.com: engagementBookings authentication boundary",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "gcp-nexus.powerappsportals.com: engagementBookings authentication boundary",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "HTTP 401; CORS https://gcp-nexus.powerappsportals.com.",
+          "validates": "Shared historical slot booking hotfix"
+        },
+        {
+          "id": "backend-1",
+          "name": "gcp-nexus.powerappsportals.com: notifications/event authentication boundary",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "gcp-nexus.powerappsportals.com: notifications/event authentication boundary",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "HTTP 401; CORS https://gcp-nexus.powerappsportals.com.",
+          "validates": "Shared historical slot booking hotfix"
+        },
+        {
+          "id": "backend-2",
+          "name": "gcp-nexus.powerappsportals.com: uploadFile authentication boundary",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "gcp-nexus.powerappsportals.com: uploadFile authentication boundary",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "HTTP 401; CORS https://gcp-nexus.powerappsportals.com.",
+          "validates": "Shared historical slot booking hotfix"
+        },
+        {
+          "id": "backend-3",
+          "name": "gcp-nexus-prod.powerappsportals.com: engagementBookings authentication boundary",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "gcp-nexus-prod.powerappsportals.com: engagementBookings authentication boundary",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "HTTP 401; CORS https://gcp-nexus-prod.powerappsportals.com.",
+          "validates": "Shared historical slot booking hotfix"
+        },
+        {
+          "id": "backend-4",
+          "name": "gcp-nexus-prod.powerappsportals.com: notifications/event authentication boundary",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "gcp-nexus-prod.powerappsportals.com: notifications/event authentication boundary",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "HTTP 401; CORS https://gcp-nexus-prod.powerappsportals.com.",
+          "validates": "Shared historical slot booking hotfix"
+        },
+        {
+          "id": "backend-5",
+          "name": "gcp-nexus-prod.powerappsportals.com: uploadFile authentication boundary",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "gcp-nexus-prod.powerappsportals.com: uploadFile authentication boundary",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "HTTP 401; CORS https://gcp-nexus-prod.powerappsportals.com.",
+          "validates": "Shared historical slot booking hotfix"
+        },
+        {
+          "id": "backend-deployment",
+          "name": "Reviewed backend hotfix published successfully",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "Reviewed backend hotfix published successfully",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "Azure deployment c6011b0e68614d4281c41a05bec71156, status 4, complete/active true; 12 functions; app settings unchanged.",
+          "validates": "Shared historical slot booking hotfix"
+        }
+      ]
+    },
+    {
+      "id": "auth-api",
+      "name": "Signed-in Booking Verification",
+      "tests": [
+        {
+          "id": "reschedule-save",
+          "name": "Requester/admin rescheduling save",
+          "severity": "high",
+          "type": "manual",
+          "status": "skipped",
+          "description": "Requester/admin rescheduling save",
+          "steps": [],
+          "expected": "Signed-in portal save",
+          "actual": "No signed-in production save attempted; real destination selection is left to the user.",
+          "validates": "Shared historical slot booking hotfix"
+        },
+        {
+          "id": "new-booking-save",
+          "name": "REQ-1282 new booking save",
+          "severity": "high",
+          "type": "manual",
+          "status": "skipped",
+          "description": "REQ-1282 new booking save",
+          "steps": [],
+          "expected": "Signed-in portal save",
+          "actual": "No production test engagement created.",
+          "validates": "Shared historical slot booking hotfix"
+        }
+      ]
+    }
+  ]
+}

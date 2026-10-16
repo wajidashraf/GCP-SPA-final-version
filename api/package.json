@@ -5,12 +5,12 @@
   "private": true,
   "main": "dist/src/functions/*.js",
   "scripts": {
-    "build": "tsc",
+    "build": "node scripts/generateBookingChoices.mjs && tsc",
     "watch": "tsc -w",
     "clean": "rimraf dist",
     "prestart": "npm run clean && npm run build",
     "start": "func start",
-    "test": "echo \"no tests yet\" && exit 0"
+    "test": "npm run build && node --test tests/*.test.mjs"
   },
   "dependencies": {
     "@azure/functions": "^4.5.0",

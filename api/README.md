@@ -1,5 +1,20 @@
 # GCP Nexus — SharePoint Upload Function
 
+**Booking follow-up (2026-10-16):** `/api/engagementBookings` also supports
+authenticated GET for fresh request booking context and admin management reads.
+POST reschedule/cancel requires `expectedVersion` from the displayed engagement's
+ETag. Create guards its parent before engagement creation to coexist with
+existing synchronous workflows. See
+[the incident record](../docs/booking-cache-workflow-fix-2026-10-16.md) for
+authorization, validation and rollout details.
+
+The `request-statuses` GET scope refreshes up to 100 request IDs for the Requests
+list. It returns only current authorized ID/status pairs, applying the selected
+site's existing request-read grants (Global, owner Contact, company Account).
+It includes implicit authenticated-user role membership and fails closed for
+unsupported relationships/scopes. See the
+[list-status follow-up](../docs/request-list-status-refresh-2026-10-16.md).
+
 > **Documentation status (2026-07-24):** the sections below that describe the
 > SPA acquiring an Entra/MSAL access token are historical and must not be used
 > to reconfigure caller authentication. The active SPA acquires a Power Pages
@@ -10,6 +25,67 @@
 > [`../PROJECT_CONTEXT_REPORT.md`](../PROJECT_CONTEXT_REPORT.md) for the current
 > architecture. Function-to-Graph application credentials described here still
 > apply. A complete README rewrite remains follow-up work.
+
+## Engagement booking endpoint (2026-10-15)
+
+`POST /api/engagementBookings` accepts the existing Power Pages portal bearer
+token and JSON `{ action, requestId, engagementId?, slotId?, name?, type?,
+location?, operationId? }`. Actions are `create`, `reschedule`, and `cancel`.
+Create requires a GUID `operationId`; retain that GUID for retries of the same
+intent. Successful responses contain `{ ok: true, engagementId, slotId,
+previousSlotId }`. Cancel returns `slotId: null` while retaining the historical
+engagement-to-slot binding. Errors contain `{ ok: false, error }` and an HTTP
+status; the client must refresh on concurrency conflicts or uncertain results.
+
+Only the loaded request's original contact or a site administrator may mutate a
+booking. Create accepts Ready for Engagement (`2`) or R (`3`) with no scheduled
+engagement, derives `R01`, `R02`, etc. from completed history, and advances the
+request to R. Reschedule/cancel require R and exactly one Scheduled engagement
+bound to that request. Reschedule preserves the engagement GUID, number,
+creator and request binding. A changed slot reserves the new slot, updates the
+engagement, releases the old slot and conditionally protects request R in one
+Dataverse changeset. Same-slot edits change details only. Owner cancellation
+releases a slot strictly more than two hours before the saved start; site
+administrators retain their existing always-release cancellation behavior.
+If administrator slot deletion has detached a Scheduled engagement, the
+authorized requester or administrator can still cancel that engagement using
+only its own and the request's observed versions. This clears the active
+booking without recreating or accessing the deleted slot.
+
+The mutation pins the validated token issuer with `runForPortal` before any
+Dataverse reads, role checks, or writes. Multi-portal deployments must configure
+both `DATAVERSE_URLS` and `POWERPAGE_SITE_IDS`, index-aligned with
+`PORTAL_BASE_URLS`, for every enabled portal. Missing mappings fail closed;
+multi-portal mutations do not use the default org/site fallback. Single-portal
+deployments may use `DATAVERSE_URL` and `POWERPAGE_SITE_ID`.
+
+The Function application user needs Read/Write on `gcp_request` and `gcp_slot`,
+Read/Create/Write/Append on `gcp_engagements`, Append To on the related request,
+slot and contact records, plus the existing contact/site-scoped web-role reads.
+It also reads `IsOptimisticConcurrencyEnabled` metadata for all three booking
+tables and refuses mutations unless each existing table supports conditional
+updates. This code does not modify Dataverse schema or security roles. Confirm
+the existing application-user role and metadata in GCP-Developer before rollout.
+Deploy the Function before removing ordinary-user direct booking writes in the
+site permission package. No deployment is performed by local verification.
+
+`npm run build` generates `api/generated/bookingChoices.ts` from the canonical
+`src/data` choice mirrors before compilation, so build from the repository
+checkout. The compiled `dist/generated/bookingChoices.js` is a required runtime
+artifact; the raw generated source is ignored by Git. `npm test` builds and runs
+the meaningful Node booking suite. Tests inject Dataverse IO, including an
+atomic conditional transaction simulator; real portal tokens, privileges,
+optimistic concurrency and transaction behavior still need a signed-in
+GCP-Developer smoke test.
+
+Transaction behavior follows Microsoft's
+[Dataverse batch documentation](https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/execute-batch-operations-using-web-api)
+and [conditional operations documentation](https://learn.microsoft.com/en-us/power-apps/developer/data-platform/webapi/perform-conditional-operations-using-web-api).
+The service checks nested operation statuses and rejects malformed batch
+responses. It never blindly replays a write after transport loss: it compares
+the saved engagement, intended fields and both reservation states. A create's
+deterministic GUID also prevents concurrent or repeated delivery from creating
+another engagement.
 
 Azure Functions (Node.js + TypeScript) backend that receives files from the
 Power Pages SPA and stores them in a SharePoint document library via Microsoft

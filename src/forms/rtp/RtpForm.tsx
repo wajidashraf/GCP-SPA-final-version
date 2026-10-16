@@ -308,6 +308,7 @@ const RtpForm = ({
               name="projectName"
               label="Project Name"
               value={state.projectName}
+              placeholder="Enter Project Name"
               onChange={(e) => set('projectName', e.target.value)}
               isRequired
             />
@@ -344,7 +345,7 @@ const RtpForm = ({
               name="projectDescription"
               label="Remarks"
               value={state.projectDescription}
-              placeholder="Provide a brief description of the project, including scope, objectives, and any relevant background information."
+              placeholder="Please provide the full project name here and a brief description of the project, including its scope, objectives, and relevant background information"
               onChange={(e) => set('projectDescription', e.target.value)}
               rows={4}
               isRequired

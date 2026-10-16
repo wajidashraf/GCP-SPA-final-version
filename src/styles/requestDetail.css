@@ -150,9 +150,15 @@
 .rd-recordbar-ack svg {
   color: var(--success);
 }
-/* Edit button — pushed to the right edge of the record strip. */
+.rd-recordbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: 100%;
+  margin-inline-start: auto;
+}
 .rd-recordbar-edit {
-  margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 6px;

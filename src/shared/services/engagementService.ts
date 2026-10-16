@@ -38,6 +38,7 @@ import type {
   EngagementStatusValue,
   EngagementTypeValue,
 } from '../../data/engagementChoices.ts';
+import { normalizeRequestNextLink } from '../requestHistory.ts';
 
 const ENTITY_SET = 'gcp_engagementses';
 const BASE_URL = `/_api/${ENTITY_SET}`;
@@ -56,14 +57,20 @@ const listEngagementsByRequest = async (
     filter: `_gcp_request_value eq ${escapeODataString(requestId)}`,
     orderby: 'gcp_engagementdate asc',
   };
-  const res = await powerPagesFetch<ODataListResponse<GcpEngagementEntity>>(
-    `${BASE_URL}${buildODataQuery(query)}`,
-    {
+  const engagements: Engagement[] = [];
+  const seen = new Set<string>();
+  let url: string | undefined = `${BASE_URL}${buildODataQuery(query)}`;
+  while (url) {
+    const res: ODataListResponse<GcpEngagementEntity> = await powerPagesFetch(url, {
       method: 'GET',
       headers: combinePrefer(pageSizeHeader(100), includeFormattedValues()),
-    }
-  );
-  return (res?.value ?? []).map(mapGcpEngagement);
+    });
+    engagements.push(...(res?.value ?? []).map(mapGcpEngagement));
+    url = res?.['@odata.nextLink'] ? normalizeRequestNextLink(res['@odata.nextLink']) : undefined;
+    if (url && seen.has(url)) throw new Error('Engagement pagination repeated a page. Reload the request.');
+    if (url) seen.add(url);
+  }
+  return engagements;
 };
 
 const getLatestCompletedEngagementNumberByRequest = async (

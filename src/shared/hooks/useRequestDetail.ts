@@ -39,6 +39,8 @@ import type { GcpCprRequest } from '../../types/cprRequest';
 import { matterChoices } from '../../data/matterChoices';
 import { resolveChildKind } from '../requestIntegrity';
 import type { ChildKind } from '../requestIntegrity';
+import { collectRequestPages } from '../requestHistory';
+import type { ListChildOptions, ListChildResult } from '../services/childRequestList';
 
 type ChildData =
   | { type: 'rtp'; records: GcpRtpRequest[] }
@@ -72,43 +74,44 @@ const matterCodeOf = (request: GcpRequest): string | null =>
 
 const loadChild = async (request: GcpRequest): Promise<ChildData> => {
   const kind = resolveChildKind(request);
-  const opts = { withFormattedValues: true } as const;
   const id = request.id;
+  const listAll = <T,>(list: (parentId: string, options?: ListChildOptions) => Promise<ListChildResult<T>>, parentId = id) =>
+    collectRequestPages((nextLink) => list(parentId, { withFormattedValues: true, nextLink }));
 
   switch (kind) {
     case 'rtp':
-      return { type: 'rtp', records: (await listRtpRequestsByParent(id, opts)).items };
+      return { type: 'rtp', records: await listAll(listRtpRequestsByParent) };
     case 'pbl': {
-      const records = (await listPblRequestsByParent(id, opts)).items;
+      const records = await listAll(listPblRequestsByParent);
       const bidderLists = await Promise.all(
         records.map((r) =>
-          listBiddersByPblRequest(r.id, opts).then((res) => res.items)
+          listAll(listBiddersByPblRequest, r.id)
         )
       );
       return { type: 'pbl', records, bidders: bidderLists.flat() };
     }
     case 'jvp':
-      return { type: 'jvp', records: (await listJvpRequestsByParent(id, opts)).items };
+      return { type: 'jvp', records: await listAll(listJvpRequestsByParent) };
     case 'stsp':
-      return { type: 'stsp', records: (await listStspRequestsByParent(id, opts)).items };
+      return { type: 'stsp', records: await listAll(listStspRequestsByParent) };
     case 'caa':
-      return { type: 'caa', records: (await listCaaRequestsByParent(id, opts)).items };
+      return { type: 'caa', records: await listAll(listCaaRequestsByParent) };
     case 'pcca':
-      return { type: 'pcca', records: (await listPccaRequestsByParent(id, opts)).items };
+      return { type: 'pcca', records: await listAll(listPccaRequestsByParent) };
     case 'pp':
-      return { type: 'pp', records: (await listPpRequestsByParent(id, opts)).items };
+      return { type: 'pp', records: await listAll(listPpRequestsByParent) };
     case 'vap':
-      return { type: 'vap', records: (await listVapRequestsByParent(id, opts)).items };
+      return { type: 'vap', records: await listAll(listVapRequestsByParent) };
     case 'other':
-      return { type: 'other', records: (await listOtherRequestsByParent(id, opts)).items };
+      return { type: 'other', records: await listAll(listOtherRequestsByParent) };
     case 'rpcca':
-      return { type: 'rpcca', records: (await listRpccaRequestsByParent(id, opts)).items };
+      return { type: 'rpcca', records: await listAll(listRpccaRequestsByParent) };
     case 'rpp':
-      return { type: 'rpp', records: (await listRppRequestsByParent(id, opts)).items };
+      return { type: 'rpp', records: await listAll(listRppRequestsByParent) };
     case 'ci':
-      return { type: 'ci', records: (await listCiRequestsByParent(id, opts)).items };
+      return { type: 'ci', records: await listAll(listCiRequestsByParent) };
     case 'cpr':
-      return { type: 'cpr', records: (await listCprRequestsByParent(id, opts)).items };
+      return { type: 'cpr', records: await listAll(listCprRequestsByParent) };
     default:
       return { type: 'unsupported', code: matterCodeOf(request) };
   }
@@ -120,11 +123,15 @@ const useRequestDetail = (id: string | null | undefined): UseRequestDetailState 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [childError, setChildError] = useState<string | null>(null);
+  const [loadedForId, setLoadedForId] = useState<string | null>(null);
   const loadGeneration = useRef(0);
+  const activeId = useRef(id);
+  activeId.current = id;
 
   const load = useCallback(async () => {
     const generation = ++loadGeneration.current;
-    const isCurrentLoad = () => loadGeneration.current === generation;
+    const isCurrentLoad = () => loadGeneration.current === generation && activeId.current === id;
+    setLoadedForId(id ?? null);
 
     if (!id) {
       setRequest(null);
@@ -173,6 +180,9 @@ const useRequestDetail = (id: string | null | undefined): UseRequestDetailState 
     };
   }, [load]);
 
+  if (loadedForId !== (id ?? null)) {
+    return { request: null, child: null, isLoading: Boolean(id), error: null, childError: null, refetch: load };
+  }
   return { request, child, isLoading, error, childError, refetch: load };
 };
 

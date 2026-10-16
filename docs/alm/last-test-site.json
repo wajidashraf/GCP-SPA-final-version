@@ -1,0 +1,165 @@
+{
+  "url": "https://gcp-nexus-prod.powerappsportals.com",
+  "stageName": "PowerPagesProduction",
+  "runAt": "2026-10-16T04:37:37.594Z",
+  "runOutcome": "passed-with-warnings",
+  "scope": "Deployed assets/configuration, local regression suites and scoped live status reads; signed-in list unverified",
+  "summary": {
+    "critical": 0,
+    "high": 10,
+    "medium": 0,
+    "low": 0,
+    "total": 10,
+    "automated": 9,
+    "manual": 1,
+    "passed": 9,
+    "failed": 0,
+    "skipped": 1
+  },
+  "categories": [
+    {
+      "id": "site-load",
+      "name": "Site Load",
+      "tests": [
+        {
+          "id": "homepage",
+          "name": "Production homepage loads",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "Production homepage loads",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "HTTP 200",
+          "validates": "Requests list status refresh"
+        },
+        {
+          "id": "asset-0",
+          "name": "index-DiJ8Jqe5.js matches the tested build",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "index-DiJ8Jqe5.js matches the tested build",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "{\"name\":\"index-DiJ8Jqe5.js\",\"status\":200,\"referencedByHomepage\":true,\"matchesBuild\":true}",
+          "validates": "Requests list status refresh"
+        },
+        {
+          "id": "asset-1",
+          "name": "index-DMnDV12K.css matches the tested build",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "index-DMnDV12K.css matches the tested build",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "{\"name\":\"index-DMnDV12K.css\",\"status\":200,\"referencedByHomepage\":true,\"matchesBuild\":true}",
+          "validates": "Requests list status refresh"
+        }
+      ]
+    },
+    {
+      "id": "authentication",
+      "name": "Authentication",
+      "tests": [
+        {
+          "id": "auth-0",
+          "name": "Status endpoint requires authentication and disables caching",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "Status endpoint requires authentication and disables caching",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "{\"origin\":\"https://gcp-nexus.powerappsportals.com\",\"status\":401,\"cors\":\"https://gcp-nexus.powerappsportals.com\",\"cacheControl\":\"no-store\"}",
+          "validates": "Requests list status refresh"
+        },
+        {
+          "id": "auth-1",
+          "name": "Status endpoint requires authentication and disables caching",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "Status endpoint requires authentication and disables caching",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "{\"origin\":\"https://gcp-nexus-prod.powerappsportals.com\",\"status\":401,\"cors\":\"https://gcp-nexus-prod.powerappsportals.com\",\"cacheControl\":\"no-store\"}",
+          "validates": "Requests list status refresh"
+        }
+      ]
+    },
+    {
+      "id": "deployment",
+      "name": "Deployment and authorization",
+      "tests": [
+        {
+          "id": "backend",
+          "name": "Backend deployed with unchanged settings and 12 triggers",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "Backend deployed with unchanged settings and 12 triggers",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "a2a9e34ce8b7415ca24f80b78ddf1c2b",
+          "validates": "Requests list status refresh"
+        },
+        {
+          "id": "permissions",
+          "name": "All 53 permissions unchanged",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "All 53 permissions unchanged",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "25 field settings verified",
+          "validates": "Requests list status refresh"
+        },
+        {
+          "id": "tests",
+          "name": "Regression suites and strict builds pass",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "Regression suites and strict builds pass",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "API 108/108; root 198/198",
+          "validates": "Requests list status refresh"
+        },
+        {
+          "id": "live",
+          "name": "REQ-1283 fresh status and owner scope checks pass",
+          "severity": "high",
+          "type": "automated",
+          "status": "passed",
+          "description": "REQ-1283 fresh status and owner scope checks pass",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "{\"verifiedAt\":\"2026-10-16T04:36:28.256Z\",\"org\":\"https://org09c47a7a.crm5.dynamics.com\",\"ok\":true,\"requests\":[{\"id\":\"8185239b-bdc6-f111-a05c-000d3a091cd7\",\"status\":3}],\"implicitAuthenticatedRoleVerified\":true,\"ownerScopedLiveQueryPassed\":true,\"foreignOwnerLiveQueryDenied\":true,\"fullBatchLiveQueryPassed\":true,\"writesPerformed\":0}",
+          "validates": "Requests list status refresh"
+        }
+      ]
+    },
+    {
+      "id": "auth-pages",
+      "name": "Authenticated Pages",
+      "tests": [
+        {
+          "id": "signed-in-list",
+          "name": "Signed-in Requests list badge/filter check",
+          "severity": "high",
+          "type": "manual",
+          "status": "skipped",
+          "description": "Signed-in Requests list badge/filter check",
+          "steps": [],
+          "expected": "Assertion holds",
+          "actual": "Test browser remained signed out; no user session or production booking was changed.",
+          "validates": "Requests list status refresh"
+        }
+      ]
+    }
+  ]
+}

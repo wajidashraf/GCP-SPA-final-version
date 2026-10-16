@@ -1,0 +1,238 @@
+.rd-doc-print-name {
+  display: none;
+}
+
+.rd-request-record .rd-history-event {
+  display: grid;
+  grid-template-columns: minmax(150px, 220px) minmax(0, 1fr);
+  gap: 20px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.rd-request-record .rd-history-event:last-child {
+  border-bottom: 0;
+}
+
+.rd-request-record .rd-history-image-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 90px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.rd-request-record .rd-history-signature-image {
+  max-width: 100%;
+  max-height: 110px;
+  object-fit: contain;
+}
+
+.rd-request-record .rd-history-event-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 20px;
+  margin: 0;
+}
+
+.rd-request-record .rd-history-event-facts dd {
+  margin: 0;
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+}
+
+.rd-request-record .rd-history-note,
+.rd-request-record .rd-history-error,
+.rd-request-record .rd-history-image-error {
+  margin: 14px 0 0;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.rd-request-record .rd-history-error,
+.rd-request-record .rd-history-image-error {
+  color: var(--danger, #a12626);
+}
+
+.rd-request-record .rd-history-retry-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.rd-request-record .rd-history-related,
+.rd-request-record .rd-history-letter {
+  margin-top: 18px;
+  overflow-wrap: anywhere;
+}
+
+.rd-request-record .rd-history-related ul {
+  padding-left: 20px;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+  .rd-request-record .rd-history-event {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .rd-request-record .rd-history-event-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media print {
+  body:has(.rd-request-record) .header,
+  body:has(.rd-request-record) footer,
+  .rd-request-record .no-print,
+  .rd-request-record [data-no-print],
+  .rd-request-record .rd-back,
+  .rd-request-record .rd-actions,
+  .rd-request-record button:not(.rd-section-head),
+  .rd-request-record .rd-section-chevron {
+    display: none !important;
+  }
+
+  .rd-request-record .rd-doc-media,
+  .rd-request-record .rd-doc-name {
+    display: none !important;
+  }
+
+  .rd-request-record .rd-doc-strip,
+  .rd-request-record .rd-doc-print-name {
+    display: block !important;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .rd-request-record .rd-doc-card {
+    width: auto !important;
+    max-width: none !important;
+    border: 0 !important;
+    overflow: visible !important;
+    margin: 4px 0 !important;
+    break-inside: avoid-page;
+  }
+
+  body:has(.rd-request-record) .app-shell,
+  body:has(.rd-request-record) .app-main,
+  .rd-request-record {
+    display: block !important;
+    width: auto !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: white !important;
+    color: black !important;
+  }
+
+  .rd-request-record .rd-hero,
+  .rd-request-record .rd-section,
+  .rd-request-record .rd-history-image-wrap {
+    box-shadow: none !important;
+    border: 1px solid #aaa !important;
+    border-radius: 0 !important;
+    background: white !important;
+    color: black !important;
+    overflow: visible !important;
+    break-inside: auto;
+  }
+
+  .rd-request-record .rd-hero::before {
+    display: none !important;
+  }
+
+  .rd-request-record .rd-hero *,
+  .rd-request-record .rd-section-title,
+  .rd-request-record .rd-field-value,
+  .rd-request-record .rd-multiline {
+    color: black !important;
+  }
+
+  .rd-request-record .rd-section-head {
+    break-after: avoid-page;
+    padding: 12px !important;
+  }
+
+  .rd-request-record .rd-section-body,
+  .rd-request-record .rd-section-body[hidden] {
+    display: block !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    animation: none !important;
+    padding: 0 12px 14px !important;
+  }
+
+  .rd-request-record .rd-grid {
+    display: block !important;
+  }
+
+  .rd-request-record .rd-field {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  .rd-request-record .rd-field:has(.rd-multiline),
+  .rd-request-record .rd-field:has(table),
+  .rd-request-record .rd-history-letter {
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+
+  .rd-request-record .rd-field-value,
+  .rd-request-record .rd-multiline,
+  .rd-request-record td,
+  .rd-request-record th {
+    overflow-wrap: anywhere !important;
+    word-break: normal !important;
+  }
+
+  .rd-request-record .rd-multiline {
+    white-space: pre-wrap !important;
+  }
+
+  .rd-request-record .rd-subtable-wrap,
+  .rd-request-record .rd-bidders-wrap {
+    overflow: visible !important;
+    max-width: 100% !important;
+  }
+
+  .rd-request-record table {
+    width: 100% !important;
+    table-layout: fixed !important;
+  }
+
+  .rd-request-record th {
+    white-space: normal !important;
+  }
+
+  .rd-request-record thead {
+    display: table-header-group;
+  }
+
+  .rd-request-record tr,
+  .rd-request-record .rd-history-event {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+
+  .rd-request-record .rd-history-event {
+    grid-template-columns: 180px minmax(0, 1fr);
+  }
+
+  .rd-request-record .rd-history-signature-image {
+    max-width: 100% !important;
+    max-height: 90px !important;
+  }
+}

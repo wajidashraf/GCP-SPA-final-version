@@ -1,4 +1,4 @@
 description: Allowed fields for gcp_requestcigcp Web API access
 id: 4de9dc0f-4e48-47f7-b96e-e69fda93003f
 name: Webapi/gcp_requestcigcp/fields
-value: '*'
+value: _gcp_company_value,_gcp_project_value,_gcp_request_value,createdon,gcp_Company,gcp_Project,gcp_Request,gcp_acknowledgement,gcp_advisoryrequiredfromgcppayments,gcp_advisoryrequiredfromgcpvo,gcp_briefofissuespayments,gcp_briefofissuesvo,gcp_category,gcp_chronologyofeventpayments,gcp_chronologyofeventvo,gcp_company,gcp_companyroleinthisissue,gcp_contractclause,gcp_contractclausepayment,gcp_name,gcp_project,gcp_projectcode,gcp_request,gcp_requestcigcpid,gcp_timeandcostimpactvo

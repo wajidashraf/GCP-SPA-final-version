@@ -14,7 +14,8 @@ import type {
   EngagementStatusValue,
   EngagementTypeValue,
 } from '../data/engagementChoices';
-import { ENGAGEMENT_STATUS_COMPLETED } from '../data/engagementChoices.ts';
+import { ENGAGEMENT_STATUS_COMPLETED, engagementStatusChoices, engagementTypeChoices } from '../data/engagementChoices.ts';
+import { getChoiceLabel } from '../data/types.ts';
 
 // ── Raw OData entity (as it comes back from /_api/gcp_engagementses) ──────────
 type GcpEngagementEntity = {
@@ -42,6 +43,7 @@ type GcpEngagementEntity = {
 // ── Clean domain type used by the React UI ───────────────────────────────────
 type Engagement = {
   id: string;
+  version?: string;
   name: string | null;
   number: string | null;
   date: string | null;
@@ -77,6 +79,7 @@ type CreateGcpEngagementInput = {
 
 const mapGcpEngagement = (e: GcpEngagementEntity): Engagement => ({
   id: e.gcp_engagementsid ?? '',
+  version: e['@odata.etag'],
   name: e.gcp_name ?? null,
   number: e.gcp_engagementnumber ?? null,
   date: e.gcp_engagementdate ?? null,
@@ -84,10 +87,12 @@ const mapGcpEngagement = (e: GcpEngagementEntity): Engagement => ({
   endTime: e.gcp_endtime ?? null,
   type: (e.gcp_engagementtype ?? null) as EngagementTypeValue | null,
   typeLabel:
-    e['gcp_engagementtype@OData.Community.Display.V1.FormattedValue'] ?? null,
+    e['gcp_engagementtype@OData.Community.Display.V1.FormattedValue'] ??
+    (e.gcp_engagementtype == null ? null : getChoiceLabel(engagementTypeChoices, e.gcp_engagementtype) ?? null),
   status: (e.gcp_engagementstatus ?? null) as EngagementStatusValue | null,
   statusLabel:
-    e['gcp_engagementstatus@OData.Community.Display.V1.FormattedValue'] ?? null,
+    e['gcp_engagementstatus@OData.Community.Display.V1.FormattedValue'] ??
+    (e.gcp_engagementstatus == null ? null : getChoiceLabel(engagementStatusChoices, e.gcp_engagementstatus) ?? null),
   location: e.gcp_location ?? null,
   slotId: e._gcp_slot_value ?? null,
   requestId: e._gcp_request_value ?? null,

@@ -1,4 +1,4 @@
 description: Allowed fields for gcp_slot Web API access
 id: 6260a691-24a6-410c-a174-a2d6954352e7
 name: Webapi/gcp_slot/fields
-value: '*'
+value: _gcp_attendee_1_value,_gcp_attendee_2_value,_gcp_attendee_value,gcp_Attendee,gcp_Attendee_1,gcp_Attendee_2,gcp_attendee,gcp_attendee_1,gcp_attendee_2,gcp_attendeeemail,gcp_attendeeemail_1,gcp_attendeeemail_2,gcp_date,gcp_end,gcp_slotid,gcp_slotstatus,gcp_start,gcp_type

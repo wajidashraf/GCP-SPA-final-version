@@ -1,0 +1,229 @@
+{
+  "deployment": {
+    "stageName": "PowerPagesProduction",
+    "environmentId": "f99a8105-8032-ea69-966d-145edf57bc94",
+    "siteId": "517038c0-eca4-4529-a872-f613ea02ad32",
+    "siteUrl": "https://gcp-nexus-prod.powerappsportals.com",
+    "deployedAt": "2026-10-16T04:06:38.929Z",
+    "verifiedAt": "2026-10-16T04:06:57.531Z",
+    "uploadSucceeded": true,
+    "restartSucceeded": true,
+    "eventsCompleted": 71,
+    "eventsTotal": 71,
+    "artifacts": [
+      {
+        "name": "index-BB_POdJ5.js",
+        "id": "399aafa6-9db6-4e41-be12-05265c91522e",
+        "sha256": "98979c27b2b118d89315edfa9bc3883d1a762b63ab26e1ad39979a8518b483d9",
+        "matchesBuild": true
+      },
+      {
+        "name": "index-DMnDV12K.css",
+        "id": "191a6572-40ad-4729-a7a5-81a67ace092a",
+        "sha256": "da9d0ec8030674622a8210c1394c7baa044c7ec330b7f26066cf0f0b08cfd1d9",
+        "matchesBuild": true
+      }
+    ],
+    "fieldSettings": 25,
+    "tablePermissions": 53,
+    "unchangedPermissions": 53,
+    "backendDeployment": "5d7808f72ae148298419b6c526dfd07b",
+    "authenticatedBookingSaveVerified": false,
+    "change": "Booking cache, synchronous-create workflow and stale editor fixes"
+  },
+  "validation": {
+    "url": "https://gcp-nexus-prod.powerappsportals.com",
+    "stageName": "PowerPagesProduction",
+    "runAt": "2026-10-16T04:08:27.976Z",
+    "runOutcome": "passed-with-warnings",
+    "scope": "Deployment, fresh live reads and captured transaction plans; signed-in UI/save unverified",
+    "summary": {
+      "critical": 0,
+      "high": 12,
+      "medium": 0,
+      "low": 0,
+      "total": 12,
+      "automated": 10,
+      "manual": 2,
+      "passed": 10,
+      "failed": 0,
+      "skipped": 2
+    },
+    "categories": [
+      {
+        "id": "site-load",
+        "name": "Site Load",
+        "tests": [
+          {
+            "id": "homepage",
+            "name": "Production homepage loads",
+            "severity": "high",
+            "type": "automated",
+            "status": "passed",
+            "description": "Production homepage loads",
+            "steps": [],
+            "expected": "Assertion holds",
+            "actual": "HTTP 200",
+            "validates": "2026-10-16 booking cache/workflow fix"
+          },
+          {
+            "id": "asset-0",
+            "name": "index-BB_POdJ5.js is served and matches the build",
+            "severity": "high",
+            "type": "automated",
+            "status": "passed",
+            "description": "index-BB_POdJ5.js is served and matches the build",
+            "steps": [],
+            "expected": "Assertion holds",
+            "actual": "{\"name\":\"index-BB_POdJ5.js\",\"status\":200,\"referencedByHomepage\":true,\"matchesBuild\":true}",
+            "validates": "2026-10-16 booking cache/workflow fix"
+          },
+          {
+            "id": "asset-1",
+            "name": "index-DMnDV12K.css is served and matches the build",
+            "severity": "high",
+            "type": "automated",
+            "status": "passed",
+            "description": "index-DMnDV12K.css is served and matches the build",
+            "steps": [],
+            "expected": "Assertion holds",
+            "actual": "{\"name\":\"index-DMnDV12K.css\",\"status\":200,\"referencedByHomepage\":true,\"matchesBuild\":true}",
+            "validates": "2026-10-16 booking cache/workflow fix"
+          }
+        ]
+      },
+      {
+        "id": "authentication",
+        "name": "Authentication",
+        "tests": [
+          {
+            "id": "get-0",
+            "name": "Booking GET requires authentication and prevents caching",
+            "severity": "high",
+            "type": "automated",
+            "status": "passed",
+            "description": "Booking GET requires authentication and prevents caching",
+            "steps": [],
+            "expected": "Assertion holds",
+            "actual": "{\"origin\":\"https://gcp-nexus.powerappsportals.com\",\"status\":401,\"cors\":\"https://gcp-nexus.powerappsportals.com\",\"cacheControl\":\"no-store\"}",
+            "validates": "2026-10-16 booking cache/workflow fix"
+          },
+          {
+            "id": "get-1",
+            "name": "Booking GET requires authentication and prevents caching",
+            "severity": "high",
+            "type": "automated",
+            "status": "passed",
+            "description": "Booking GET requires authentication and prevents caching",
+            "steps": [],
+            "expected": "Assertion holds",
+            "actual": "{\"origin\":\"https://gcp-nexus-prod.powerappsportals.com\",\"status\":401,\"cors\":\"https://gcp-nexus-prod.powerappsportals.com\",\"cacheControl\":\"no-store\"}",
+            "validates": "2026-10-16 booking cache/workflow fix"
+          }
+        ]
+      },
+      {
+        "id": "deployment",
+        "name": "Deployment and authorization configuration",
+        "tests": [
+          {
+            "id": "backend",
+            "name": "Backend package and unchanged configuration verified",
+            "severity": "high",
+            "type": "automated",
+            "status": "passed",
+            "description": "Backend package and unchanged configuration verified",
+            "steps": [],
+            "expected": "Assertion holds",
+            "actual": "Deployment 5d7808f72ae148298419b6c526dfd07b; settings unchanged; 12 triggers; GET and POST registered",
+            "validates": "2026-10-16 booking cache/workflow fix"
+          },
+          {
+            "id": "permissions",
+            "name": "All 53 permissions unchanged; field settings verified",
+            "severity": "high",
+            "type": "automated",
+            "status": "passed",
+            "description": "All 53 permissions unchanged; field settings verified",
+            "steps": [],
+            "expected": "Assertion holds",
+            "actual": "25 field settings across 24 tables",
+            "validates": "2026-10-16 booking cache/workflow fix"
+          },
+          {
+            "id": "tests",
+            "name": "Regression suites pass",
+            "severity": "high",
+            "type": "automated",
+            "status": "passed",
+            "description": "Regression suites pass",
+            "steps": [],
+            "expected": "Assertion holds",
+            "actual": "API 99/99; root 193/193; strict TypeScript builds passed",
+            "validates": "2026-10-16 booking cache/workflow fix"
+          },
+          {
+            "id": "live-plan-0",
+            "name": "Fresh live reads and locally captured transaction plan",
+            "severity": "high",
+            "type": "automated",
+            "status": "passed",
+            "description": "Fresh live reads and locally captured transaction plan",
+            "steps": [],
+            "expected": "Assertion holds",
+            "actual": "{\"requestId\":\"9992fa3e-14bb-f111-aaae-70a8a5706abb\",\"status\":3,\"currentSlot\":\"8dc62ee2-d6c8-f111-a05c-000d3a091cd7\",\"slots\":[{\"id\":\"deb830a9-bcc6-f111-a05c-000d3a091cd7\",\"start\":\"2026-10-19T04:14:00Z\"},{\"id\":\"af1c3caf-bcc6-f111-a05c-000d3a091cd7\",\"start\":\"2026-10-20T04:15:00Z\"},{\"id\":\"0ded29e8-d6c8-f111-a05c-000d3a091cd7\",\"start\":\"2026-10-30T20:28:00Z\"}],\"readVerified\":true,\"transactionPlanVerified\":true,\"operationCount\":4,\"writesPerformed\":0}",
+            "validates": "2026-10-16 booking cache/workflow fix"
+          },
+          {
+            "id": "live-plan-1",
+            "name": "Fresh live reads and locally captured transaction plan",
+            "severity": "high",
+            "type": "automated",
+            "status": "passed",
+            "description": "Fresh live reads and locally captured transaction plan",
+            "steps": [],
+            "expected": "Assertion holds",
+            "actual": "{\"requestId\":\"8185239b-bdc6-f111-a05c-000d3a091cd7\",\"status\":2,\"currentSlot\":null,\"slots\":[{\"id\":\"deb830a9-bcc6-f111-a05c-000d3a091cd7\",\"start\":\"2026-10-19T04:14:00Z\"},{\"id\":\"af1c3caf-bcc6-f111-a05c-000d3a091cd7\",\"start\":\"2026-10-20T04:15:00Z\"},{\"id\":\"0ded29e8-d6c8-f111-a05c-000d3a091cd7\",\"start\":\"2026-10-30T20:28:00Z\"}],\"readVerified\":true,\"transactionPlanVerified\":true,\"operationCount\":3,\"writesPerformed\":0}",
+            "validates": "2026-10-16 booking cache/workflow fix"
+          }
+        ]
+      },
+      {
+        "id": "auth-pages",
+        "name": "Authenticated Pages",
+        "tests": [
+          {
+            "id": "signed-in-ui",
+            "name": "Signed-in booking forms and slot management",
+            "severity": "high",
+            "type": "manual",
+            "status": "skipped",
+            "description": "Signed-in booking forms and slot management",
+            "steps": [],
+            "expected": "User-controlled authenticated verification",
+            "actual": "Automated browser remained at Microsoft sign-in; normal browser login is a separate session.",
+            "validates": "2026-10-16 booking cache/workflow fix"
+          }
+        ]
+      },
+      {
+        "id": "auth-api",
+        "name": "Authenticated API",
+        "tests": [
+          {
+            "id": "save",
+            "name": "Actual production booking save",
+            "severity": "high",
+            "type": "manual",
+            "status": "skipped",
+            "description": "Actual production booking save",
+            "steps": [],
+            "expected": "User-controlled authenticated verification",
+            "actual": "No production engagement created or rescheduled during testing. REQ-1283 first-booking retry remains for the user.",
+            "validates": "2026-10-16 booking cache/workflow fix"
+          }
+        ]
+      }
+    ]
+  }
+}
