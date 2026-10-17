@@ -1,0 +1,32 @@
+{
+  "stageName": "PowerPagesProduction",
+  "environmentId": "f99a8105-8032-ea69-966d-145edf57bc94",
+  "siteId": "517038c0-eca4-4529-a872-f613ea02ad32",
+  "siteUrl": "https://gcp-nexus-prod.powerappsportals.com",
+  "deployedAt": "2026-10-16T04:36:00.994Z",
+  "verifiedAt": "2026-10-16T04:37:08.581Z",
+  "uploadSucceeded": true,
+  "restartSucceeded": true,
+  "eventsCompleted": 71,
+  "eventsTotal": 71,
+  "artifacts": [
+    {
+      "name": "index-DiJ8Jqe5.js",
+      "id": "3c301de5-c4ed-48fe-a078-4e39cb8385e5",
+      "sha256": "a0f80311ccac53912b69ed69544db179d305b83c93dfc81e1a82a3aa707b8376",
+      "matchesBuild": true
+    },
+    {
+      "name": "index-DMnDV12K.css",
+      "id": "191a6572-40ad-4729-a7a5-81a67ace092a",
+      "sha256": "da9d0ec8030674622a8210c1394c7baa044c7ec330b7f26066cf0f0b08cfd1d9",
+      "matchesBuild": true
+    }
+  ],
+  "fieldSettings": 25,
+  "tablePermissions": 53,
+  "unchangedPermissions": 53,
+  "backendDeployment": "a2a9e34ce8b7415ca24f80b78ddf1c2b",
+  "authenticatedRequestListVerified": false,
+  "change": "Fresh scoped request status batches before Requests list filters and badges"
+}

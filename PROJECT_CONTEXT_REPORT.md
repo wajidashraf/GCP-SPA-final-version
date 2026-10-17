@@ -564,6 +564,21 @@ affected roles.
 
 ## Deployment context
 
+### 2026-10-17 RTP field text update
+
+The RTP shared new/edit form keeps Project Name and changes its placeholder to
+`Please enter a short title for the project`; Remarks is relabelled Project
+Description. Its existing long placeholder, required validation, mappings and
+submission logic are preserved. Authorized dev and production uploads/restarts
+completed, with deployed and publicly served production assets matching the
+fresh build. All 53 permissions and existing Web API settings were preserved
+in each environment. Signed-in RTP visual verification remains pending because
+the isolated browser has no portal session. See
+[the release record](docs/rtp-ui-text-release-2026-10-17.md), including the
+reversible workaround for PAC's duplicate-profile selection crash. No backend,
+Dataverse schema or business records changed. Git publication was requested
+separately after deployment on the existing feature branch.
+
 ### 2026-10-16 shared-slot rescheduling fix
 
 The shared Function hotfix permits moving an existing booking away from a

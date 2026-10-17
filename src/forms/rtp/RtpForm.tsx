@@ -308,7 +308,7 @@ const RtpForm = ({
               name="projectName"
               label="Project Name"
               value={state.projectName}
-              placeholder="Enter Project Name"
+              placeholder="Please enter a short title for the project"
               onChange={(e) => set('projectName', e.target.value)}
               isRequired
             />
@@ -343,7 +343,7 @@ const RtpForm = ({
           <Col xs={12}>
             <TextAreaField
               name="projectDescription"
-              label="Remarks"
+              label="Project Description"
               value={state.projectDescription}
               placeholder="Please provide the full project name here and a brief description of the project, including its scope, objectives, and relevant background information"
               onChange={(e) => set('projectDescription', e.target.value)}

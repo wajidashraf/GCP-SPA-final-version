@@ -3,30 +3,33 @@
   "environmentId": "f99a8105-8032-ea69-966d-145edf57bc94",
   "siteId": "517038c0-eca4-4529-a872-f613ea02ad32",
   "siteUrl": "https://gcp-nexus-prod.powerappsportals.com",
-  "deployedAt": "2026-10-16T04:36:00.994Z",
-  "verifiedAt": "2026-10-16T04:37:08.581Z",
+  "deployedAt": "2026-10-17T06:35:22.7836820Z",
+  "verifiedAt": "2026-10-17T06:36:56.301Z",
   "uploadSucceeded": true,
   "restartSucceeded": true,
   "eventsCompleted": 71,
   "eventsTotal": 71,
   "artifacts": [
     {
-      "name": "index-DiJ8Jqe5.js",
-      "id": "3c301de5-c4ed-48fe-a078-4e39cb8385e5",
-      "sha256": "a0f80311ccac53912b69ed69544db179d305b83c93dfc81e1a82a3aa707b8376",
-      "matchesBuild": true
-    },
-    {
       "name": "index-DMnDV12K.css",
       "id": "191a6572-40ad-4729-a7a5-81a67ace092a",
       "sha256": "da9d0ec8030674622a8210c1394c7baa044c7ec330b7f26066cf0f0b08cfd1d9",
       "matchesBuild": true
+    },
+    {
+      "name": "index-Yvy9k6RF.js",
+      "id": "fc3c6984-6151-43ef-8da0-c2b6cb94e34b",
+      "sha256": "4a942fee19c1d45b9eb078dc67b9d0f69827e6845ce29401797688b697c468ef",
+      "matchesBuild": true
     }
   ],
-  "fieldSettings": 25,
   "tablePermissions": 53,
   "unchangedPermissions": 53,
+  "fieldSettings": 25,
   "backendDeployment": "a2a9e34ce8b7415ca24f80b78ddf1c2b",
-  "authenticatedRequestListVerified": false,
-  "change": "Fresh scoped request status batches before Requests list filters and badges"
+  "protectedMetadataRecordsUnchanged": 104,
+  "backendChanged": false,
+  "authenticatedRtpFormVerified": false,
+  "change": "RTP UI text: Project Name placeholder and Project Description label; existing validation and mappings preserved",
+  "evidence": "docs/alm/rtp-text-release-2026-10-17.json"
 }

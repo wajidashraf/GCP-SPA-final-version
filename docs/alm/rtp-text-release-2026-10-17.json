@@ -1,0 +1,84 @@
+{
+  "recordedAt": "2026-10-17T06:37:22.675Z",
+  "change": "RTP UI text: Project Name placeholder and Project Description label; existing validation and mappings preserved",
+  "dev": {
+    "verifiedAt": "2026-10-17T06:26:51.338Z",
+    "environmentId": "19d73dc4-0f30-e868-bf7d-8abcd4b89699",
+    "org": "https://gcp-developer.crm5.dynamics.com",
+    "url": "https://gcp-nexus.powerappsportals.com",
+    "siteId": "517038c0-eca4-4529-a872-f613ea02ad32",
+    "permissions": 53,
+    "protectedRecordsUnchanged": 106,
+    "artifacts": [
+      {
+        "name": "index-DMnDV12K.css",
+        "id": "191a6572-40ad-4729-a7a5-81a67ace092a",
+        "sha256": "da9d0ec8030674622a8210c1394c7baa044c7ec330b7f26066cf0f0b08cfd1d9",
+        "matchesBuild": true
+      },
+      {
+        "name": "index-Yvy9k6RF.js",
+        "id": "fc3c6984-6151-43ef-8da0-c2b6cb94e34b",
+        "sha256": "4a942fee19c1d45b9eb078dc67b9d0f69827e6845ce29401797688b697c468ef",
+        "matchesBuild": true
+      }
+    ],
+    "uploadSucceeded": true,
+    "eventsCompleted": 74,
+    "eventsTotal": 74,
+    "restartSucceeded": true,
+    "restartVerifiedAt": "2026-10-17T06:27:24.6428661Z",
+    "authenticatedRtpFormVerified": false
+  },
+  "prod": {
+    "verifiedAt": "2026-10-17T06:35:04.042Z",
+    "environmentId": "f99a8105-8032-ea69-966d-145edf57bc94",
+    "org": "https://org09c47a7a.crm5.dynamics.com",
+    "url": "https://gcp-nexus-prod.powerappsportals.com",
+    "siteId": "517038c0-eca4-4529-a872-f613ea02ad32",
+    "permissions": 53,
+    "protectedRecordsUnchanged": 104,
+    "artifacts": [
+      {
+        "name": "index-DMnDV12K.css",
+        "id": "191a6572-40ad-4729-a7a5-81a67ace092a",
+        "sha256": "da9d0ec8030674622a8210c1394c7baa044c7ec330b7f26066cf0f0b08cfd1d9",
+        "matchesBuild": true
+      },
+      {
+        "name": "index-Yvy9k6RF.js",
+        "id": "fc3c6984-6151-43ef-8da0-c2b6cb94e34b",
+        "sha256": "4a942fee19c1d45b9eb078dc67b9d0f69827e6845ce29401797688b697c468ef",
+        "matchesBuild": true
+      }
+    ],
+    "uploadSucceeded": true,
+    "eventsCompleted": 71,
+    "eventsTotal": 71,
+    "restartSucceeded": true,
+    "restartVerifiedAt": "2026-10-17T06:35:22.7836820Z",
+    "runtime": {
+      "verifiedAt": "2026-10-17T06:36:56.301Z",
+      "environmentId": "f99a8105-8032-ea69-966d-145edf57bc94",
+      "org": "https://org09c47a7a.crm5.dynamics.com",
+      "url": "https://gcp-nexus-prod.powerappsportals.com",
+      "siteId": "517038c0-eca4-4529-a872-f613ea02ad32",
+      "homepageStatus": 200,
+      "artifacts": [
+        {
+          "name": "index-DMnDV12K.css",
+          "status": 200,
+          "sha256": "da9d0ec8030674622a8210c1394c7baa044c7ec330b7f26066cf0f0b08cfd1d9",
+          "matchesBuild": true
+        },
+        {
+          "name": "index-Yvy9k6RF.js",
+          "status": 200,
+          "sha256": "4a942fee19c1d45b9eb078dc67b9d0f69827e6845ce29401797688b697c468ef",
+          "matchesBuild": true
+        }
+      ]
+    },
+    "authenticatedRtpFormVerified": false
+  }
+}
